@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Current & Force FFT Analyzer</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --panel-color: #f8f9fa;
+            --text-color: #333333;
+            --accent-color: #d35400; /* Force Orange */
+            --elec-color: #2980b9;   /* Electric Blue */
+            --border-color: #e0e0e0;
+            --shadow-color: rgba(0,0,0,0.08);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        h1 { margin: 0; font-size: 1.4rem; color: #2c3e50; font-weight: 700; }
+        .subtitle { font-size: 0.9rem; color: #7f8c8d; margin-left: 10px; }
+
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 320px;
+            background-color: var(--panel-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px var(--shadow-color);
+            z-index: 5;
+        }
+
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px var(--shadow-color);
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .harmonics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .harmonic-input {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            background: #fdfdfd;
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+
+        .harmonic-input input {
+            width: 50px;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            text-align: right;
+            font-weight: bold;
+            color: var(--elec-color);
+        }
+        .harmonic-input input:focus { outline: none; border-bottom: 2px solid var(--elec-color); }
+
+        .stats-box {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--elec-color);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            font-size: 0.9rem;
+        }
+
+        button.reset-btn {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: auto;
+        }
+        button.reset-btn:hover { background-color: #333; }
+
+        /* DASHBOARD */
+        .dashboard {
+            flex: 1;
+            padding: 20px;
+            background-color: #f4f6f8;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 6px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            min-height: 300px;
+        }
+
+        h3.chart-title {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: #444;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>Current & Force Physics Analyzer</h1>
+            <span class="subtitle">Direct I² Calculation & FFT Processing</span>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <div class="stats-box">
+                <div><strong>Fundamental:</strong> <span id="fund_disp">0</span> A</div>
+                <div style="margin-top:5px;"><strong>Calculated THD:</strong> <span id="thd_disp" style="color:var(--elec-color)">0.00</span>%</div>
+            </div>
+
+            <div class="control-group">
+                <label>Harmonic Inputs (Amps)</label>
+                <div class="harmonics-grid" id="harmonics_container"></div>
+            </div>
+
+            <button class="reset-btn" onclick="resetDefaults()">Reset Defaults</button>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div class="dashboard">
+            
+            <!-- Chart 1: Current Waveform -->
+            <div class="chart-card">
+                <h3 class="chart-title" style="border-color: var(--elec-color);">1. Input Current Waveform</h3>
+                <div id="plotCurrent" style="width:100%; height:300px;"></div>
+            </div>
+
+            <!-- Chart 2: Force Waveform -->
+            <div class="chart-card">
+                <h3 class="chart-title" style="border-color: var(--accent-color);">2. Mechanical Force Waveform (F ∝ I²)</h3>
+                <div id="plotForce" style="width:100%; height:300px;"></div>
+            </div>
+
+            <!-- Chart 3: FFT Spectrum -->
+            <div class="chart-card">
+                <h3 class="chart-title" style="border-color: #8e44ad;">3. Force Spectrum (FFT Analysis)</h3>
+                <div id="plotSpectrum" style="width:100%; height:450px;"></div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    // ==========================================
+    // 1. SYSTEM CONFIG
+    // ==========================================
+    const BASE_FREQ = 50; // Hz
+    const SAMPLE_RATE = 10240; // Hz (High enough for clean 5kHz)
+    const NUM_SAMPLES = 4096;  // Power of 2 for FFT (approx 0.4 seconds)
+    const MIN_DB = -100;
+
+    // Default Harmonics (0 to 25)
+    const defaultHarmonics = [0, 700, 0, 2, 0, 8, 0, 7, 0, 11, 0, 0, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7];
+    while(defaultHarmonics.length < 26) defaultHarmonics.push(0);
+
+    let harmonics = [...defaultHarmonics];
+
+    // ==========================================
+    // 2. MATH & DSP LIBRARY
+    // ==========================================
+    
+    // Basic FFT Implementation (Cooley-Tukey Radix-2)
+    function fft(real, imag) {
+        const n = real.length;
+        if (n <= 1) return;
+
+        const half = n / 2;
+        const evenReal = new Float32Array(half);
+        const evenImag = new Float32Array(half);
+        const oddReal = new Float32Array(half);
+        const oddImag = new Float32Array(half);
+
+        for (let i = 0; i < half; i++) {
+            evenReal[i] = real[2 * i];
+            evenImag[i] = imag[2 * i];
+            oddReal[i] = real[2 * i + 1];
+            oddImag[i] = imag[2 * i + 1];
+        }
+
+        fft(evenReal, evenImag);
+        fft(oddReal, oddImag);
+
+        for (let k = 0; k < half; k++) {
+            const angle = -2 * Math.PI * k / n;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            
+            // Complex multiplication: (a+bi)(c+di) = (ac-bd) + (ad+bc)i
+            const tReal = cos * oddReal[k] - sin * oddImag[k];
+            const tImag = cos * oddImag[k] + sin * oddReal[k];
+
+            real[k] = evenReal[k] + tReal;
+            imag[k] = evenImag[k] + tImag;
+            real[k + half] = evenReal[k] - tReal;
+            imag[k + half] = evenImag[k] - tImag;
+        }
+    }
+
+    // Hanning Window to reduce spectral leakage
+    function applyWindow(data) {
+        const n = data.length;
+        const windowed = new Float32Array(n);
+        for(let i=0; i<n; i++) {
+            // Hanning multiplier
+            const w = 0.5 * (1 - Math.cos(2 * Math.PI * i / (n - 1)));
+            windowed[i] = data[i] * w;
+        }
+        return windowed;
+    }
+
+    // ==========================================
+    // 3. SIMULATION ENGINE
+    // ==========================================
+    function runAnalysis() {
+        
+        // 1. Generate Time Domain Data
+        const time = [];
+        const current = new Float32Array(NUM_SAMPLES);
+        const force = new Float32Array(NUM_SAMPLES);
+        
+        const dt = 1 / SAMPLE_RATE;
+
+        for(let i=0; i<NUM_SAMPLES; i++) {
+            const t = i * dt;
+            time.push(t * 1000); // ms for plotting
+
+            // Sum Harmonics
+            let val = 0;
+            harmonics.forEach((amp, order) => {
+                if(amp !== 0) {
+                    val += amp * Math.cos(2 * Math.PI * (order * BASE_FREQ) * t);
+                }
+            });
+            
+            current[i] = val;
+            // Force calculation: F is proportional to I^2
+            force[i] = val * val;
+        }
+
+        // 2. Calculate Stats
+        let fund = harmonics[1];
+        let sumSq = 0;
+        for(let h=2; h<harmonics.length; h++) sumSq += harmonics[h]**2;
+        let thd = fund > 0 ? (Math.sqrt(sumSq) / fund) * 100 : 0;
+        
+        document.getElementById('fund_disp').innerText = fund;
+        document.getElementById('thd_disp').innerText = thd.toFixed(2);
+
+        // 3. Prepare FFT Data
+        // We analyze the FORCE signal
+        // Remove DC offset (Mean) before FFT to see AC vibrations clearly?
+        // Actually, let's keep DC but handle it in plotting (log(0))
+        const real = applyWindow(force); 
+        const imag = new Float32Array(NUM_SAMPLES).fill(0);
+
+        // Run FFT
+        fft(real, imag);
+
+        // 4. Calculate Magnitudes & Frequency Axis
+        const fftFreqs = [];
+        const fftDb = [];
+        const binWidth = SAMPLE_RATE / NUM_SAMPLES;
+        
+        // Normalize factor (accounting for window loss roughly 2x)
+        const normFactor = NUM_SAMPLES / 2; 
+
+        // Find max for normalization (0dB)
+        let maxMag = 0;
+        let magnitudes = [];
+
+        // Only take first half (Nyquist)
+        for(let i=0; i<NUM_SAMPLES/2; i++) {
+            const mag = Math.sqrt(real[i]**2 + imag[i]**2) / normFactor;
+            magnitudes.push(mag);
+            if(i > 0 && mag > maxMag) maxMag = mag; // Ignore DC (index 0) for max scaling
+        }
+        if(maxMag === 0) maxMag = 1e-9;
+
+        for(let i=0; i<NUM_SAMPLES/2; i++) {
+            const f = i * binWidth;
+            if(f < 10) continue; // Skip extremely low freqs/DC for log plot stability
+
+            let db = 20 * Math.log10((magnitudes[i] + 1e-12) / maxMag);
+            if(db < MIN_DB) db = MIN_DB;
+            
+            fftFreqs.push(f);
+            fftDb.push(db);
+        }
+
+        return {
+            time: time,
+            current: current,
+            force: force,
+            spectrum: { x: fftFreqs, y: fftDb }
+        };
+    }
+
+    // ==========================================
+    // 4. PLOTTING & UI
+    // ==========================================
+
+    function updatePlots() {
+        const data = runAnalysis();
+        const config = { responsive: true, displayModeBar: false };
+
+        // 1. CURRENT WAVEFORM
+        // Only plot first 3 cycles for clarity (0.06s = 60ms)
+        const dispLimit = Math.floor(0.06 * SAMPLE_RATE); 
+        
+        Plotly.react('plotCurrent', [{
+            x: data.time.slice(0, dispLimit),
+            y: Array.from(data.current).slice(0, dispLimit),
+            type: 'scatter', mode: 'lines',
+            line: { color: '#2980b9', width: 2 }
+        }], {
+            margin: { t: 10, r: 10, b: 40, l: 60 },
+            xaxis: { title: 'Time (ms)', color: '#666' },
+            yaxis: { title: 'Current (Amps)', color: '#2980b9' },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+        }, config);
+
+        // 2. FORCE WAVEFORM
+        Plotly.react('plotForce', [{
+            x: data.time.slice(0, dispLimit),
+            y: Array.from(data.force).slice(0, dispLimit),
+            type: 'scatter', mode: 'lines', fill: 'tozeroy',
+            line: { color: '#d35400', width: 2 },
+            fillcolor: 'rgba(211, 84, 0, 0.1)'
+        }], {
+            margin: { t: 10, r: 10, b: 40, l: 60 },
+            xaxis: { title: 'Time (ms)', color: '#666' },
+            yaxis: { title: 'Prop. Force (I²)', color: '#d35400' },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+        }, config);
+
+        // 3. SPECTRUM (Log-Log)
+        // Find peaks for labeling
+        const peakX = [];
+        const peakY = [];
+        const peakTxt = [];
+        
+        // Simple peak finder
+        for(let i=1; i<data.spectrum.y.length-1; i++) {
+            const y = data.spectrum.y;
+            if(y[i] > -60 && y[i] > y[i-1] && y[i] > y[i+1]) {
+                peakX.push(data.spectrum.x[i]);
+                peakY.push(y[i]);
+                peakTxt.push(`${Math.round(data.spectrum.x[i])}Hz<br>${y[i].toFixed(1)}dB`);
+            }
+        }
+
+        Plotly.react('plotSpectrum', [
+            {
+                x: data.spectrum.x,
+                y: data.spectrum.y,
+                type: 'scatter', mode: 'lines',
+                line: { color: '#8e44ad', width: 1.5 },
+                name: 'Spectrum'
+            },
+            {
+                x: peakX, y: peakY,
+                mode: 'markers',
+                type: 'scatter',
+                marker: { color: '#333', size: 6 },
+                text: peakTxt, hoverinfo: 'text', showlegend: false
+            }
+        ], {
+            margin: { t: 10, r: 20, b: 50, l: 60 },
+            xaxis: { 
+                type: 'log', 
+                title: 'Frequency (Hz)', 
+                color: '#666',
+                range: [Math.log10(20), Math.log10(4000)] 
+            },
+            yaxis: { 
+                title: 'Magnitude (dB relative to Max)', 
+                color: '#8e44ad',
+                range: [MIN_DB, 5]
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            shapes: [
+                { type:'line', x0: 100, x1: 100, y0: MIN_DB, y1: 5, line:{color:'#ccc', width:1, dash:'dot'} },
+                { type:'line', x0: 300, x1: 300, y0: MIN_DB, y1: 5, line:{color:'#ccc', width:1, dash:'dot'} }
+            ]
+        }, config);
+    }
+
+    // ==========================================
+    // 5. INIT
+    // ==========================================
+    function init() {
+        const grid = document.getElementById('harmonics_container');
+        grid.innerHTML = '';
+        harmonics.forEach((val, idx) => {
+            let div = document.createElement('div');
+            div.className = 'harmonic-input';
+            let label = idx === 0 ? 'DC' : (idx === 1 ? '50Hz' : `${idx}th`);
+            if(idx === 1) label = '<b>50Hz</b>';
+            
+            div.innerHTML = `
+                <span>${label}</span> 
+                <input type="number" min="0" step="1" value="${val}" 
+                onchange="updateHarmonic(${idx}, this.value)">
+            `;
+            grid.appendChild(div);
+        });
+        updatePlots();
+    }
+
+    function updateHarmonic(idx, val) {
+        harmonics[idx] = parseFloat(val) || 0;
+        updatePlots();
+    }
+
+    function resetDefaults() {
+        harmonics = [...defaultHarmonics];
+        init();
+    }
+
+    // Start
+    init();
+
+</script>
+</body>
+</html>
