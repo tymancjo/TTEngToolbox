@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Switchgear Acoustic Simulator v4</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --panel-color: #f8f9fa;
+            --text-color: #333333;
+            --accent-color: #0dad55; /* Acoustic Green */
+            --elec-color: #2980b9;   /* Electric Blue */
+            --input-bg: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow-color: rgba(0,0,0,0.08);
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { 
+            margin: 0; 
+            font-size: 1.5rem; 
+            color: darkred; 
+            font-weight: 700;
+        }
+        
+        .main-layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* LEFT SIDEBAR */
+        .sidebar {
+            width: 380px;
+            background-color: var(--panel-color);
+            padding: 20px;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 2px 0 10px var(--shadow-color);
+            z-index: 5;
+        }
+
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 5px var(--shadow-color);
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] { flex: 1; cursor: pointer; }
+        .slider-val { font-weight: bold; width: 35px; text-align: right; color: #333; }
+
+        .harmonics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            max-height: 200px; /* Reduced height to fit new controls */
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .harmonic-input {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            background: #fdfdfd;
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+        }
+        .harmonic-input input {
+            width: 50px;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            text-align: right;
+            font-weight: bold;
+            color: var(--elec-color);
+        }
+
+        .stats-bar {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: bold;
+            border: 2px solid var(--elec-color);
+            color: #333;
+        }
+
+        button {
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+            border: none;
+            transition: 0.2s;
+        }
+
+        button.reset-btn {
+            background-color: #555;
+            color: white;
+            padding: 12px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        button.reset-btn:hover { background-color: #333; }
+
+        /* COLLAPSIBLE EDITOR STYLES */
+        .collapsible-header {
+            width: 100%;
+            text-align: left;
+            padding: 10px;
+            background: #eee;
+            border: 1px solid #ccc;
+            color: #333;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        .collapsible-header:hover { background: #e0e0e0; }
+        
+        .collapsible-content {
+            display: none; /* Hidden by default */
+            padding: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        
+        .csv-textarea {
+            width: 100%;
+            height: 120px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            border: 1px solid #ccc;
+            resize: vertical;
+            box-sizing: border-box;
+            padding: 5px;
+            white-space: pre;
+            overflow-y: auto;
+            color: #333;
+            background: #fafafa;
+        }
+
+        .apply-btn {
+            background-color: var(--elec-color);
+            color: white;
+            padding: 8px;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .apply-btn:hover { background-color: #1f618d; }
+
+        .status-msg {
+            font-size: 0.75rem; 
+            margin-top: 5px; 
+            min-height: 1rem;
+        }
+
+        /* RIGHT DASHBOARD */
+        .dashboard {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            min-height: 350px;
+        }
+
+        h3.chart-title {
+            margin: 0 0 10px 10px;
+            font-size: 1rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Switchgear Acoustic Simulator v4</h1>
+        <div style="font-size: 0.8rem; color: #666;">Harmonic Batch Input Enabled</div>
+    </header>
+
+    <div class="main-layout">
+        <!-- LEFT SIDEBAR -->
+        <div class="sidebar">
+            
+            <div class="stats-bar">
+                THD: <span id="thd_display" style="color:var(--elec-color)">0.00</span>%
+            </div>
+
+            <!-- 1. Harmonic CSV Setup -->
+            <div>
+                <button class="collapsible-header" onclick="toggleEditor('harmonic-panel', 'harmonic-arrow')">
+                    <span>⚡ Harmonic Setup (CSV)</span>
+                    <span id="harmonic-arrow">▼</span>
+                </button>
+                <div id="harmonic-panel" class="collapsible-content">
+                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">
+                        Format: <code>Order, Amps</code> (e.g. <code>5, 84</code>)
+                    </div>
+                    <textarea id="harmonicCsvInput" class="csv-textarea" spellcheck="false"></textarea>
+                    <button class="apply-btn" onclick="parseAndApplyHarmonicCSV()">Apply Harmonics</button>
+                    <div id="harmonic-status" class="status-msg"></div>
+                </div>
+            </div>
+
+            <!-- 2. Enclosure CSV Setup -->
+            <div>
+                <button class="collapsible-header" onclick="toggleEditor('enclosure-panel', 'enclosure-arrow')">
+                    <span>🛠️ Enclosure Setup (CSV)</span>
+                    <span id="enclosure-arrow">▼</span>
+                </button>
+                <div id="enclosure-panel" class="collapsible-content">
+                    <div style="font-size: 0.75rem; color: #666; margin-bottom: 5px;">
+                        Format: <code>Frequency, Gain</code> (one per line)
+                    </div>
+                    <textarea id="enclosureCsvInput" class="csv-textarea" spellcheck="false"></textarea>
+                    <button class="apply-btn" onclick="parseAndApplyEnclosureCSV()">Apply Profile</button>
+                    <button style="width:100%; margin-top:5px; background:#eee; color:#333; padding:5px;" onclick="resetEnclosureData()">Restore Default Steel Plate</button>
+                    <div id="enclosure-status" class="status-msg"></div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Cancellation Factor (k)</label>
+                <div class="slider-container">
+                    <input type="range" id="k_cancel" min="0" max="1" step="0.05" value="0.1">
+                    <span id="val_k_cancel" class="slider-val">0.1</span>
+                </div>
+                <small style="color:#888; font-size:0.75rem">0.0 = Perfect 3-Phase Cancellation</small>
+            </div>
+
+            <div class="control-group">
+                <label>Enclosure Characteristic Impact</label>
+                <div class="slider-container">
+                    <input type="range" id="k_power" min="0" max="15" step="0.5" value="5.0">
+                    <span id="val_k_power" class="slider-val">5.0</span>
+                </div>
+                <small style="color:#888; font-size:0.75rem">Higher = Sharper Resonance</small>
+            </div>
+
+            <div class="control-group">
+                <label>Harmonic Currents (Amps)</label>
+                <div class="harmonics-grid" id="harmonics_container"></div>
+            </div>
+
+            <button class="reset-btn" onclick="resetDefaults()">Reset All Defaults</button>
+        </div>
+
+        <!-- RIGHT DASHBOARD -->
+        <div class="dashboard">
+            <!-- Plot 1 -->
+            <div class="chart-card">
+                <h3 class="chart-title">1. Acoustic Output Spectrum (Simulated)</h3>
+                <div id="plotAcoustic" style="width:100%; height:400px;"></div>
+            </div>
+            <!-- Plot 2 -->
+            <div class="chart-card">
+                <h3 class="chart-title">2. Electrical Current Waveform (3 Periods)</h3>
+                <div id="plotWaveform" style="width:100%; height:300px;"></div>
+            </div>
+            <!-- Plot 3 -->
+            <div class="chart-card">
+                <h3 class="chart-title">3. Electrical Input Spectrum (Current)</h3>
+                <div id="plotCurrentFFT" style="width:100%; height:300px;"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ==========================================
+    // 1. INITIAL DATA
+    // ==========================================
+    const defaultHarmonics = [0, 700, 0, 2, 0, 8, 0, 7, 0, 11, 0, 0, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7];
+    while(defaultHarmonics.length < 26) defaultHarmonics.push(0);
+
+    const defaultEnclosureCurvePoints = [
+        [0.0, 0.3708], [10.0, 0.3759], [20.0, 0.4422], [30.0, 0.4164], [40.0, 0.4491], [50.1, 0.4588], [60.1, 0.4451], [70.1, 0.4783], [80.1, 0.5704], [90.1, 0.5467], [100.1, 0.5072], [110.1, 0.5791], [120.1, 0.5288], [130.1, 0.6112], [140.1, 0.5245], [150.2, 0.631], [160.2, 0.6112], [170.2, 0.72], [180.2, 0.6891], [190.2, 0.6555], [200.2, 0.7059], [210.2, 0.6584], [220.2, 0.6658], [230.2, 0.6908], [240.2, 0.6476], [250.3, 0.7049], [260.3, 0.6884], [270.3, 0.6748], [280.3, 0.7778], [290.3, 0.8108], [300.3, 0.8364], [310.3, 0.8564], [320.3, 0.8483], [330.3, 0.7807], [340.3, 0.8219], [350.4, 0.8291], [360.4, 0.7732], [370.4, 0.8094], [380.4, 0.7967], [390.4, 0.7983], [400.4, 0.8104], [410.4, 0.79], [420.4, 0.8195], [430.4, 0.8474], [440.4, 0.8522], [450.5, 0.8943], [460.5, 0.9826], [470.5, 0.9846], [480.5, 0.9391], [490.5, 0.9156], [500.5, 0.9352], [510.5, 0.9093], [520.5, 0.8877], [530.5, 0.8731], [540.5, 0.8512], [550.6, 0.8664], [560.6, 0.8502], [570.6, 0.8015], [580.6, 0.7576], [590.6, 0.7548], [600.6, 0.7578], [610.6, 0.7579], [620.6, 0.7298], [630.6, 0.7189], [640.6, 0.7333], [650.7, 0.7827], [700.7, 0.7493], [750.8, 0.6169], [800.8, 0.5388], [850.9, 0.4637], [900.9, 0.4107], [951.0, 0.3684], [10000, 0.0]
+    ];
+
+    // State
+    let harmonics = [...defaultHarmonics];
+    let k_cancellation = 0.1;
+    let k_enclosure_power = 5.0;
+    
+    // Dynamic Curve Data
+    let currentEnclosurePoints = [...defaultEnclosureCurvePoints];
+    let encFreqs = [];
+    let encGains = [];
+
+    const BASE_FREQ = 50;
+    const MIN_DB = -90;
+    const MIN_PLOT_FREQ = 20;
+    const MAX_PLOT_FREQ = 5000;
+
+    // ==========================================
+    // 2. MATH HELPERS
+    // ==========================================
+    function interp(x, xp, fp) {
+        if (x < xp[0]) return fp[0];
+        if (x > xp[xp.length - 1]) return fp[fp.length - 1];
+        let idx = 0;
+        while (x > xp[idx + 1]) idx++;
+        const t = (x - xp[idx]) / (xp[idx + 1] - xp[idx]);
+        return fp[idx] + t * (fp[idx + 1] - fp[idx]);
+    }
+
+    function gaussian(x, amp, center, width=6) {
+        return amp * Math.exp(-0.5 * Math.pow((x - center) / width, 2));
+    }
+
+    function logSpace(start, end, num) {
+        const arr = [];
+        const step = (Math.log10(end) - Math.log10(start)) / (num - 1);
+        for (let i = 0; i < num; i++) {
+            arr.push(Math.pow(10, Math.log10(start) + (i * step)));
+        }
+        return arr;
+    }
+
+    // ==========================================
+    // 3. PARSING LOGIC
+    // ==========================================
+    
+    function pointsToCSV(points) {
+        return points.map(p => `${p[0]}, ${p[1]}`).join('\n');
+    }
+    
+    function harmonicsToCSV(harmArr) {
+        let lines = [];
+        harmArr.forEach((val, order) => {
+            if(val > 0) lines.push(`${order}, ${val}`);
+        });
+        return lines.join('\n');
+    }
+
+    // --- Enclosure CSV ---
+    function updateEnclosureArrays() {
+        currentEnclosurePoints.sort((a,b) => a[0] - b[0]);
+        encFreqs = currentEnclosurePoints.map(p => p[0]);
+        encGains = currentEnclosurePoints.map(p => p[1]);
+    }
+
+    function parseAndApplyEnclosureCSV() {
+        const rawText = document.getElementById('enclosureCsvInput').value;
+        const lines = rawText.split('\n');
+        const newPoints = [];
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+            const parts = line.split(',');
+            if (parts.length >= 2) {
+                const f = parseFloat(parts[0]);
+                const g = parseFloat(parts[1]);
+                if (!isNaN(f) && !isNaN(g)) newPoints.push([f, g]);
+            }
+        }
+        if (newPoints.length < 2) {
+            msg('enclosure-status', "Error: Need at least 2 points.", 'red');
+            return;
+        }
+        currentEnclosurePoints = newPoints;
+        updateEnclosureArrays();
+        updateAllPlots();
+        msg('enclosure-status', `Updated! Loaded ${newPoints.length} points.`, 'green');
+    }
+
+    // --- Harmonics CSV ---
+    function parseAndApplyHarmonicCSV() {
+        const rawText = document.getElementById('harmonicCsvInput').value;
+        const lines = rawText.split('\n');
+        
+        // 1. Create a clean array (Assuming max order 50 is enough for inputs)
+        // If user inputs order 100, we expand.
+        let maxOrder = 25;
+        // First pass to find max order
+        for(let line of lines) {
+            const parts = line.split(',');
+            if(parts.length >= 2) {
+                const o = parseInt(parts[0]);
+                if(o > maxOrder) maxOrder = o;
+            }
+        }
+        
+        let newHarmonics = new Array(maxOrder + 1).fill(0);
+        let count = 0;
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+            const parts = line.split(',');
+            if (parts.length >= 2) {
+                const order = parseInt(parts[0]);
+                const amp = parseFloat(parts[1]);
+                if (!isNaN(order) && !isNaN(amp) && order >= 0) {
+                    newHarmonics[order] = amp;
+                    count++;
+                }
+            }
+        }
+
+        if(count === 0) {
+            msg('harmonic-status', "Error: No valid data found.", 'red');
+            return;
+        }
+
+        harmonics = newHarmonics;
+        // Regenerate grid UI to match new data
+        renderHarmonicsGrid(); 
+        updateAllPlots();
+        msg('harmonic-status', `Updated! Loaded ${count} harmonics.`, 'green');
+    }
+
+    function msg(id, text, color) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.style.color = color;
+        setTimeout(() => el.textContent = '', 3000);
+    }
+
+    function resetEnclosureData() {
+        currentEnclosurePoints = [...defaultEnclosureCurvePoints];
+        document.getElementById('enclosureCsvInput').value = pointsToCSV(currentEnclosurePoints);
+        updateEnclosureArrays();
+        updateAllPlots();
+        msg('enclosure-status', "Restored default profile.", 'black');
+    }
+
+    function toggleEditor(panelId, arrowId) {
+        const panel = document.getElementById(panelId);
+        const arrow = document.getElementById(arrowId);
+        if (panel.style.display === 'block') {
+            panel.style.display = 'none';
+            arrow.textContent = '▼';
+        } else {
+            panel.style.display = 'block';
+            // Pre-fill if empty
+            if(panelId === 'enclosure-panel' && !document.getElementById('enclosureCsvInput').value) {
+                document.getElementById('enclosureCsvInput').value = pointsToCSV(currentEnclosurePoints);
+            }
+            if(panelId === 'harmonic-panel') {
+                // Always refresh harmonic text from current state to keep sync
+                document.getElementById('harmonicCsvInput').value = harmonicsToCSV(harmonics);
+            }
+            arrow.textContent = '▲';
+        }
+    }
+
+    // ==========================================
+    // 4. SIMULATION LOGIC
+    // ==========================================
+    function runSimulation() {
+        // Stats
+        let fund = harmonics[1] || 0;
+        let sumSq = 0;
+        for(let i=2; i<harmonics.length; i++) sumSq += harmonics[i] * harmonics[i];
+        let thd = fund > 0 ? (Math.sqrt(sumSq) / fund) * 100 : 0;
+        document.getElementById('thd_display').textContent = thd.toFixed(2);
+
+        // Interactions
+        let calculatedPeaks = {};
+        let activeIndices = [];
+        harmonics.forEach((val, idx) => { if(val > 0) activeIndices.push(idx); });
+
+        for (let i of activeIndices) {
+            for (let j of activeIndices) {
+                if (j < i) continue;
+                let amp1 = harmonics[i];
+                let amp2 = harmonics[j];
+                let rawForce = (i === j) ? (amp1 * amp2) : 2 * (amp1 * amp2);
+                let freqs = [(i + j) * BASE_FREQ, Math.abs(i - j) * BASE_FREQ];
+                let isZeroSeq = ((i > 0 && i % 3 === 0) || (j > 0 && j % 3 === 0));
+                let k = isZeroSeq ? 1.0 : k_cancellation;
+
+                freqs.forEach(f => {
+                    if (f > 0) {
+                        if (!calculatedPeaks[f]) calculatedPeaks[f] = 0;
+                        calculatedPeaks[f] += rawForce * k;
+                    }
+                });
+            }
+        }
+
+        const plotFreqs = logSpace(MIN_PLOT_FREQ, MAX_PLOT_FREQ, 2000);
+        const plotAmpsLinear = new Float32Array(plotFreqs.length).fill(0);
+        let finalPeakList = [];
+
+        for (let fStr in calculatedPeaks) {
+            let f = parseFloat(fStr);
+            let rawF = calculatedPeaks[fStr];
+            let baseGain = interp(f, encFreqs, encGains);
+            let finalGain = Math.pow(baseGain, k_enclosure_power);
+            let finalForce = rawF * finalGain;
+            finalPeakList.push({f: f, mag: finalForce});
+            
+            if (f >= MIN_PLOT_FREQ && finalForce > 0.1) {
+                for(let k=0; k<plotFreqs.length; k++) {
+                    if (Math.abs(plotFreqs[k] - f) > 50) continue; 
+                    plotAmpsLinear[k] += gaussian(plotFreqs[k], finalForce, f, 6);
+                }
+            }
+        }
+
+        let maxLinear = 0;
+        for(let v of plotAmpsLinear) if(v > maxLinear) maxLinear = v;
+        if (maxLinear === 0) maxLinear = 1e-9;
+        const plotDb = [];
+        for(let val of plotAmpsLinear) {
+            let db = 20 * Math.log10((val + 1e-9) / maxLinear);
+            if (db < MIN_DB) db = MIN_DB;
+            plotDb.push(db);
+        }
+        const enclosureY = plotFreqs.map(f => interp(f, encFreqs, encGains));
+
+        // Waveform
+        const timePoints = 1000;
+        const duration = 0.06; 
+        let tArr = [], iArr = [];
+        for(let k=0; k<timePoints; k++) {
+            let t = (k / (timePoints-1)) * duration;
+            let val = 0;
+            harmonics.forEach((amp, order) => {
+                if(amp > 0) val += amp * Math.cos(2 * Math.PI * (order * BASE_FREQ) * t);
+            });
+            tArr.push(t * 1000);
+            iArr.push(val);
+        }
+
+        // FFT Bars
+        let fftX = [], fftY = [];
+        harmonics.forEach((amp, order) => {
+            if(order > 0) { fftX.push(order * BASE_FREQ); fftY.push(amp); }
+        });
+
+        return {
+            acoustic: { x: plotFreqs, y: plotDb, y_enc: enclosureY, peaks: finalPeakList, maxLin: maxLinear },
+            waveform: { x: tArr, y: iArr },
+            elecFFT: { x: fftX, y: fftY }
+        };
+    }
+
+    // ==========================================
+    // 5. UI INIT & RENDER
+    // ==========================================
+    function initUI() {
+        renderHarmonicsGrid();
+
+        document.getElementById('k_cancel').addEventListener('input', (e) => {
+            k_cancellation = parseFloat(e.target.value);
+            document.getElementById('val_k_cancel').innerText = k_cancellation;
+            updateAllPlots();
+        });
+        document.getElementById('k_power').addEventListener('input', (e) => {
+            k_enclosure_power = parseFloat(e.target.value);
+            document.getElementById('val_k_power').innerText = k_enclosure_power;
+            updateAllPlots();
+        });
+        
+        // Init CSV Textareas
+        document.getElementById('enclosureCsvInput').value = pointsToCSV(currentEnclosurePoints);
+        document.getElementById('harmonicCsvInput').value = harmonicsToCSV(harmonics);
+        updateEnclosureArrays();
+    }
+
+    function renderHarmonicsGrid() {
+        const grid = document.getElementById('harmonics_container');
+        grid.innerHTML = '';
+        harmonics.forEach((val, idx) => {
+            let div = document.createElement('div');
+            div.className = 'harmonic-input';
+            let label = idx === 0 ? 'DC' : (idx === 1 ? '50Hz' : `${idx}th`);
+            if (idx === 1) label = '<b style="color:#2980b9">50Hz</b>';
+            div.innerHTML = `<span>${label}</span> <input type="number" min="0" step="1" value="${val}" onchange="updateHarmonic(${idx}, this.value)">`;
+            grid.appendChild(div);
+        });
+    }
+
+    function updateHarmonic(idx, val) {
+        harmonics[idx] = parseFloat(val) || 0;
+        updateAllPlots();
+    }
+
+    function resetDefaults() {
+        harmonics = [...defaultHarmonics];
+        k_cancellation = 0.1;
+        k_enclosure_power = 5.0;
+        
+        document.getElementById('k_cancel').value = k_cancellation;
+        document.getElementById('val_k_cancel').innerText = k_cancellation;
+        document.getElementById('k_power').value = k_enclosure_power;
+        document.getElementById('val_k_power').innerText = k_enclosure_power;
+        
+        resetEnclosureData();
+        renderHarmonicsGrid();
+        updateAllPlots();
+    }
+
+    function updateAllPlots() {
+        const data = runSimulation();
+        const config = { responsive: true, displayModeBar: false };
+
+        // Acoustic
+        let peakX=[], peakY=[], peakTxt=[];
+        data.acoustic.peaks.sort((a,b) => b.mag - a.mag);
+        for(let i=0; i<Math.min(6, data.acoustic.peaks.length); i++) {
+            let p = data.acoustic.peaks[i];
+            if(p.f < MIN_PLOT_FREQ) continue;
+            let db = 20 * Math.log10((p.mag + 1e-9) / data.acoustic.maxLin);
+            if (db > -60) {
+                peakX.push(p.f); peakY.push(db); peakTxt.push(`${Math.round(p.f)}Hz<br>${db.toFixed(1)}dB`);
+            }
+        }
+
+        Plotly.react('plotAcoustic', [
+            {
+                x: data.acoustic.x, y: data.acoustic.y,
+                type: 'scatter', mode: 'lines', fill: 'tozeroy',
+                name: 'Acoustic dB', line: { color: '#0dad55', width: 2 },
+                fillcolor: 'rgba(13, 173, 85, 0.2)'
+            },
+            {
+                x: data.acoustic.x, y: data.acoustic.y_enc,
+                type: 'scatter', mode: 'lines', name: 'Enclosure',
+                yaxis: 'y2', line: { color: '#ff8c00', dash: 'dash', width: 1.5 }, hoverinfo: 'none'
+            },
+            {
+                x: peakX, y: peakY, mode: 'markers', type: 'scatter',
+                marker: { color: '#333', size: 8, symbol: 'triangle-down' },
+                text: peakTxt, hoverinfo: 'text', showlegend: false
+            }
+        ], {
+            margin: { t: 10, r: 40, b: 40, l: 50 },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { type: 'log', title: 'Frequency (Hz)', range: [Math.log10(20), Math.log10(5000)], color: '#666' },
+            yaxis: { title: 'dBFS', range: [MIN_DB, 10], color: '#0dad55' },
+            yaxis2: { overlaying: 'y', side: 'right', range: [0, 1.1], showgrid: false, showticklabels: false },
+            showlegend: true, legend: { x: 0.8, y: 1 }
+        }, config);
+
+        // Waveform
+        Plotly.react('plotWaveform', [{
+            x: data.waveform.x, y: data.waveform.y,
+            type: 'scatter', mode: 'lines',
+            line: { color: '#2980b9', width: 2 }
+        }], {
+            margin: { t: 10, r: 20, b: 40, l: 50 },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { title: 'Time (ms)', color: '#666' },
+            yaxis: { title: 'Current (Amps)', color: '#2980b9' }
+        }, config);
+
+        // Elec FFT
+        Plotly.react('plotCurrentFFT', [{
+            x: data.elecFFT.x, y: data.elecFFT.y,
+            type: 'bar', marker: { color: '#2980b9', opacity: 0.7 }
+        }], {
+            margin: { t: 10, r: 20, b: 40, l: 50 },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { title: 'Frequency (Hz)', color: '#666' },
+            yaxis: { title: 'Amplitude (Amps)', color: '#2980b9' }
+        }, config);
+    }
+
+    // Boot
+    initUI();
+    updateAllPlots();
+
+</script>
+</body>
+</html>
