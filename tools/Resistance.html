@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resistor Ladder Solver (T-Segment Topology)</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --accent: #28a745; /* Green for active input */
+            --danger: #dc3545; /* Red for outputs/negative */
+            --bg: #f4f7f9;
+            --card-bg: #ffffff;
+            --text: #333;
+            --border: #dfe3e8;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1 { color: var(--primary); margin-top: 0; text-align: center; font-size: 1.8rem;}
+        .container { max-width: 1400px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
+        
+        /* --- Diagram Section --- */
+        .diagram-container {
+            width: 100%; text-align: center; margin-bottom: 25px; padding: 20px 0;
+            background: #fff; border-bottom: 2px solid #eee;
+        }
+        svg.main-diagram { max-width: 100%; height: auto; font-family: sans-serif; }
+        .svg-res-body { fill: white; stroke: var(--primary); stroke-width: 2; }
+        .svg-wire { stroke: #333; stroke-width: 2; fill: none;}
+        .svg-io-line { stroke: var(--danger); stroke-width: 2; }
+        .svg-vin-line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5,5;}
+        .svg-txt { font-size: 14px; fill: #555; font-weight: 500;}
+        .svg-node { fill: #333; }
+
+        /* --- Toolbar & Controls --- */
+        .toolbar {
+            background: #eef2f7; padding: 20px; border-radius: 8px; font-weight: 600; color: var(--primary);
+            display: flex; gap: 30px; align-items: center; justify-content: center; margin-bottom: 25px; flex-wrap: wrap;
+        }
+        select, input[type="number"] { padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; }
+        input[type="number"] { width: 120px; }
+        select:focus, input:focus { border-color: var(--primary); outline: none; }
+
+        /* --- Stage Cards --- */
+        .stage-wrapper {
+            overflow-x: auto; padding: 15px 5px 25px 5px; margin-bottom: 25px;
+            background: #f8f9fa; border-radius: 8px; border: 1px solid #eee;
+        }
+        .stage-container { display: flex; gap: 20px; min-width: min-content; padding: 0 10px; }
+        .stage-card {
+            background: var(--card-bg); border: 2px solid var(--border); border-radius: 10px;
+            width: 260px; flex-shrink: 0; box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+            transition: all 0.2s ease-in-out;
+        }
+        .stage-header-label {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 15px; background: #f1f3f5; border-bottom: 2px solid var(--border);
+            border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 700; color: #555;
+        }
+        .stage-header-label:hover { background: #e9ecef; }
+        .stage-header-label input[type="radio"] { transform: scale(1.4); accent-color: var(--accent); cursor: pointer; }
+        
+        .stage-card.active-input { border-color: var(--accent); box-shadow: 0 8px 15px rgba(40, 167, 69, 0.2); transform: translateY(-3px); }
+        .stage-card.active-input .stage-header-label { background: #d4edda; color: var(--accent); border-bottom-color: var(--accent); }
+        .vin-indicator { display: none; font-size: 0.85em; color: var(--accent); font-weight: normal; margin-top: 4px;}
+        .stage-card.active-input .vin-indicator { display: block; }
+
+        .stage-body { padding: 20px 15px; display: flex; flex-direction: column; gap: 12px; }
+        .resistor-row { display: flex; gap: 10px; }
+        .input-group { flex: 1; }
+        .input-group label { display: block; font-size: 0.85em; margin-bottom: 4px; color: #666; font-weight: 600;}
+        .input-group input { width: 100%; box-sizing: border-box; padding: 8px; font-size: 0.95rem;}
+        .shunt-group { text-align: center; border-top: 1px solid #eee; border-bottom: 1px solid #eee; padding: 10px 0; background: #fafafa;}
+        .io-group input { border-color: var(--danger); color: var(--danger); font-weight: bold; }
+
+        /* --- Action & Results --- */
+        .calc-section { margin-bottom: 40px; text-align: center; }
+        .calc-btn {
+            background-color: var(--primary); color: white; font-size: 1.3rem; font-weight: bold;
+            padding: 15px 60px; border: none; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 6px 12px rgba(0,86,179,0.3); transition: all 0.2s;
+        }
+        .calc-btn:hover { background-color: #004494; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(0,86,179,0.4);}
+        .calc-btn:active { transform: translateY(1px); }
+
+        #resultsSection { display: none; background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.08); border-top: 4px solid var(--primary);}
+        .summary-box {
+            background: #d4edda; color: #155724; padding: 25px; border-left: 8px solid var(--accent);
+            border-radius: 6px; font-size: 1.4em; margin-bottom: 35px; text-align: center;
+        }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; white-space: nowrap; }
+        th, td { padding: 15px 12px; text-align: center; border-bottom: 1px solid var(--border); }
+        th { background-color: #f8f9fa; color: var(--primary); font-weight: 700; border-top: 2px solid var(--border);}
+        tr:hover { background-color: #f1f3f5; }
+        .neg-curr { color: var(--danger); font-weight: 600; }
+        .res-col { background-color: #fcfcfc; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Resistor Ladder Solver (T-Segment Topology)</h1>
+
+    <div class="diagram-container">
+        <svg class="main-diagram" width="1000" height="320" viewBox="0 0 1000 320" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead-io" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#dc3545" /></marker>
+                <marker id="arrowhead-vin" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#28a745" /></marker>
+            </defs>
+
+            <!-- Stage N -->
+            <g transform="translate(50,0)">
+                <rect x="60" y="70" width="60" height="20" class="svg-res-body"/> <text x="90" y="60" class="svg-txt" text-anchor="middle">RT1 N</text>
+                <rect x="180" y="70" width="60" height="20" class="svg-res-body"/> <text x="210" y="60" class="svg-txt" text-anchor="middle">RT2 N</text>
+                <rect x="60" y="230" width="60" height="20" class="svg-res-body"/> <text x="90" y="270" class="svg-txt" text-anchor="middle">RB1 N</text>
+                <rect x="180" y="230" width="60" height="20" class="svg-res-body"/> <text x="210" y="270" class="svg-txt" text-anchor="middle">RB2 N</text>
+                <rect x="10" y="110" width="20" height="100" class="svg-res-body"/> <text x="35" y="165" class="svg-txt">Rs N</text>
+                
+                <!-- Wires N -->
+                <line x1="0" y1="80" x2="60" y2="80" class="svg-wire"/> <circle cx="20" cy="80" r="4" class="svg-node"/>
+                <line x1="120" y1="80" x2="180" y2="80" class="svg-wire"/> <circle cx="150" cy="80" r="4" class="svg-node"/>
+                <line x1="240" y1="80" x2="300" y2="80" class="svg-wire"/> <circle cx="280" cy="80" r="4" class="svg-node"/>
+                
+                <line x1="0" y1="240" x2="60" y2="240" class="svg-wire"/> <circle cx="20" cy="240" r="4" class="svg-node"/>
+                <line x1="120" y1="240" x2="180" y2="240" class="svg-wire"/> <circle cx="150" cy="240" r="4" class="svg-node"/>
+                <line x1="240" y1="240" x2="300" y2="240" class="svg-wire"/> <circle cx="280" cy="240" r="4" class="svg-node"/>
+                
+                <line x1="20" y1="80" x2="20" y2="110" class="svg-wire"/>
+                <line x1="20" y1="210" x2="20" y2="240" class="svg-wire"/>
+
+                <!-- IO N -->
+                <line x1="150" y1="20" x2="150" y2="80" class="svg-vin-line" marker-end="url(#arrowhead-vin)"/> <text x="150" y="15" class="svg-txt" fill="#28a745" text-anchor="middle" font-weight="bold">INPUT N</text>
+                <line x1="150" y1="240" x2="150" y2="300" class="svg-io-line" marker-end="url(#arrowhead-io)"/> <text x="150" y="315" class="svg-txt" fill="#dc3545" text-anchor="middle" font-weight="bold">OUTPUT N</text>
+            </g>
+
+            <!-- Ellipsis -->
+            <text x="370" y="165" font-size="30" fill="#999" text-anchor="middle">. . .</text>
+
+            <!-- Stage N+1 -->
+            <g transform="translate(420,0)">
+                <rect x="60" y="70" width="60" height="20" class="svg-res-body"/> <text x="90" y="60" class="svg-txt" text-anchor="middle">RT1 N+1</text>
+                <rect x="180" y="70" width="60" height="20" class="svg-res-body"/> <text x="210" y="60" class="svg-txt" text-anchor="middle">RT2 N+1</text>
+                <rect x="60" y="230" width="60" height="20" class="svg-res-body"/> <text x="90" y="270" class="svg-txt" text-anchor="middle">RB1 N+1</text>
+                <rect x="180" y="230" width="60" height="20" class="svg-res-body"/> <text x="210" y="270" class="svg-txt" text-anchor="middle">RB2 N+1</text>
+                <rect x="10" y="110" width="20" height="100" class="svg-res-body"/> <text x="35" y="165" class="svg-txt">Rs N+1</text>
+                
+                <!-- Wires N+1 -->
+                <line x1="0" y1="80" x2="60" y2="80" class="svg-wire"/> <circle cx="20" cy="80" r="4" class="svg-node"/>
+                <line x1="120" y1="80" x2="180" y2="80" class="svg-wire"/> <circle cx="150" cy="80" r="4" class="svg-node"/>
+                <line x1="240" y1="80" x2="300" y2="80" class="svg-wire"/> <circle cx="280" cy="80" r="4" class="svg-node"/>
+                
+                <line x1="0" y1="240" x2="60" y2="240" class="svg-wire"/> <circle cx="20" cy="240" r="4" class="svg-node"/>
+                <line x1="120" y1="240" x2="180" y2="240" class="svg-wire"/> <circle cx="150" cy="240" r="4" class="svg-node"/>
+                <line x1="240" y1="240" x2="300" y2="240" class="svg-wire"/> <circle cx="280" cy="240" r="4" class="svg-node"/>
+
+                <line x1="20" y1="80" x2="20" y2="110" class="svg-wire"/>
+                <line x1="20" y1="210" x2="20" y2="240" class="svg-wire"/>
+
+                <!-- IO N+1 -->
+                <line x1="150" y1="20" x2="150" y2="80" class="svg-vin-line" marker-end="url(#arrowhead-vin)"/> <text x="150" y="15" class="svg-txt" fill="#28a745" text-anchor="middle" font-weight="bold">INPUT N+1</text>
+                <line x1="150" y1="240" x2="150" y2="300" class="svg-io-line" marker-end="url(#arrowhead-io)"/> <text x="150" y="315" class="svg-txt" fill="#dc3545" text-anchor="middle" font-weight="bold">OUTPUT N+1</text>
+            </g>
+             <!-- Connecting Wires -->
+             <line x1="350" y1="80" x2="420" y2="80" class="svg-wire"/>
+             <line x1="350" y1="240" x2="420" y2="240" class="svg-wire"/>
+        </svg>
+        <p style="font-size: 0.95em; color: #666; margin-top: 15px; font-style: italic;">
+            <strong>Topology Note:</strong> As per the sketch, Input connects between RT1 and RT2. Output drains between RB1 and RB2. Rs connects the start of the stage.
+            <br>All resistance inputs below are in <strong>milliohms (mΩ)</strong>.
+        </p>
+    </div>
+
+    <div class="toolbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="numStages">1. Total Stages (N):</label>
+            <select id="numStages" onchange="generateUI()"></select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; border-left: 2px solid #ccc; padding-left: 30px;">
+            <label for="inputVoltage">2. Input Source Voltage (V_in):</label>
+            <input type="number" id="inputVoltage" value="5.0" step="any"> V
+        </div>
+    </div>
+
+    <p style="margin-bottom: 15px; font-weight: 600; color: #555; text-align: center;">
+        3. Define Stage Parameters & Select Input Location: <span style="font-weight: normal; color: #777;">Click the card header to apply V_in to that stage's center tap.</span>
+    </p>
+
+    <div class="stage-wrapper">
+        <div id="stageCardContainer" class="stage-container">
+            <!-- JS generates cards here -->
+        </div>
+    </div>
+
+    <div class="calc-section">
+        <button class="calc-btn" onclick="solveCircuit()">4. SOLVE CIRCUIT CURRENTS</button>
+    </div>
+
+    <div id="resultsSection">
+        <h2 style="color: var(--primary); text-align: center; margin-bottom: 30px;">Calculation Results</h2>
+        
+        <div class="summary-box">
+            Total Current drawn from V_in source: <span id="totalInputCurrentDisplay">---</span>
+        </div>
+
+        <h3 style="color: #555; margin-bottom: 15px;">Detailed Branch Currents & Node Voltages</h3>
+        <p style="font-size: 0.9em; color: #777; margin-bottom: 20px;">
+            <strong>Sign Convention:</strong> Positive Series Currents (RT1, RT2, RB1, RB2) flow Left-to-Right (→). Positive Shunt Current (Rs) flows Top-to-Bottom (↓).
+        </p>
+        <div class="table-container">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th rowspan="2">Stage</th>
+                        <th colspan="2">Voltages (V)</th>
+                        <th colspan="5" class="res-col">Resistor Currents (A)</th>
+                    </tr>
+                    <tr>
+                        <th>Top Mid V<br>(Input Point)</th>
+                        <th>Bot Mid V<br>(Output Point)</th>
+                        <th class="res-col">I in Rs<br>(↓)</th>
+                        <th class="res-col">I in RT1<br>(→)</th>
+                        <th class="res-col">I in RT2<br>(→)</th>
+                        <th class="res-col">I in RB1<br>(→)</th>
+                        <th class="res-col">I in RB2<br>(→)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- JS populates rows -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Initialization ---
+    window.onload = function() {
+        const stageSelect = document.getElementById('numStages');
+        for (let i = 1; i <= 12; i++) {
+            let opt = document.createElement('option'); opt.value = i; opt.innerHTML = i; stageSelect.appendChild(opt);
+        }
+        stageSelect.value = 3; // Default N=3
+        generateUI();
+    };
+
+    // --- UI Generation ---
+    function generateUI() {
+        const N = parseInt(document.getElementById('numStages').value);
+        const container = document.getElementById('stageCardContainer');
+        container.innerHTML = '';
+
+        for (let i = 1; i <= N; i++) {
+            const card = document.createElement('div');
+            card.className = 'stage-card';
+            if(i === 1) card.classList.add('active-input');
+            card.id = `card-${i}`;
+            const isChecked = (i === 1) ? 'checked' : '';
+
+            card.innerHTML = `
+                <label class="stage-header-label" title="Click to connect Vin between RT1 and RT2 of this stage">
+                    <span>Stage ${i} <span class="vin-indicator"><br>← V_in Connected (Mid-Top)</span></span>
+                    <input type="radio" name="inputStageRadio" value="${i}" ${isChecked} onclick="updateActiveCard(this)">
+                </label>
+                <div class="stage-body">
+                    <div class="shunt-group">
+                        <div class="input-group">
+                            <label>Rs ${i} (mΩ) [Shunt Start]</label>
+                            <input type="number" id="RS_${i}" value="100" min="0.001" step="any">
+                        </div>
+                    </div>
+                    <div class="resistor-row">
+                        <div class="input-group"><label>RT1 ${i} (mΩ)</label><input type="number" id="RT1_${i}" value="10" min="0.001"></div>
+                        <div class="input-group"><label>RT2 ${i} (mΩ)</label><input type="number" id="RT2_${i}" value="10" min="0.001"></div>
+                    </div>
+                    <div class="resistor-row">
+                        <div class="input-group"><label>RB1 ${i} (mΩ)</label><input type="number" id="RB1_${i}" value="10" min="0.001"></div>
+                        <div class="input-group"><label>RB2 ${i} (mΩ)</label><input type="number" id="RB2_${i}" value="10" min="0.001"></div>
+                    </div>
+                    <div class="input-group io-group">
+                        <label style="color: var(--danger);">OUTPUT I_out ${i} (A) [Mid-Bot]</label>
+                        <input type="number" id="IO_${i}" value="0" step="any">
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        }
+        document.getElementById('resultsSection').style.display = 'none';
+    }
+
+    function updateActiveCard(radioBtn) {
+        document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('active-input'));
+        radioBtn.closest('.stage-card').classList.add('active-input');
+    }
+
+
+    // =========================================
+    // === Advanced Nodal Analysis Solver ===
+    // =========================================
+    function solveCircuit() {
+        const N = parseInt(document.getElementById('numStages').value);
+        const selectedRadio = document.querySelector('input[name="inputStageRadio"]:checked');
+        if (!selectedRadio) { alert("Please select an input stage."); return; }
+        // Input stage index is 1-based for logic here to match stage numbers
+        const inputStageNum = parseInt(selectedRadio.value); 
+        const Vin = parseFloat(document.getElementById('inputVoltage').value) || 0;
+
+        // --- 1. Read and Convert Inputs (mΩ -> Ω) ---
+        let R_data = [];
+        const getR = (id) => Math.max(parseFloat(document.getElementById(id).value) || 0, 1e-9) * 1e-3; // Ensure non-zero, convert to Ohms
+        const getI = (id) => parseFloat(document.getElementById(id).value) || 0;
+
+        for (let i = 1; i <= N; i++) {
+            R_data[i] = {
+                Rs: getR(`RS_${i}`), RT1: getR(`RT1_${i}`), RT2: getR(`RT2_${i}`),
+                RB1: getR(`RB1_${i}`), RB2: getR(`RB2_${i}`), Iout: getI(`IO_${i}`)
+            };
+        }
+
+        // --- 2. Define Nodes and Matrix Size ---
+        // Nodes defined sequentially:
+        // Stage 1: T_start(0), B_start(1), T_mid(2), B_mid(3)
+        // Stage k (k>1): T_mid(4k-2), B_mid(4k-1)
+        // Final End: T_end(4N), B_end(4N+1)
+        // Total nodes = 4N + 2
+        const numVars = 4 * N + 2;
+        let A = Array(numVars).fill(0).map(() => Array(numVars).fill(0));
+        let B = Array(numVars).fill(0);
+
+        // Node Index Mapping Helpers
+        const idx_Ts = (k) => (k===1) ? 0 : 4*(k-1); // Top Start of stage k (End of k-1)
+        const idx_Bs = (k) => (k===1) ? 1 : 4*(k-1)+1; // Bot Start of stage k
+        const idx_Tm = (k) => 4*k - 2; // Top Mid of stage k
+        const idx_Bm = (k) => 4*k - 1; // Bot Mid of stage k
+        const idx_Te = (k) => 4*k;     // Top End of stage k
+        const idx_Be = (k) => 4*k + 1; // Bot End of stage k
+
+        // --- 3. Build KCL Equations (Conductance G = 1/R) ---
+        for (let k = 1; k <= N; k++) {
+            const rd = R_data[k];
+            const Gs = 1/rd.Rs, Gt1 = 1/rd.RT1, Gt2 = 1/rd.RT2, Gb1 = 1/rd.RB1, Gb2 = 1/rd.RB2;
+            const Ts = idx_Ts(k), Bs = idx_Bs(k), Tm = idx_Tm(k), Bm = idx_Bm(k), Te = idx_Te(k), Be = idx_Be(k);
+
+            // KCL at T_start of stage k (Node connects Rs_k, RT1_k, and RT2_{k-1} if k>1)
+            // Assuming open circuit to the left of Stage 1 start
+            A[Ts][Ts] += Gs + Gt1; A[Ts][Bs] -= Gs; A[Ts][Tm] -= Gt1;
+
+            // KCL at B_start of stage k
+            A[Bs][Bs] += Gs + Gb1; A[Bs][Ts] -= Gs; A[Bs][Bm] -= Gb1;
+
+            // KCL at T_mid of stage k (Connects RT1_k, RT2_k). **INPUT POINT**
+            if (k === inputStageNum) {
+                A[Tm].fill(0); A[Tm][Tm] = 1; B[Tm] = Vin; // Fixed Voltage
+            } else {
+                A[Tm][Tm] += Gt1 + Gt2; A[Tm][Ts] -= Gt1; A[Tm][Te] -= Gt2;
+            }
+
+            // KCL at B_mid of stage k (Connects RB1_k, RB2_k). **OUTPUT POINT**
+            // I_out leaves the node.
+            A[Bm][Bm] += Gb1 + Gb2; A[Bm][Bs] -= Gb1; A[Bm][Be] -= Gb2; B[Bm] = -rd.Iout;
+
+            // KCL contribution to T_end / B_end from current stage resistors
+            // (These nodes are the T_start/B_start of next stage, handled by += in next loop iter)
+            A[Te][Te] += Gt2; A[Te][Tm] -= Gt2;
+            A[Be][Be] += Gb2; A[Be][Bm] -= Gb2;
+        }
+
+        // Boundary Condition: Right side of Stage N end is open circuit. 
+        // The equations above already handle this implicitly as no G terms connect T_end(N)/B_end(N) to anything further right.
+
+        // --- 4. Solve System ---
+        let V_nodes;
+        try { V_nodes = gaussianElimination(A, B); } 
+        catch (e) { alert("Solver Error: Singular matrix. Check resistance values."); return; }
+
+        // --- 5. Calculate Currents & Display ---
+        displayResults(N, inputStageNum, V_nodes, R_data, idx_Ts, idx_Bs, idx_Tm, idx_Bm, idx_Te, idx_Be);
+    }
+
+    // Gaussian Elimination (Standard implementation)
+    function gaussianElimination(A, B) {
+        let n = A.length;
+        for (i=0; i<n; i++) A[i].push(B[i]);
+        for (i=0; i<n; i++) {
+            let maxEl=Math.abs(A[i][i]), maxRow=i;
+            for(k=i+1; k<n; k++) if(Math.abs(A[k][i])>maxEl) {maxEl=Math.abs(A[k][i]); maxRow=k;}
+            [A[maxRow], A[i]] = [A[i], A[maxRow]];
+            let pivot=A[i][i]; if(Math.abs(pivot)<1e-15) throw new Error("Singular");
+            for(j=i; j<=n; j++) A[i][j]/=pivot;
+            for(k=0; k<n; k++) if(k!==i) { let f=A[k][i]; for(j=i; j<=n; j++) A[k][j]-=f*A[i][j]; }
+        }
+        return A.map(row => row[n]);
+    }
+
+    // --- Results Display ---
+    function displayResults(N, inputStageNum, V, R_data, idx_Ts, idx_Bs, idx_Tm, idx_Bm, idx_Te, idx_Be) {
+        const tbody = document.querySelector('#resultsTable tbody'); tbody.innerHTML = '';
+        let totalInputCurrent = 0;
+        const fmtNum = (n) => n.toFixed(5);
+        const fmtI = (n) => {
+            let s = (Math.abs(n) > 0.1 && Math.abs(n) < 1000) ? n.toFixed(4) : n.toExponential(3);
+            return (n < -1e-9) ? `<span class="neg-curr">${s}</span>` : s;
+        };
+
+        for (let k = 1; k <= N; k++) {
+            const rd = R_data[k];
+            // Get node voltages for this stage
+            const vTs = V[idx_Ts(k)], vBs = V[idx_Bs(k)];
+            const vTm = V[idx_Tm(k)], vBm = V[idx_Bm(k)];
+            const vTe = V[idx_Te(k)], vBe = V[idx_Be(k)];
+
+            // Calculate Resistor Currents (Ohm's Law: I = dV/R)
+            const iRs  = (vTs - vBs) / rd.Rs;
+            const iRT1 = (vTs - vTm) / rd.RT1;
+            const iRT2 = (vTm - vTe) / rd.RT2;
+            const iRB1 = (vBs - vBm) / rd.RB1;
+            const iRB2 = (vBm - vBe) / rd.RB2;
+
+            // Calculate Total Input Current if this is the input stage
+            if (k === inputStageNum) {
+                // KCL at Input Node (T_mid): Current from source = Current leaving through RT1 + Current leaving through RT2
+                // Note: iRT1 is defined Left-to-Right (entering node), so current leaving left is -iRT1.
+                totalInputCurrent = (-iRT1) + iRT2;
+            }
+
+            let row = tbody.insertRow();
+            if(k === inputStageNum) row.style.backgroundColor = "#e8f5e9";
+            row.innerHTML = `
+                <td><strong>Stage ${k}</strong> ${(k===inputStageNum ? '<span style="color:var(--accent)"><br>(Input)</span>' : '')}</td>
+                <td>${fmtNum(vTm)}</td>
+                <td>${fmtNum(vBm)}</td>
+                <td class="res-col">${fmtI(iRs)}</td>
+                <td class="res-col">${fmtI(iRT1)}</td>
+                <td class="res-col">${fmtI(iRT2)}</td>
+                <td class="res-col">${fmtI(iRB1)}</td>
+                <td class="res-col">${fmtI(iRB2)}</td>
+            `;
+        }
+
+        document.getElementById('totalInputCurrentDisplay').innerHTML = `<strong>${totalInputCurrent.toFixed(4)} A</strong>`;
+        document.getElementById('resultsSection').style.display = 'block';
+        document.getElementById('resultsSection').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+</script>
+
+</body>
+</html>
