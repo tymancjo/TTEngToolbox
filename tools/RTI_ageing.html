@@ -8,6 +8,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js for the reliability curves -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- MathJax for rendering LaTeX formulas -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
         .slider {
             -webkit-appearance: none;
@@ -26,8 +29,8 @@
             cursor: pointer;
             border-radius: 50%;
         }
-        .input-field {
-            @apply w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm;
+        details summary::-webkit-details-marker {
+            display:none;
         }
     </style>
 </head>
@@ -118,7 +121,7 @@
                 <!-- Chart -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-slate-700" id="chartTitle">Property Retention: PA66-GF (Technyl)</h3>
+                        <h3 class="font-bold text-slate-700" id="chartTitle">Property Retention</h3>
                         <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 font-mono">Arrhenius Model (L_ref = 11.4y)</span>
                     </div>
                     <div class="h-[450px]">
@@ -132,17 +135,66 @@
                     <div class="space-y-4 text-sm leading-relaxed">
                         <p id="analysisSummary"></p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-700 pt-4">
-                            <div class="text-slate-400">
-                                <span class="block font-bold text-white mb-1">Ageing Physics</span>
+                            <div class="text-slate-400 text-xs">
+                                <span class="block font-bold text-white mb-1 uppercase tracking-tighter">Ageing Physics</span>
                                 Rate doubles for every 10°C over RTI. Duty cycling reduces cumulative thermal damage.
                             </div>
-                            <div class="text-slate-400">
-                                <span class="block font-bold text-white mb-1">Failure Logic</span>
+                            <div class="text-slate-400 text-xs">
+                                <span class="block font-bold text-white mb-1 uppercase tracking-tighter text-blue-300">Failure Logic</span>
                                 50% retention is the UL defined "End of Life". Mechanical failure often precedes electrical failure.
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Math Info Section -->
+                <details class="group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <summary class="flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-blue-100 text-blue-600 p-2 rounded-lg">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            </div>
+                            <h3 class="font-bold text-slate-700">Mathematical Methodology & Formulas</h3>
+                        </div>
+                        <span class="text-blue-500 group-open:rotate-180 transition-transform">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </span>
+                    </summary>
+                    <div class="p-6 border-t border-slate-100 bg-slate-50 space-y-6 text-sm text-slate-700">
+                        <div>
+                            <h4 class="font-bold text-slate-900 mb-2">1. The Arrhenius Acceleration Factor (\(A_F\))</h4>
+                            <p class="mb-2">The tool uses the "10-degree rule" which is an engineering simplification of the Arrhenius equation. It assumes the chemical reaction rate (aging) doubles for every 10°C increase in temperature over the Relative Thermal Index (RTI).</p>
+                            <div class="bg-white p-4 rounded-lg border text-center my-4 overflow-x-auto">
+                                $$A_F = 2^{\frac{T_{op} - RTI}{10}}$$
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-900 mb-2">2. Time-Weighted Duty Cycle (\(A_{F,eff}\))</h4>
+                            <p class="mb-2">For variable loads, we calculate the cumulative damage by averaging the acceleration factors based on the time spent at each temperature state.</p>
+                            <div class="bg-white p-4 rounded-lg border text-center my-4 overflow-x-auto">
+                                $$A_{F,eff} = \left( A_{F,peak} \times \frac{Hours_{Peak}}{24} \right) + \left( A_{F,base} \times \frac{Hours_{Base}}{24} \right)$$
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-900 mb-2">3. Property Retention Over Time (\(P_t\))</h4>
+                            <p class="mb-2">UL defines the RTI as the temperature where the material retains 50% of its properties after 100,000 hours (\(L_{ref} \approx 11.41\) years). The remaining health percentage is modeled as an exponential decay:</p>
+                            <div class="bg-white p-4 rounded-lg border text-center my-4 overflow-x-auto">
+                                $$P(t) = 100 \times 0.5^{\left( \frac{t}{L_{effective}} \right)} \quad \text{where} \quad L_{effective} = \frac{11.41 \text{ years}}{A_{F,eff}}$$
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-900 mb-2">4. End of Life (EOL) Prediction</h4>
+                            <p class="mb-2">The EOL metric displayed represents the specific year where the 50% retention threshold is crossed for the most critical (lowest) RTI property provided.</p>
+                            <div class="bg-white p-4 rounded-lg border text-center my-4 overflow-x-auto">
+                                $$EOL \text{ (Years)} = \frac{11.41}{A_{F,eff}}$$
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
             </div>
         </div>
     </div>
@@ -207,8 +259,8 @@
             ui.chartTitle.innerText = `Property Retention: ${material}`;
 
             // Find the most critical RTI (the lowest one)
-            const rtisEmpty = [rtiElec, rtiStrength, rtiImpact].sort((a,b) => a-b);
-            const lowestRTI = rtisEmpty[0];
+            const rtis = [rtiElec, rtiStrength, rtiImpact].filter(r => r > 0).sort((a,b) => a-b);
+            const lowestRTI = rtis.length > 0 ? rtis[0] : 1;
             const eol = calculateEOL(peak, base, hours, lowestRTI).toFixed(1);
 
             // 20 Year Retention Values
@@ -287,7 +339,7 @@
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: { size: 11 } } },
                         tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } }
                     },
                     scales: {
