@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Insulation Reliability Model - LV Systems</title>
+    <title>Universal Insulation Reliability Model</title>
     <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js for the reliability curves -->
@@ -26,119 +26,152 @@
             cursor: pointer;
             border-radius: 50%;
         }
+        .input-field {
+            @apply w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm;
+        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans text-slate-900 min-h-screen">
 
-    <div class="max-w-6xl mx-auto py-8 px-4">
+    <div class="max-w-7xl mx-auto py-8 px-4">
         <!-- Header -->
         <header class="mb-8 border-b border-slate-200 pb-6 bg-white p-6 rounded-xl shadow-sm">
-            <h1 class="text-3xl font-bold text-slate-800">Cyclic Thermal Aging Model</h1>
-            <p class="text-slate-500 mt-2">Reliability prediction for 2mm PA66-GF (Technyl) based on UL 746B RTI values</p>
+            <h1 class="text-3xl font-bold text-slate-800">Universal Thermal Aging Model</h1>
+            <p class="text-slate-500 mt-2">Reliability prediction for electrical insulators based on UL 746B RTI Arrhenius aging.</p>
         </header>
 
-        <!-- Controls & Key Metrics -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-            <!-- Inputs -->
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-6">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Peak Temperature: <span id="peakValue" class="text-blue-600">130</span>°C</label>
-                    <input type="range" id="peakTemp" min="100" max="160" value="130" class="slider">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
+            <!-- Left Column: Controls -->
+            <div class="xl:col-span-1 space-y-6">
+                
+                <!-- Material Settings -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        Material Config
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Material Name</label>
+                            <input type="text" id="matName" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" value="PA66-GF (Technyl)">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">RTI Electrical (°C)</label>
+                            <input type="number" id="rtiElecInput" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" value="130">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">RTI Mech Strength (°C)</label>
+                            <input type="number" id="rtiStrengthInput" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" value="130">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">RTI Mech Impact (°C)</label>
+                            <input type="number" id="rtiImpactInput" class="w-full px-3 py-2 border border-slate-300 rounded-md text-sm" value="115">
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Base Temperature: <span id="baseValue" class="text-blue-600">60</span>°C</label>
-                    <input type="range" id="baseTemp" min="20" max="80" value="60" class="slider">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Peak Duration: <span id="hoursValue" class="text-blue-600">8</span>h/day</label>
-                    <input type="range" id="peakHours" min="1" max="24" value="8" class="slider">
-                </div>
-            </div>
 
-            <!-- Metric: Impact End of Life -->
-            <div class="bg-orange-50 border border-orange-100 p-6 rounded-xl shadow-sm">
-                <h3 class="text-sm font-bold text-orange-800 mb-1">Impact "End of Life"</h3>
-                <p class="text-4xl font-black text-orange-600"><span id="metricEol">12.0</span> <span class="text-lg font-normal">Years</span></p>
-                <p class="text-xs text-orange-500 mt-2 italic">Time to reach 50% property loss (UL Limit)</p>
-            </div>
-
-            <!-- Metric: Impact Health -->
-            <div class="bg-blue-50 border border-blue-100 p-6 rounded-xl shadow-sm">
-                <h3 class="text-sm font-bold text-blue-800 mb-1">Impact Health @ 20yr</h3>
-                <p class="text-4xl font-black text-blue-600"><span id="metricImpact">29.8</span>%</p>
-                <p class="text-xs text-blue-500 mt-2">Remaining shock resistance margin</p>
-            </div>
-
-            <!-- Metric: Electrical Health -->
-            <div class="bg-emerald-50 border border-emerald-100 p-6 rounded-xl shadow-sm">
-                <h3 class="text-sm font-bold text-emerald-800 mb-1">Elec. Health @ 20yr</h3>
-                <p class="text-4xl font-black text-emerald-600"><span id="metricElec">66.4</span>%</p>
-                <p class="text-xs text-emerald-500 mt-2">Insulation safety factor intact</p>
-            </div>
-        </div>
-
-        <!-- Chart -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
-            <div class="h-[450px]">
-                <canvas id="reliabilityChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Analysis Text -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="p-6 bg-slate-900 text-white rounded-xl shadow-lg">
-                <h4 class="font-bold mb-4 text-blue-400 text-lg">Reliability Verdict</h4>
-                <div class="space-y-4 text-sm leading-relaxed">
-                    <p id="analysisSummary"></p>
-                    <p class="border-t border-slate-700 pt-4 text-slate-400">
-                        <span class="font-bold text-white">Rule of Thumb:</span> Aging is exponential. The peak hours contribute significantly more to degradation than the base state.
-                    </p>
+                <!-- Operating Profile -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-6">
+                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Duty Cycle
+                    </h2>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Peak Temp: <span id="peakValue" class="text-blue-600">130</span>°C</label>
+                        <input type="range" id="peakTemp" min="50" max="200" value="130" class="slider">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Base Temp: <span id="baseValue" class="text-blue-600">60</span>°C</label>
+                        <input type="range" id="baseTemp" min="20" max="150" value="60" class="slider">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Peak Duration: <span id="hoursValue" class="text-blue-600">8</span>h/day</label>
+                        <input type="range" id="peakHours" min="1" max="24" value="8" class="slider">
+                    </div>
                 </div>
             </div>
-            
-            <div class="p-6 border-2 border-dashed border-slate-200 rounded-xl bg-white">
-                <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"/></svg>
-                    Safety Considerations
-                </h4>
-                <ul class="text-sm text-slate-600 space-y-3">
-                    <li class="flex gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0"></div>
-                        <span><strong>Mechanical Capture:</strong> If properties drop below 50%, treat material as brittle. Support pieces mechanically.</span>
-                    </li>
-                    <li class="flex gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0"></div>
-                        <span><strong>Thermal Stress:</strong> Daily temperature swings cause expansion. Ensure gaps exist to prevent fatigue cracking.</span>
-                    </li>
-                    <li class="flex gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0"></div>
-                        <span><strong>Visual Inspection:</strong> Discoloration or "crazing" indicates the end of chemical life is approaching.</span>
-                    </li>
-                </ul>
+
+            <!-- Right Column: Results -->
+            <div class="xl:col-span-3 space-y-6">
+                
+                <!-- Metrics -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-orange-50 border border-orange-100 p-6 rounded-xl shadow-sm">
+                        <h3 class="text-xs font-bold text-orange-800 uppercase mb-1">Critical Property EOL</h3>
+                        <p class="text-4xl font-black text-orange-600"><span id="metricEol">--</span> <span class="text-lg font-normal">Years</span></p>
+                        <p class="text-xs text-orange-500 mt-2 italic" id="eolPropertyLabel">Time to reach 50% limit</p>
+                    </div>
+
+                    <div class="bg-blue-50 border border-blue-100 p-6 rounded-xl shadow-sm">
+                        <h3 class="text-xs font-bold text-blue-800 uppercase mb-1">Impact Health @ 20yr</h3>
+                        <p class="text-4xl font-black text-blue-600"><span id="metricImpact">--</span>%</p>
+                        <p class="text-xs text-blue-500 mt-2">Remaining margin vs shock</p>
+                    </div>
+
+                    <div class="bg-emerald-50 border border-emerald-100 p-6 rounded-xl shadow-sm">
+                        <h3 class="text-xs font-bold text-emerald-800 uppercase mb-1">Elec. Health @ 20yr</h3>
+                        <p class="text-4xl font-black text-emerald-600"><span id="metricElec">--</span>%</p>
+                        <p class="text-xs text-emerald-500 mt-2">Remaining safety factor</p>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-700" id="chartTitle">Property Retention: PA66-GF (Technyl)</h3>
+                        <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 font-mono">Arrhenius Model (L_ref = 11.4y)</span>
+                    </div>
+                    <div class="h-[450px]">
+                        <canvas id="reliabilityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="p-6 bg-slate-900 text-white rounded-xl shadow-lg">
+                    <h4 class="font-bold mb-4 text-blue-400 text-lg">Reliability Assessment</h4>
+                    <div class="space-y-4 text-sm leading-relaxed">
+                        <p id="analysisSummary"></p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-700 pt-4">
+                            <div class="text-slate-400">
+                                <span class="block font-bold text-white mb-1">Ageing Physics</span>
+                                Rate doubles for every 10°C over RTI. Duty cycling reduces cumulative thermal damage.
+                            </div>
+                            <div class="text-slate-400">
+                                <span class="block font-bold text-white mb-1">Failure Logic</span>
+                                50% retention is the UL defined "End of Life". Mechanical failure often precedes electrical failure.
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Material RTI Constants
-        const RTI_ELECTRICAL = 130;
-        const RTI_MECH_STRENGTH = 130;
-        const RTI_MECH_IMPACT = 115;
+        // Baseline life at RTI temperature (UL standard ~100,000 hours / 8760 = 11.41 years)
         const BASELINE_LIFE_YEARS = 11.41;
 
-        // UI Elements
-        const peakSlider = document.getElementById('peakTemp');
-        const baseSlider = document.getElementById('baseTemp');
-        const hourSlider = document.getElementById('peakHours');
-        
-        const peakDisp = document.getElementById('peakValue');
-        const baseDisp = document.getElementById('baseValue');
-        const hourDisp = document.getElementById('hoursValue');
-
-        const metricEol = document.getElementById('metricEol');
-        const metricImpact = document.getElementById('metricImpact');
-        const metricElec = document.getElementById('metricElec');
-        const summaryText = document.getElementById('analysisSummary');
+        // UI Element Selectors
+        const ui = {
+            peakSlider: document.getElementById('peakTemp'),
+            baseSlider: document.getElementById('baseTemp'),
+            hourSlider: document.getElementById('peakHours'),
+            peakDisp: document.getElementById('peakValue'),
+            baseDisp: document.getElementById('baseValue'),
+            hourDisp: document.getElementById('hoursValue'),
+            
+            matName: document.getElementById('matName'),
+            rtiElecInput: document.getElementById('rtiElecInput'),
+            rtiStrengthInput: document.getElementById('rtiStrengthInput'),
+            rtiImpactInput: document.getElementById('rtiImpactInput'),
+            
+            metricEol: document.getElementById('metricEol'),
+            metricImpact: document.getElementById('metricImpact'),
+            metricElec: document.getElementById('metricElec'),
+            summaryText: document.getElementById('analysisSummary'),
+            chartTitle: document.getElementById('chartTitle'),
+            eolLabel: document.getElementById('eolPropertyLabel')
+        };
 
         let chart;
 
@@ -150,32 +183,48 @@
             return 100 * Math.pow(0.5, years / lifeAtProfile);
         }
 
+        function calculateEOL(peak, base, hoursAtPeak, rti) {
+            const AF_peak = Math.pow(2, (peak - rti) / 10);
+            const AF_base = Math.pow(2, (base - rti) / 10);
+            const AF_eff = (AF_peak * (hoursAtPeak / 24)) + (AF_base * ((24 - hoursAtPeak) / 24));
+            return (BASELINE_LIFE_YEARS / AF_eff);
+        }
+
         function updateModel() {
-            const peak = parseInt(peakSlider.value);
-            const base = parseInt(baseSlider.value);
-            const hours = parseInt(hourSlider.value);
-
-            // Update Labels
-            peakDisp.innerText = peak;
-            baseDisp.innerText = base;
-            hourDisp.innerText = hours;
-
-            // Calculate Metrics
-            const AF_peak = Math.pow(2, (peak - RTI_MECH_IMPACT) / 10);
-            const AF_base = Math.pow(2, (base - RTI_MECH_IMPACT) / 10);
-            const AF_eff = (AF_peak * (hours / 24)) + (AF_base * ((24 - hours) / 24));
-            const eol = (BASELINE_LIFE_YEARS / AF_eff).toFixed(1);
+            const peak = parseInt(ui.peakSlider.value);
+            const base = parseInt(ui.baseSlider.value);
+            const hours = parseInt(ui.hourSlider.value);
             
-            const impact20 = calculateDegradation(peak, base, hours, RTI_MECH_IMPACT, 20).toFixed(1);
-            const elec20 = calculateDegradation(peak, base, hours, RTI_ELECTRICAL, 20).toFixed(1);
+            const rtiElec = parseFloat(ui.rtiElecInput.value) || 0;
+            const rtiStrength = parseFloat(ui.rtiStrengthInput.value) || 0;
+            const rtiImpact = parseFloat(ui.rtiImpactInput.value) || 0;
+            const material = ui.matName.value || "Material";
 
-            metricEol.innerText = eol;
-            metricImpact.innerText = impact20;
-            metricElec.innerText = elec20;
+            // Update Dynamic UI Labels
+            ui.peakDisp.innerText = peak;
+            ui.baseDisp.innerText = base;
+            ui.hourDisp.innerText = hours;
+            ui.chartTitle.innerText = `Property Retention: ${material}`;
+
+            // Find the most critical RTI (the lowest one)
+            const rtisEmpty = [rtiElec, rtiStrength, rtiImpact].sort((a,b) => a-b);
+            const lowestRTI = rtisEmpty[0];
+            const eol = calculateEOL(peak, base, hours, lowestRTI).toFixed(1);
+
+            // 20 Year Retention Values
+            const impact20 = calculateDegradation(peak, base, hours, rtiImpact, 20).toFixed(1);
+            const elec20 = calculateDegradation(peak, base, hours, rtiElec, 20).toFixed(1);
+            const strength20 = calculateDegradation(peak, base, hours, rtiStrength, 20).toFixed(1);
+
+            ui.metricEol.innerText = eol;
+            ui.metricImpact.innerText = impact20;
+            ui.metricElec.innerText = elec20;
+            ui.eolLabel.innerText = `Time to 50% limit (based on RTI ${lowestRTI}°C)`;
 
             // Summary text
-            summaryText.innerHTML = `At current settings, your 2mm insulator reaches its <b>Mechanical Impact</b> end-of-life in <b>${eol} years</b>. ` +
-                                   `By year 20, it will retain only <b>${impact20}%</b> of its original toughness. Electrically, it remains healthy at <b>${elec20}%</b> retention.`;
+            const healthStatus = impact20 < 50 ? "<span class='text-red-400 font-bold'>High Risk</span>" : "<span class='text-emerald-400 font-bold'>Stable</span>";
+            ui.summaryText.innerHTML = `For <b>${material}</b> operating at ${peak}°C peak, the most critical aging property reaches "End of Life" in <b>${eol} years</b>. ` +
+                                   `By year 20, the impact toughness is at <b>${impact20}%</b> (${healthStatus}). Electrical health remains at <b>${elec20}%</b>.`;
 
             // Prepare Chart Data
             const labels = [];
@@ -185,9 +234,9 @@
 
             for (let y = 0; y <= 20; y++) {
                 labels.push(y);
-                impactData.push(calculateDegradation(peak, base, hours, RTI_MECH_IMPACT, y));
-                elecData.push(calculateDegradation(peak, base, hours, RTI_ELECTRICAL, y));
-                strengthData.push(calculateDegradation(peak, base, hours, RTI_MECH_STRENGTH, y));
+                impactData.push(calculateDegradation(peak, base, hours, rtiImpact, y));
+                elecData.push(calculateDegradation(peak, base, hours, rtiElec, y));
+                strengthData.push(calculateDegradation(peak, base, hours, rtiStrength, y));
             }
 
             chart.data.labels = labels;
@@ -205,7 +254,7 @@
                     labels: [],
                     datasets: [
                         {
-                            label: 'Electrical Strength (RTI 130°C)',
+                            label: 'Electrical Strength',
                             borderColor: '#10b981',
                             backgroundColor: '#10b981',
                             borderWidth: 3,
@@ -214,7 +263,7 @@
                             tension: 0.2
                         },
                         {
-                            label: 'Mech. Strength (RTI 130°C)',
+                            label: 'Mech. Strength',
                             borderColor: '#6366f1',
                             borderDash: [5, 5],
                             borderWidth: 2,
@@ -223,7 +272,7 @@
                             tension: 0.2
                         },
                         {
-                            label: 'Impact Resistance (RTI 115°C)',
+                            label: 'Mech. Impact',
                             borderColor: '#ef4444',
                             backgroundColor: '#ef4444',
                             borderWidth: 3,
@@ -238,17 +287,17 @@
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
                         tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` } }
                     },
                     scales: {
                         y: { 
                             min: 0, max: 100, 
-                            title: { display: true, text: 'Property Retention (%)' },
+                            title: { display: true, text: 'Property Retention (%)', font: { weight: 'bold' } },
                             grid: { color: '#f1f5f9' }
                         },
                         x: { 
-                            title: { display: true, text: 'Service Years' },
+                            title: { display: true, text: 'Years in Service', font: { weight: 'bold' } },
                             grid: { display: false }
                         }
                     }
@@ -260,9 +309,9 @@
             initChart();
             updateModel();
             
-            [peakSlider, baseSlider, hourSlider].forEach(slider => {
-                slider.oninput = updateModel;
-            });
+            // Listen for changes in all inputs
+            [ui.peakSlider, ui.baseSlider, ui.hourSlider].forEach(el => el.oninput = updateModel);
+            [ui.matName, ui.rtiElecInput, ui.rtiStrengthInput, ui.rtiImpactInput].forEach(el => el.onchange = updateModel);
         };
     </script>
 </body>
