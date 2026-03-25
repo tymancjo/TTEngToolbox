@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThunderStroke V5 - Stable Edition</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #6c757d;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #333;
+            --border-color: #dee2e6;
+            --arc-color: #ffc107;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        main {
+            display: flex;
+            flex: 1;
+            padding: 2rem;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .controls {
+            flex: 1;
+            min-width: 350px;
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            height: fit-content;
+        }
+
+        .results {
+            flex: 2;
+            min-width: 600px;
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #004494;
+        }
+
+        button:disabled {
+            background-color: var(--secondary-color);
+            cursor: not-allowed;
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+            min-height: 400px;
+        }
+
+        .diagram-container {
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            overflow: auto;
+            min-height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        #blockDiagram {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+
+        .summary-table th, .summary-table td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .summary-table th {
+            background-color: #f2f2f2;
+        }
+
+        .status {
+            margin-top: 1rem;
+            font-style: italic;
+            color: var(--secondary-color);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+            resize: vertical;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>ThunderStroke V5 - Stable</h1>
+    <p>Electrical Arc Pressure Wave Simulation Tool</p>
+</header>
+
+<main>
+    <section class="controls">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('params')">Parameters</div>
+            <div class="tab" onclick="showTab('geometry')">Geometry</div>
+        </div>
+
+        <div id="tab-params">
+            <div class="form-group">
+                <label for="Iarc">Arc Current (Irms) [kA]</label>
+                <input type="number" id="Iarc" value="65" step="1">
+            </div>
+            <div class="form-group">
+                <label for="Uarc">Arc Voltage [V]</label>
+                <input type="number" id="Uarc" value="415" step="5">
+            </div>
+            <div class="form-group">
+                <label for="ArcTime">Arc Burning Time [ms]</label>
+                <input type="number" id="ArcTime" value="300" step="10">
+            </div>
+            <div class="form-group">
+                <label for="AnalysisTime">Analysis Total Time [ms]</label>
+                <input type="number" id="AnalysisTime" value="500" step="50">
+            </div>
+            <div class="form-group">
+                <label for="BackFlowRatio">Back Flow Ratio [-]</label>
+                <input type="number" id="BackFlowRatio" value="0.25" step="0.05" min="0" max="1">
+            </div>
+            <div class="form-group">
+                <label for="dt_ns">Target Time Step [ns]</label>
+                <input type="number" id="dt_ns" value="500" step="10">
+            </div>
+            <div class="form-group">
+                <label for="auto_step">Adaptive Time Steping</label>
+                <select id="auto_step">
+                    <option value="true">Enabled (Stability Priority)</option>
+                    <option value="false">Disabled (Fixed Step)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="tab-geometry" class="hidden">
+            <label for="volumes-list">Volumes (Symbol, Name, Volume [m³], isArc [true/false])</label>
+            <textarea id="volumes-list" style="height: 120px;">
+V1, V1 mbb comp, 0.97, true
+V2, V2 Panel, 1.65, false
+V3, V3 kiosk internal, 11, false
+V4, V4 outside, 200, false</textarea>
+            
+            <label for="connections-list" style="margin-top: 10px; display: block;">Connections (Source Symbol, Target Symbol, Area [m²], OpenP [Pa])</label>
+            <textarea id="connections-list" style="height: 120px;">
+V1, V2, 0.15
+V1, V3, 0.48, 100000
+V2, V3, 0.092
+V3, V4, 0.546</textarea>
+            <p><small>Format: <i>Symbol, Name, Value, Flag</i> | One per line.</small></p>
+        </div>
+
+        <button id="run-btn" style="margin-top: 20px;" onclick="startSimulation()">Run Simulation</button>
+        <button id="update-diagram-btn" style="margin-top: 10px; background-color: #28a745;" onclick="updateDiagram()">Update Diagram Only</button>
+        <button id="export-btn" style="margin-top: 10px; background-color: var(--secondary-color);" onclick="exportCSV()" disabled>Export CSV Results</button>
+        <div id="status" class="status">Ready.</div>
+    </section>
+
+    <section class="results">
+        <div class="diagram-section">
+            <h3>Block Schematic (Geometry Representation)</h3>
+            <div class="diagram-container">
+                <svg id="blockDiagram" width="800" height="400"></svg>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="resultsChart"></canvas>
+        </div>
+        
+        <div id="summary">
+            <h3>Simulation Summary</h3>
+            <p id="summary-info">No data yet. Run the simulation to see results.</p>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th>Volume [m³]</th>
+                        <th>Max Overpressure [kPa]</th>
+                    </tr>
+                </thead>
+                <tbody id="results-tbody">
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+    // --- Physics Engine ---
+    const AIR = {
+        cp: 1005,
+        cv: 718,
+        rho_ref: 1.225,
+        Rspec: 287,
+        Po: 101325,
+        To: 300
+    };
+
+    class Compartment {
+        constructor(symbol, name, volume, isArc = false) {
+            this.symbol = symbol;
+            this.name = name;
+            this.V = volume;
+            this.isArc = isArc;
+            
+            // Initial state
+            this.P = AIR.Po;
+            this.T = AIR.To;
+            this.updateProperties();
+            
+            this.C = 0.6;
+            this.maxP = AIR.Po;
+            this.outlets = []; // { target, area, openP, isOpen }
+            
+            // Working vars for the loop
+            this.dm = 0;
+            this.dQ = 0;
+        }
+
+        updateProperties() {
+            this.rho = Math.max(0.001, this.P / (AIR.Rspec * this.T));
+            this.kk = AIR.cp / AIR.cv;
+            this.m = this.P * this.V / (AIR.Rspec * this.T);
+            if (this.P > this.maxP) this.maxP = this.P;
+        }
+
+        resetDerivatives() {
+            this.dm = 0;
+            this.dQ = 0;
+        }
+
+        calculateFlows(dt) {
+            let totalFlow = 0;
+            for (const out of this.outlets) {
+                let deltaP = this.P - out.target.P;
+                const direction = deltaP >= 0 ? 1 : -1;
+                deltaP = Math.abs(deltaP);
+
+                // Persistent open flap logic
+                if (out.isOpen || deltaP > out.openP) {
+                    out.isOpen = true; // Mark as opened
+                    
+                    // Standard orifice flow equation
+                    const massFlowRate = direction * this.C * out.area * Math.sqrt(2 * this.rho * deltaP);
+                    const dm = massFlowRate * dt;
+                    
+                    // Limit flow to avoid emptying the volume in one step (CFL-like condition)
+                    const dm_limited = direction > 0 ? Math.min(dm, this.m * 0.1) : Math.max(dm, -out.target.m * 0.1);
+                    
+                    this.dm -= dm_limited;
+                    out.target.dm += dm_limited;
+                    
+                    // Energy transport
+                    const flowT = direction > 0 ? this.T : out.target.T;
+                    const dQ_flow = dm_limited * AIR.cp * flowT;
+                    this.dQ -= dQ_flow;
+                    out.target.dQ += dQ_flow;
+
+                    totalFlow += dm_limited;
+                }
+            }
+            return totalFlow;
+        }
+
+        applyHeat(power, ratio, dt) {
+            this.dQ += power * ratio * dt;
+        }
+
+        update(dt) {
+            if (this.m + this.dm <= 0.001) {
+                this.dm = -this.m + 0.001;
+            }
+            
+            // Conservation of Mass: m_new = m_old + dm
+            const m_old = this.m;
+            this.m += this.dm;
+
+            // Conservation of Energy: Internal energy U = m * cv * T
+            const U_old = m_old * AIR.cv * this.T;
+            const U_new = U_old + this.dQ;
+            
+            this.T = U_new / (this.m * AIR.cv);
+            this.T = Math.max(10, this.T); // Absolute minimum T
+            
+            // Ideal Gas Law: P = mRT/V
+            this.P = (this.m * AIR.Rspec * this.T) / this.V;
+            
+            this.updateProperties();
+        }
+    }
+
+    function calculateArcPower(t, Irms, U, f = 50, cosFi = 0.2) {
+        const fi = Math.acos(cosFi);
+        const tanFi = Math.tan(fi);
+        const L_R = tanFi / (2 * Math.PI * f);
+        const R_L = 1 / L_R;
+        const Ub = 3.52 * Math.pow(U, 0.74) + 0.5 * 60;
+        const kb = 0.63;
+        const sinTermA = Math.sin(2 * Math.PI * f * t + 0 - fi) - Math.sin(0 - fi) * Math.exp(-R_L * t);
+        const sinTermB = Math.sin(2 * Math.PI * f * t + 0 - fi + 4 * Math.PI / 3) - Math.sin(0 - fi + 4 * Math.PI / 3) * Math.exp(-R_L * t);
+        const sinTermC = Math.sin(2 * Math.PI * f * t + 0 - fi + 2 * Math.PI / 3) - Math.sin(0 - fi + 2 * Math.PI / 3) * Math.exp(-R_L * t);
+        const ia_arc = kb * Math.sqrt(2) * Irms * sinTermA;
+        const ib_arc = kb * Math.sqrt(2) * Irms * sinTermB;
+        const ic_arc = kb * Math.sqrt(2) * Irms * sinTermC;
+        const ua_arc = Math.sqrt(2/3) * Ub * Math.sin(2 * Math.PI * f * t + 0 - fi);
+        const ub_arc = Math.sqrt(2/3) * Ub * Math.sin(2 * Math.PI * f * t + 0 - fi + 4 * Math.PI / 3);
+        const uc_arc = Math.sqrt(2/3) * Ub * Math.sin(2 * Math.PI * f * t + 0 - fi + 2 * Math.PI / 3);
+        return (ua_arc * ia_arc) + (ub_arc * ib_arc) + (uc_arc * ic_arc);
+    }
+
+    // --- UI Logic ---
+    let chart = null;
+    let lastResults = null;
+
+    function showTab(tabName) {
+        document.getElementById('tab-params').classList.toggle('hidden', tabName !== 'params');
+        document.getElementById('tab-geometry').classList.toggle('hidden', tabName !== 'geometry');
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        const target = event ? event.target : document.querySelector(`.tab[onclick="showTab('${tabName}')"]`);
+        if (target) target.classList.add('active');
+    }
+
+    function updateDiagram() {
+        const svg = document.getElementById('blockDiagram');
+        svg.innerHTML = '';
+        const volText = document.getElementById('volumes-list').value;
+        const volumes = [];
+        volText.split('\n').forEach(line => {
+            const parts = line.split(',').map(s => s.trim());
+            if (parts.length >= 3) volumes.push({ symbol: parts[0], name: parts[1], vol: parts[2], isArc: parts[3]?.toLowerCase() === 'true' });
+        });
+        const connText = document.getElementById('connections-list').value;
+        const connections = [];
+        connText.split('\n').forEach(line => {
+            const parts = line.split(',').map(s => s.trim());
+            if (parts.length >= 3) connections.push({ from: parts[0], to: parts[1], area: parts[2], openP: parts[3] || 0 });
+        });
+        if (volumes.length === 0) return;
+        const width = 800, height = 400;
+        const centerX = width / 2, centerY = height / 2, radius = 140;
+        const volCoords = {};
+        volumes.forEach((v, i) => {
+            const angle = (i / volumes.length) * 2 * Math.PI - Math.PI/2;
+            volCoords[v.symbol] = { x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle), ...v };
+        });
+        svg.innerHTML += `<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#666" /></marker></defs>`;
+        connections.forEach(c => {
+            const start = volCoords[c.from], end = volCoords[c.to];
+            if (start && end) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", start.x); line.setAttribute("y1", start.y);
+                line.setAttribute("x2", end.x); line.setAttribute("y2", end.y);
+                line.setAttribute("stroke", "#666"); line.setAttribute("stroke-width", "2");
+                line.setAttribute("marker-end", "url(#arrowhead)");
+                svg.appendChild(line);
+                const midX = (start.x + end.x) / 2, midY = (start.y + end.y) / 2;
+                const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t.setAttribute("x", midX); t.setAttribute("y", midY - 5); t.setAttribute("text-anchor", "middle"); t.setAttribute("font-size", "10"); t.setAttribute("fill", "#000"); t.setAttribute("font-weight", "bold");
+                t.textContent = `${c.area} m²` + (c.openP > 0 ? ` (@${c.openP}Pa)` : '');
+                svg.appendChild(t);
+            }
+        });
+        volumes.forEach(v => {
+            const coord = volCoords[v.symbol];
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            r.setAttribute("x", coord.x - 50); r.setAttribute("y", coord.y - 30); r.setAttribute("width", 100); r.setAttribute("height", 60); r.setAttribute("rx", "5");
+            r.setAttribute("fill", v.isArc ? "#ffeeba" : "#e9ecef"); r.setAttribute("stroke", v.isArc ? "#856404" : "#adb5bd"); r.setAttribute("stroke-width", "2");
+            g.appendChild(r);
+            const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t1.setAttribute("x", coord.x); t1.setAttribute("y", coord.y - 10); t1.setAttribute("text-anchor", "middle"); t1.setAttribute("font-size", "12"); t1.setAttribute("font-weight", "bold");
+            t1.textContent = v.symbol; g.appendChild(t1);
+            const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t2.setAttribute("x", coord.x); t2.setAttribute("y", coord.y + 5); t2.setAttribute("text-anchor", "middle"); t2.setAttribute("font-size", "9");
+            t2.textContent = v.name; g.appendChild(t2);
+            const t3 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t3.setAttribute("x", coord.x); t3.setAttribute("y", coord.y + 18); t3.setAttribute("text-anchor", "middle"); t3.setAttribute("font-size", "9"); t3.setAttribute("font-style", "italic");
+            t3.textContent = `${v.vol} m³`; g.appendChild(t3);
+            if (v.isArc) {
+                const t4 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                t4.setAttribute("x", coord.x); t4.setAttribute("y", coord.y - 20); t4.setAttribute("text-anchor", "middle"); t4.setAttribute("font-size", "8"); t4.setAttribute("fill", "#856404"); t4.setAttribute("font-weight", "bold");
+                t4.textContent = "⚡ ARC ⚡"; g.appendChild(t4);
+            }
+            svg.appendChild(g);
+        });
+    }
+
+    async function startSimulation() {
+        const runBtn = document.getElementById('run-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const statusDiv = document.getElementById('status');
+        runBtn.disabled = true;
+        exportBtn.disabled = true;
+        statusDiv.innerText = "Simulating V5 (Stable Engine)...";
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+            updateDiagram();
+
+            const target_dt = parseFloat(document.getElementById('dt_ns').value) / 1e9;
+            const useAutoStep = document.getElementById('auto_step').value === 'true';
+            
+            const config = {
+                Iarc: parseFloat(document.getElementById('Iarc').value) * 1000,
+                Uarc: parseFloat(document.getElementById('Uarc').value),
+                ArcTime: parseFloat(document.getElementById('ArcTime').value) / 1000,
+                AnalysisTime: parseFloat(document.getElementById('AnalysisTime').value) / 1000,
+                BackFlowRatio: parseFloat(document.getElementById('BackFlowRatio').value),
+                thermalEnergyRatio: 0.6
+            };
+
+            const volText = document.getElementById('volumes-list').value;
+            const volumes = [];
+            const volMap = {};
+            volText.split('\n').forEach(line => {
+                const parts = line.split(',').map(s => s.trim());
+                if (parts.length >= 3) {
+                    const comp = new Compartment(parts[0], parts[1], parseFloat(parts[2]), parts[3]?.toLowerCase() === 'true');
+                    volumes.push(comp);
+                    volMap[parts[0]] = comp;
+                }
+            });
+
+            const connText = document.getElementById('connections-list').value;
+            connText.split('\n').forEach(line => {
+                const parts = line.split(',').map(s => s.trim());
+                if (parts.length >= 3) {
+                    const src = volMap[parts[0]], tgt = volMap[parts[1]];
+                    if (src && tgt) src.outlets.push({ target: tgt, area: parseFloat(parts[2]), openP: parts[3] ? parseFloat(parts[3]) : 0, isOpen: false });
+                }
+            });
+
+            const results = { time: [], pressures: volumes.map(() => []), volumes: volumes };
+            let t = 0, lastSaveT = -1;
+            const saveInterval = config.AnalysisTime / 1000;
+
+            while (t < config.AnalysisTime) {
+                let current_dt = target_dt;
+                
+                // Reset and calculate derivatives
+                volumes.forEach(V => V.resetDerivatives());
+                
+                // Calculate Power
+                let arcPower = 0;
+                if (t <= config.ArcTime) {
+                    arcPower = calculateArcPower(t, config.Iarc, config.Uarc);
+                }
+
+                // Physics Loop
+                volumes.forEach(V => {
+                    if (V.isArc) V.applyHeat(arcPower, config.thermalEnergyRatio, current_dt);
+                    let flowMass = V.calculateFlows(current_dt);
+                    if (V.isArc && arcPower > 0) {
+                        V.dm += config.BackFlowRatio * Math.abs(flowMass);
+                        V.dQ += (config.BackFlowRatio * Math.abs(flowMass)) * AIR.cp * V.T;
+                    }
+                });
+
+                // Apply changes
+                volumes.forEach(V => V.update(current_dt));
+
+                // Save data
+                if (t >= lastSaveT + saveInterval) {
+                    results.time.push(t * 1000);
+                    volumes.forEach((V, idx) => results.pressures[idx].push((V.P - AIR.Po) / 1000));
+                    lastSaveT = t;
+                }
+
+                t += current_dt;
+            }
+
+            lastResults = results;
+            updateResults(results, volumes, 0);
+            statusDiv.innerText = "V5 Simulation complete.";
+            exportBtn.disabled = false;
+        } catch (err) {
+            console.error(err);
+            statusDiv.innerText = "Error: " + err.message;
+        } finally {
+            runBtn.disabled = false;
+        }
+    }
+
+    function updateResults(results, volumes, energyKJ) {
+        const ctx = document.getElementById('resultsChart').getContext('2d');
+        if (chart) chart.destroy();
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: results.time.map(t => t.toFixed(2)),
+                datasets: volumes.map((V, idx) => ({
+                    label: `${V.symbol}: ${V.name}`,
+                    data: results.pressures[idx],
+                    borderColor: getRandomColor(idx),
+                    fill: false, tension: 0.1, pointRadius: 0
+                }))
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Time [ms]' } },
+                    y: { title: { display: true, text: 'Overpressure [kPa]' } }
+                }
+            }
+        });
+        const tbody = document.getElementById('results-tbody');
+        tbody.innerHTML = '';
+        volumes.forEach(V => {
+            const row = tbody.insertRow();
+            row.insertCell(0).innerText = V.symbol;
+            row.insertCell(1).innerText = V.name;
+            row.insertCell(2).innerText = V.V.toFixed(3);
+            row.insertCell(3).innerText = ((V.maxP - AIR.Po) / 1000).toFixed(2);
+        });
+    }
+
+    function exportCSV() {
+        if (!lastResults) return;
+        let csv = 'Time [ms],' + lastResults.volumes.map(v => `${v.symbol} [kPa]`).join(',') + '\n';
+        for (let i = 0; i < lastResults.time.length; i++) {
+            csv += [lastResults.time[i].toFixed(4), ...lastResults.pressures.map(p => p[i].toFixed(4))].join(',') + '\n';
+        }
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'thunderstroke_v5_results.csv';
+        a.click();
+    }
+
+    function getRandomColor(i) {
+        return ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796', '#5a5c69', '#2e59d9', '#17a673', '#2c9faf'][i % 10];
+    }
+
+    window.onload = () => { updateDiagram(); };
+</script>
+</body>
+</html>
