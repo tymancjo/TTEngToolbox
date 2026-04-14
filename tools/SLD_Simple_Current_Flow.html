@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD Graphic Flow Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <style>
+        body { touch-action: none; overflow: hidden; height: 100vh; width: 100vw; }
+        .grid-bg {
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #f8fafc;
+        }
+        .mode-active {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
+        .branch-label {
+            pointer-events: none;
+            user-select: none;
+            font-family: ui-monospace, monospace;
+            font-weight: 900;
+        }
+        #canvasWrapper {
+            outline: none;
+            cursor: grab;
+            flex-grow: 1;
+        }
+        #canvasWrapper:active { cursor: grabbing; }
+        .node-group { cursor: pointer; }
+        .node-group:active { cursor: grabbing; }
+        
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body class="bg-slate-200 font-sans text-slate-900 flex flex-col">
+
+    <!-- Header Toolbar -->
+    <header class="bg-white border-b border-slate-300 p-2 flex justify-between items-center shrink-0 z-50 shadow-sm">
+        <div class="flex items-center gap-3 ml-2">
+            <div class="bg-blue-600 p-2 rounded shadow-inner text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div>
+                <h1 class="text-sm font-black uppercase tracking-tighter leading-none">SLD Flow Pro</h1>
+                <p class="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Steady State Analyzer</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <div class="flex bg-slate-200 p-1 rounded border border-slate-300 gap-1">
+                <button onclick="setMode('select')" id="btn-select" class="px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 hover:bg-white text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></svg> Select
+                </button>
+                <button onclick="setMode('node')" id="btn-node" class="px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 hover:bg-white text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg> Node
+                </button>
+                <button onclick="setMode('branch')" id="btn-branch" class="px-3 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 hover:bg-white text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/></svg> Branch
+                </button>
+            </div>
+
+            <button onclick="runAnalysis()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded font-black text-xs flex items-center gap-2 shadow-md transition-all active:scale-95 uppercase tracking-wide">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Calculate
+            </button>
+        </div>
+
+        <button onclick="clearAll()" class="mr-2 px-3 py-1.5 rounded border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-bold transition-colors">
+            Clear
+        </button>
+    </header>
+
+    <main class="flex-grow flex overflow-hidden">
+        
+        <!-- Inspector Panel -->
+        <aside class="w-64 bg-white border-r border-slate-300 flex flex-col shrink-0 z-40">
+            <div class="p-3 border-b border-slate-100 bg-slate-50">
+                <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inspector</h2>
+            </div>
+            <div id="inspector" class="p-4 flex-grow overflow-y-auto">
+                <div class="text-slate-400 text-xs italic text-center py-10">Select an object</div>
+            </div>
+            <div id="healthSummary" class="p-3 border-t border-slate-200 bg-slate-50 text-[10px]"></div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <div class="flex-grow flex flex-col bg-slate-100 relative overflow-hidden">
+            <div id="canvasWrapper" class="relative grid-bg overflow-hidden">
+                <svg id="canvas" width="100%" height="100%" class="absolute top-0 left-0">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                        </marker>
+                    </defs>
+                    <g id="viewport">
+                        <g id="branchGroup"></g>
+                        <g id="nodeGroup"></g>
+                        <line id="ghostLine" class="hidden stroke-blue-500 stroke-2" stroke-dasharray="4,4" />
+                    </g>
+                </svg>
+            </div>
+            
+            <!-- Result Bar -->
+            <div class="h-44 border-t border-slate-300 bg-white overflow-auto shrink-0 z-30 shadow-2xl">
+                <table class="w-full text-[10px] text-left border-collapse">
+                    <thead class="bg-slate-100 sticky top-0 border-b border-slate-200 font-black text-slate-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-2">From</th>
+                            <th class="px-4 py-2">To</th>
+                            <th class="px-4 py-2 text-blue-600">Current (A)</th>
+                            <th class="px-4 py-2">Res (Ω)</th>
+                            <th class="px-4 py-2">Drop (V)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTable" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- JSON Editor -->
+        <aside class="w-80 bg-slate-900 flex flex-col shrink-0 border-l border-slate-800 z-40">
+            <div class="p-3 border-b border-slate-800 flex justify-between items-center bg-black/20">
+                <h2 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Live JSON</h2>
+                <button onclick="applyJson()" class="bg-blue-600 text-white px-2 py-0.5 rounded text-[9px] font-bold hover:bg-blue-500 transition-colors">SYNC</button>
+            </div>
+            <textarea id="jsonEditor" spellcheck="false" class="flex-grow bg-slate-950 font-mono text-[10px] p-4 outline-none resize-none text-blue-400"></textarea>
+        </aside>
+    </main>
+
+    <script>
+        // --- INITIAL DATA ---
+        let config = {
+            "nodes": {
+                "N1": { "x": 80, "y": 520, "current": 0 },
+                "N2": { "x": 400, "y": 520, "current": 0 },
+                "N3": { "x": 240, "y": 520, "current": 0 },
+                "N4": { "x": 560, "y": 520, "current": 0 },
+                "N5": { "x": 720, "y": 520, "current": 0 },
+                "N6": { "x": 720, "y": 520, "current": 0 },
+                "N7": { "x": 940, "y": 520, "current": 0 },
+                "N8": { "x": 1200, "y": 520, "current": 0 },
+                "N9": { "x": 240, "y": 700, "current": 0 },
+                "N10": { "x": 240, "y": 700, "current": 2000 },
+                "N11": { "x": 560, "y": 700, "current": 500 },
+                "N12": { "x": 80, "y": 320, "current": 0 },
+                "N13": { "x": 160, "y": 320, "current": 0 },
+                "N14": { "x": 400, "y": 320, "current": 0 },
+                "N15": { "x": 460, "y": 320, "current": 0 },
+                "N16": { "x": 600, "y": 320, "current": 0 },
+                "N17": { "x": 720, "y": 320, "current": 0 },
+                "N18": { "x": 840, "y": 320, "current": 0 },
+                "N19": { "x": 940, "y": 320, "current": 0 },
+                "N20": { "x": 1200, "y": 320, "current": 0 },
+                "N21": { "x": 1040, "y": 320, "current": 0 },
+                "N22": { "x": 160, "y": 200, "current": 0 },
+                "N23": { "x": 160, "y": 200, "current": -500 },
+                "N24": { "x": 460, "y": 200, "current": -500 },
+                "N25": { "x": 600, "y": 200, "current": -500 },
+                "N26": { "x": 260, "y": 320, "current": 0 },
+                "N27": { "x": 840, "y": 200, "current": -250 },
+                "N29": { "x": 1040, "y": 200, "current": -750 }
+            },
+            "branches": [
+                { "from": "N1", "to": "N3", "r": 0.1 }, { "from": "N3", "to": "N2", "r": 0.1 },
+                { "from": "N2", "to": "N4", "r": 0.1 }, { "from": "N4", "to": "N6", "r": 0.1 },
+                { "from": "N6", "to": "N7", "r": 0.1 }, { "from": "N7", "to": "N8", "r": 0.1 },
+                { "from": "N10", "to": "N3", "r": 0.1 }, { "from": "N11", "to": "N4", "r": 0.1 },
+                { "from": "N1", "to": "N12", "r": 0.1 }, { "from": "N12", "to": "N13", "r": 0.1 },
+                { "from": "N14", "to": "N15", "r": 0.1 }, { "from": "N15", "to": "N16", "r": 0.1 },
+                { "from": "N16", "to": "N17", "r": 0.1 }, { "from": "N17", "to": "N18", "r": 0.1 },
+                { "from": "N18", "to": "N19", "r": 0.1 }, { "from": "N19", "to": "N21", "r": 0.1 },
+                { "from": "N21", "to": "N20", "r": 0.1 }, { "from": "N8", "to": "N20", "r": 0.1 },
+                { "from": "N2", "to": "N14", "r": 0.1 }, { "from": "N6", "to": "N17", "r": 0.1 },
+                { "from": "N7", "to": "N19", "r": 0.1 }, { "from": "N13", "to": "N23", "r": 0.1 },
+                { "from": "N15", "to": "N24", "r": 0.1 }, { "from": "N16", "to": "N25", "r": 0.1 },
+                { "from": "N13", "to": "N26", "r": 0.1 }, { "from": "N26", "to": "N14", "r": 0.1 },
+                { "from": "N18", "to": "N27", "r": 0.1 }, { "from": "N21", "to": "N29", "r": 0.1 }
+            ],
+            "referenceNode": "N1"
+        };
+
+        // --- STATE ---
+        let mode = 'select';
+        let selectedId = null;
+        let results = null;
+        let panning = false;
+        let panOffset = { x: 0, y: 0 };
+        let lastMouse = { x: 0, y: 0 };
+        let draggingNode = null;
+        let branchStartNode = null;
+
+        const canvas = document.getElementById('canvas');
+        const viewport = document.getElementById('viewport');
+        const nodeGroup = document.getElementById('nodeGroup');
+        const branchGroup = document.getElementById('branchGroup');
+        const ghostLine = document.getElementById('ghostLine');
+        const inspector = document.getElementById('inspector');
+        const jsonEditor = document.getElementById('jsonEditor');
+        const resultsTable = document.getElementById('resultsTable');
+        const healthSummary = document.getElementById('healthSummary');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+
+        // --- COORDINATES ---
+        function getTransformedCoords(e) {
+            const pt = canvas.createSVGPoint();
+            pt.x = e.clientX;
+            pt.y = e.clientY;
+            // Get transform matrix of viewport group
+            const ctm = viewport.getScreenCTM();
+            if (!ctm) return { x: 0, y: 0, rawX: 0, rawY: 0 };
+            const transformed = pt.matrixTransform(ctm.inverse());
+            return {
+                x: Math.round(transformed.x / 20) * 20,
+                y: Math.round(transformed.y / 20) * 20,
+                rawX: transformed.x,
+                rawY: transformed.y
+            };
+        }
+
+        // --- SOLVER ---
+        function solve() {
+            try {
+                const names = Object.keys(config.nodes);
+                if (names.length < 2) return;
+                const ref = names.includes(config.referenceNode) ? config.referenceNode : names[0];
+                const n = names.length;
+                const refIdx = names.indexOf(ref);
+
+                let G = math.zeros(n, n);
+                let I = math.zeros(n);
+                names.forEach((name, i) => I.set([i], config.nodes[name].current || 0));
+
+                config.branches.forEach(b => {
+                    const u = names.indexOf(b.from);
+                    const v = names.indexOf(b.to);
+                    if (u === -1 || v === -1) return;
+                    const r = Math.max(b.r, 0.000001);
+                    const g = 1 / r;
+                    G.set([u,u], G.get([u,u]) + g);
+                    G.set([v,v], G.get([v,v]) + g);
+                    G.set([u,v], G.get([u,v]) - g);
+                    G.set([v,u], G.get([v,u]) - g);
+                });
+
+                const mG = G.clone();
+                const mI = I.clone();
+                for (let j=0; j<n; j++) mG.set([refIdx, j], 0);
+                mG.set([refIdx, refIdx], 1);
+                mI.set([refIdx], 0);
+
+                const V = math.lusolve(mG, mI).toArray().map(v => v[0]);
+                const nodeVs = {};
+                names.forEach((name, i) => nodeVs[name] = V[i]);
+
+                const bData = config.branches.map(b => {
+                    const v1 = nodeVs[b.from];
+                    const v2 = nodeVs[b.to];
+                    const current = (v1 - v2) / Math.max(b.r, 0.000001);
+                    return { ...b, v1, v2, current };
+                });
+                results = { nodeVs, bData };
+            } catch(e) { 
+                console.error("Solver Fail:", e); 
+                results = null;
+            }
+        }
+
+        function runAnalysis() {
+            solve();
+            render();
+        }
+
+        // --- RENDERING ---
+        function updateTransform() {
+            viewport.setAttribute('transform', `translate(${panOffset.x}, ${panOffset.y})`);
+            canvasWrapper.style.backgroundPosition = `${panOffset.x}px ${panOffset.y}px`;
+        }
+
+        function render() {
+            nodeGroup.innerHTML = '';
+            branchGroup.innerHTML = '';
+
+            // Render Branches
+            config.branches.forEach((b, i) => {
+                const n1 = config.nodes[b.from];
+                const n2 = config.nodes[b.to];
+                if (!n1 || !n2) return;
+
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", n1.x); line.setAttribute("y1", n1.y);
+                line.setAttribute("x2", n2.x); line.setAttribute("y2", n2.y);
+                
+                const sel = selectedId?.type === 'branch' && selectedId.id === i;
+                line.setAttribute("stroke", sel ? '#3b82f6' : '#94a3b8');
+                line.setAttribute("stroke-width", sel ? '6' : '3');
+                line.setAttribute("class", "hover:stroke-blue-400 cursor-pointer transition-colors");
+                line.onmousedown = (e) => {
+                    if(e.button !== 0) return;
+                    e.stopPropagation();
+                    select('branch', i);
+                };
+                g.appendChild(line);
+
+                if (results && results.bData && results.bData[i]) {
+                    const res = results.bData[i];
+                    const midX = (n1.x + n2.x) / 2;
+                    const midY = (n1.y + n2.y) / 2;
+                    const angle = Math.atan2(n2.y - n1.y, n2.x - n1.x);
+
+                    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    arrow.setAttribute("d", "M -6 -4 L 0 0 L -6 4");
+                    const rot = (angle * 180/Math.PI) + (res.current >= 0 ? 0 : 180);
+                    arrow.setAttribute("transform", `translate(${midX},${midY}) rotate(${rot})`);
+                    arrow.setAttribute("fill", "#3b82f6");
+                    g.appendChild(arrow);
+
+                    const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    txt.textContent = Math.abs(res.current).toFixed(1) + "A";
+                    txt.setAttribute("class", "branch-label text-[9px] fill-blue-700");
+                    txt.setAttribute("text-anchor", "middle");
+                    const lx = midX + Math.cos(angle + Math.PI/2) * 15;
+                    const ly = midY + Math.sin(angle + Math.PI/2) * 15;
+                    txt.setAttribute("x", lx); txt.setAttribute("y", ly);
+                    txt.setAttribute("style", "text-shadow: 1px 1px 0px white, -1px -1px 0px white;");
+                    g.appendChild(txt);
+                }
+                branchGroup.appendChild(g);
+            });
+
+            // Render Nodes
+            Object.keys(config.nodes).forEach(name => {
+                const node = config.nodes[name];
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("transform", `translate(${node.x},${node.y})`);
+                g.setAttribute("class", "node-group");
+
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("r", "10");
+                circle.setAttribute("fill", name === config.referenceNode ? "#ef4444" : "#1e293b");
+                if (selectedId?.type === 'node' && selectedId.id === name) {
+                    circle.setAttribute("stroke", "#3b82f6");
+                    circle.setAttribute("stroke-width", "4");
+                }
+
+                const lbl = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                lbl.textContent = name;
+                lbl.setAttribute("y", "26");
+                lbl.setAttribute("text-anchor", "middle");
+                lbl.setAttribute("class", "text-[10px] font-black fill-slate-500 uppercase");
+
+                // --- DEFENSIVE CHECK FOR RESULTS ---
+                if (results && results.nodeVs && results.nodeVs[name] !== undefined) {
+                    const vtxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    vtxt.textContent = `${results.nodeVs[name].toFixed(2)}V`;
+                    vtxt.setAttribute("y", "-18");
+                    vtxt.setAttribute("text-anchor", "middle");
+                    vtxt.setAttribute("class", "text-[11px] font-black fill-slate-900");
+                    vtxt.setAttribute("style", "text-shadow: 0 0 3px white, 0 0 2px white;");
+                    g.appendChild(vtxt);
+                }
+
+                g.onmousedown = (e) => {
+                    if (e.button !== 0) return;
+                    e.stopPropagation();
+                    if (mode === 'branch') {
+                        branchStartNode = name;
+                        ghostLine.classList.remove('hidden');
+                        ghostLine.setAttribute("x1", node.x); ghostLine.setAttribute("y1", node.y);
+                        ghostLine.setAttribute("x2", node.x); ghostLine.setAttribute("y2", node.y);
+                    } else {
+                        draggingNode = name;
+                        select('node', name);
+                    }
+                };
+
+                g.appendChild(circle);
+                g.appendChild(lbl);
+                nodeGroup.appendChild(g);
+            });
+
+            jsonEditor.value = JSON.stringify(config, null, 4);
+            updateStats();
+            renderTable();
+        }
+
+        function renderTable() {
+            resultsTable.innerHTML = '';
+            if (!results || !results.bData) return;
+            results.bData.forEach(b => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-4 py-2 font-bold">${b.from}</td>
+                    <td class="px-4 py-2 font-bold">${b.to}</td>
+                    <td class="px-4 py-2 font-black text-blue-600">${b.current.toFixed(2)}A</td>
+                    <td class="px-4 py-2 text-slate-500">${b.r}Ω</td>
+                    <td class="px-4 py-2 text-slate-500">${Math.abs(b.v1 - b.v2).toFixed(3)}V</td>
+                `;
+                resultsTable.appendChild(tr);
+            });
+        }
+
+        function updateStats() {
+            const nodesArr = Object.values(config.nodes);
+            const sumIn = nodesArr.reduce((a, n) => a + (n.current > 0 ? n.current : 0), 0);
+            const sumOut = nodesArr.reduce((a, n) => a + (n.current < 0 ? Math.abs(n.current) : 0), 0);
+            const bal = sumIn - sumOut;
+            healthSummary.innerHTML = `
+                <div class="space-y-1">
+                    <div class="flex justify-between"><span>Σ Supply:</span><span class="font-bold">${sumIn.toFixed(0)}A</span></div>
+                    <div class="flex justify-between"><span>Σ Load:</span><span class="font-bold">${sumOut.toFixed(0)}A</span></div>
+                    <div class="flex justify-between border-t border-slate-200 pt-1 font-black">
+                        <span>Net:</span><span class="${Math.abs(bal) > 0.1 ? 'text-red-500' : 'text-emerald-600'}">${bal.toFixed(3)}A</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- INTERACTION ---
+
+        function setMode(m) {
+            mode = m;
+            ['select', 'node', 'branch'].forEach(id => {
+                const btn = document.getElementById('btn-' + id);
+                btn.classList.toggle('mode-active', id === m);
+            });
+            if (m === 'node') canvasWrapper.style.cursor = 'crosshair';
+            else canvasWrapper.style.cursor = 'grab';
+        }
+
+        function select(type, id) {
+            selectedId = type ? { type, id } : null;
+            render();
+            updateInspector();
+        }
+
+        function updateInspector() {
+            if (!selectedId) {
+                inspector.innerHTML = `<div class="text-slate-400 text-xs italic text-center py-10">Select an object</div>`;
+                return;
+            }
+            if (selectedId.type === 'node') {
+                const node = config.nodes[selectedId.id];
+                inspector.innerHTML = `
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">ID</label>
+                            <input type="text" value="${selectedId.id}" onchange="renameNode('${selectedId.id}', this.value)" class="w-full mt-1 p-2 bg-slate-100 border rounded font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Injected Current (A)</label>
+                            <input type="number" value="${node.current || 0}" oninput="updateNodeProp('${selectedId.id}', 'current', this.value)" class="w-full mt-1 p-2 bg-slate-100 border rounded font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button onclick="setRef('${selectedId.id}')" class="w-full py-2 ${config.referenceNode === selectedId.id ? 'bg-emerald-600' : 'bg-slate-700'} text-white rounded text-[9px] font-black uppercase transition-colors">
+                            ${config.referenceNode === selectedId.id ? 'System Ground' : 'Set as Reference'}
+                        </button>
+                        <button onclick="deleteSelected()" class="w-full py-2 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-black uppercase hover:bg-red-100 transition-colors">
+                            Delete Node
+                        </button>
+                    </div>
+                `;
+            } else {
+                const b = config.branches[selectedId.id];
+                inspector.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="text-center font-bold text-xs bg-blue-50 p-2 rounded border border-blue-100">${b.from} ➔ ${b.to}</div>
+                        <div>
+                            <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Resistance (Ω)</label>
+                            <input type="number" step="0.001" value="${b.r}" oninput="updateBranchProp(${selectedId.id}, 'r', this.value)" class="w-full mt-1 p-2 bg-slate-100 border rounded font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <button onclick="deleteSelected()" class="w-full py-2 bg-red-50 text-red-600 border border-red-200 rounded text-[9px] font-black uppercase hover:bg-red-100 transition-colors">
+                            Remove Branch
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // --- HANDLERS ---
+        function onMouseDown(e) {
+            // Right-click or middle-click for panning
+            if (e.button === 2 || e.button === 1) {
+                panning = true;
+                lastMouse = { x: e.clientX, y: e.clientY };
+                e.preventDefault();
+                return;
+            }
+
+            if (mode === 'node') {
+                const pos = getTransformedCoords(e);
+                let i = 1;
+                while (config.nodes[`N${i}`]) i++;
+                const name = `N${i}`;
+                
+                // Add the node
+                config.nodes[name] = { x: pos.x, y: pos.y, current: 0 };
+                
+                // Clear stale results to avoid toFixed errors on render
+                results = null; 
+                
+                select('node', name);
+                setMode('select');
+            } else if (e.target === canvas) {
+                select(null);
+            }
+        }
+
+        function onMouseMove(e) {
+            if (panning) {
+                panOffset.x += e.clientX - lastMouse.x;
+                panOffset.y += e.clientY - lastMouse.y;
+                lastMouse = { x: e.clientX, y: e.clientY };
+                updateTransform();
+                return;
+            }
+
+            if (draggingNode) {
+                const pos = getTransformedCoords(e);
+                config.nodes[draggingNode].x = pos.x;
+                config.nodes[draggingNode].y = pos.y;
+                render();
+            }
+
+            if (branchStartNode) {
+                const pos = getTransformedCoords(e);
+                ghostLine.setAttribute("x2", pos.rawX);
+                ghostLine.setAttribute("y2", pos.rawY);
+            }
+        }
+
+        function onMouseUp(e) {
+            if (panning) { panning = false; return; }
+
+            if (branchStartNode) {
+                const pos = getTransformedCoords(e);
+                let target = null;
+                Object.keys(config.nodes).forEach(name => {
+                    const n = config.nodes[name];
+                    if (Math.hypot(n.x - pos.rawX, n.y - pos.rawY) < 30 && name !== branchStartNode) target = name;
+                });
+                if (target) {
+                    config.branches.push({ from: branchStartNode, to: target, r: 0.1 });
+                    results = null; // Clear results
+                    setMode('select');
+                }
+                branchStartNode = null;
+                ghostLine.classList.add('hidden');
+                render();
+            }
+            draggingNode = null;
+        }
+
+        // --- DATA UPDATERS ---
+        window.updateNodeProp = (id, p, v) => { config.nodes[id][p] = parseFloat(v); results = null; render(); };
+        window.updateBranchProp = (idx, p, v) => { config.branches[idx][p] = parseFloat(v); results = null; render(); };
+        window.renameNode = (o, n) => {
+            if (!n || (config.nodes[n] && o !== n)) return;
+            config.nodes[n] = config.nodes[o];
+            delete config.nodes[o];
+            config.branches.forEach(b => {
+                if (b.from === o) b.from = n;
+                if (b.to === o) b.to = n;
+            });
+            if (config.referenceNode === o) config.referenceNode = n;
+            selectedId.id = n;
+            results = null;
+            render(); 
+            updateInspector();
+        };
+        window.setRef = (id) => { config.referenceNode = id; results = null; render(); updateInspector(); };
+        window.deleteSelected = () => {
+            if (!selectedId) return;
+            if (selectedId.type === 'node') {
+                const id = selectedId.id;
+                delete config.nodes[id];
+                config.branches = config.branches.filter(b => b.from !== id && b.to !== id);
+                if (config.referenceNode === id) config.referenceNode = Object.keys(config.nodes)[0] || "";
+            } else config.branches.splice(selectedId.id, 1);
+            results = null;
+            select(null);
+        };
+        window.clearAll = () => { config = { nodes: {}, branches: [], referenceNode: "" }; results = null; select(null); };
+        window.applyJson = () => { try { config = JSON.parse(jsonEditor.value); results = null; render(); } catch(e) { alert("JSON Error"); } };
+
+        // --- EVENTS ---
+        canvasWrapper.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('keydown', e => {
+            if (e.key === 'Escape') setMode('select');
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') deleteSelected();
+            }
+        });
+
+        // Auto center on start
+        window.onload = () => {
+            const nodesArr = Object.values(config.nodes);
+            if (nodesArr.length > 0) {
+                const avgX = nodesArr.reduce((a, n) => a + n.x, 0) / nodesArr.length;
+                const avgY = nodesArr.reduce((a, n) => a + n.y, 0) / nodesArr.length;
+                panOffset.x = (canvasWrapper.clientWidth/2) - avgX;
+                panOffset.y = (canvasWrapper.clientHeight/2) - avgY;
+            } else {
+                panOffset.x = canvasWrapper.clientWidth/2;
+                panOffset.y = canvasWrapper.clientHeight/2;
+            }
+            updateTransform();
+            solve();
+            render();
+        };
+        setMode('select');
+    </script>
+</body>
+</html>
