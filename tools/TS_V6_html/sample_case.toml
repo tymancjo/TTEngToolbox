@@ -1,0 +1,24 @@
+[parameters]
+Iarc = 100.0
+Uarc = 415.0
+Tarc = 300.0
+ArcLength = 150.0
+AnalysisTime = 350.0
+BackFlowRatio = 0.0
+Emissivity = 0.1
+FiniteAir = true
+
+[geometry]
+volumes = """
+V1, Arc Compartment, 0.97, true
+V2, Expansion Panel, 1.65, false
+V3, Kiosk Internal, 11.0, false
+V4, Outside, 200000.0, false
+"""
+
+connections = """
+V1, V2, 0.15, 0.0
+V1, V3, 0.48, 1700.0
+V2, V3, 0.092, 0.0
+V3, V4, 0.5, 0.0
+"""

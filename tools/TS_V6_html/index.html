@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThunderStroke Simulator - V6 High-Fidelity Engine</title>
+    <!-- Dependencies -->
+    <script src="lib/chart.js"></script>
+    <script src="lib/toml.js"></script>
+    <style>
+        :root {
+            --primary: #007bff;
+            --primary-hover: #0056b3;
+            --bg: #f4f7f6;
+            --sidebar-bg: #ffffff;
+            --canvas-bg: #e9ecef;
+            --text: #2d3436;
+            --border: #dfe6e9;
+            --arc-accent: #f1c40f;
+            --volume-bg: #ffffff;
+            --grid-color: rgba(0,0,0,0.05);
+            --header-bg: #2d3436;
+            --header-text: #ffffff;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            height: 100%;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        /* --- Layout --- */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: var(--header-bg);
+            color: var(--header-text);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+
+        .logo { font-weight: bold; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem; }
+        .logo span { color: var(--arc-accent); }
+
+        .nav-tabs {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: #b2bec3;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-weight: 600;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover { color: white; }
+        .tab-btn.active { color: white; border-bottom: 2px solid var(--primary); }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab-panel {
+            display: none;
+            height: 100%;
+            width: 100%;
+        }
+
+        .tab-panel.active {
+            display: flex;
+        }
+
+        /* --- Sidebar Styles --- */
+        .sidebar {
+            width: 320px;
+            background: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .sidebar-content { padding: 1rem; }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0.5rem;
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #636e72;
+            font-weight: bold;
+        }
+
+        .toggle-icon { font-size: 0.7rem; color: #636e72; }
+        .section-content.collapsed { display: none; }
+
+        .form-group { margin-bottom: 0.75rem; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 0.2rem; font-weight: 500; }
+        input, select, textarea {
+            width: 100%;
+            padding: 0.4rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        button {
+            padding: 0.5rem 1rem;
+            border: none; border-radius: 4px;
+            cursor: pointer; font-weight: 600; font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: var(--primary); color: white; width: 100%; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-secondary { background: #636e72; color: white; }
+        .btn-danger { background: #ff7675; color: white; }
+
+        /* --- Editor Styles --- */
+        .editor-workspace { flex: 1; position: relative; background: var(--canvas-bg); }
+        .canvas-area {
+            width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: grab;
+        }
+        .canvas-area.panning { cursor: grabbing; }
+
+        .volume-node { cursor: move; }
+        .volume-rect { fill: var(--volume-bg); stroke: var(--border); stroke-width: 2; rx: 6; }
+        .volume-node.selected .volume-rect { stroke: var(--primary); stroke-width: 3; }
+        .volume-node.arc .volume-rect { fill: #fffbe6; stroke: var(--arc-accent); }
+        .volume-label { font-size: 12px; font-weight: bold; pointer-events: none; text-anchor: middle; }
+        .volume-sublabel { font-size: 10px; pointer-events: none; fill: #636e72; text-anchor: middle; }
+        .connection-line { stroke: #b2bec3; stroke-width: 3; fill: none; cursor: pointer; }
+        .connection-line.selected { stroke: var(--primary); stroke-dasharray: 5,5; }
+        .conn-handle { fill: var(--primary); cursor: pointer; visibility: hidden; }
+        .volume-node:hover .conn-handle { visibility: visible; }
+
+        /* --- Simulator Styles --- */
+        .simulator-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .chart-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            min-height: 400px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 0.8rem; color: #636e72; text-transform: uppercase; }
+
+        .summary-table {
+            width: 100%; border-collapse: collapse;
+            background: white; border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .summary-table th, .summary-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+        .summary-table th { background: #f8f9fa; font-weight: 600; }
+
+        /* --- Info Tab --- */
+        .info-panel {
+            flex: 1;
+            padding: 3rem;
+            overflow-y: auto;
+            background: white;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .info-panel h1 { color: var(--primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+        .info-panel h2 { margin-top: 2rem; color: #2d3436; }
+        .info-panel code { background: #f1f2f6; padding: 0.2rem 0.4rem; border-radius: 4px; font-family: monospace; }
+        .info-panel pre { background: #2d3436; color: #f8f9fa; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+        .math { font-family: "Times New Roman", serif; font-style: italic; background: #f9f9f9; padding: 1rem; border-left: 4px solid var(--primary); margin: 1rem 0; }
+
+        /* --- Modals --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: white; padding: 2rem; border-radius: 8px;
+            width: 600px; max-width: 90%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .hidden { display: none; }
+        .status-bar { padding: 0.3rem 1rem; background: #f8f9fa; border-top: 1px solid var(--border); font-size: 0.75rem; color: #636e72; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <div class="logo">ThunderStroke <span>⚡</span> V6</div>
+        <nav class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('editor')">Editor</button>
+            <button class="tab-btn" onclick="switchTab('simulator')">Simulator</button>
+            <button class="tab-btn" onclick="switchTab('info')">Info</button>
+        </nav>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn-secondary" onclick="showIO()">IO</button>
+            <button class="btn-primary" style="width: auto;" onclick="runSimulationFromUI()">Run</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Editor Panel -->
+        <div id="panel-editor" class="tab-panel active">
+            <aside class="sidebar">
+                <div class="sidebar-content">
+                    <div class="section-header" onclick="toggleSection('case-controls')">
+                        <div class="section-title">Case Management</div>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div id="case-controls" class="section-content">
+                        <button class="btn-primary" onclick="addVolume()">+ Add Volume</button>
+                        <div style="margin-top:0.5rem">
+                            <input type="file" id="file-import" class="hidden" onchange="handleFileImport(event)">
+                            <button class="btn-secondary" style="width:100%" onclick="document.getElementById('file-import').click()">Load Case File</button>
+                        </div>
+                    </div>
+
+                    <div class="section-header" onclick="toggleSection('sim-params')">
+                        <div class="section-title">Physics Parameters</div>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div id="sim-params" class="section-content">
+                        <div class="form-group">
+                            <label>Irms [kA]</label>
+                            <input type="number" id="p-Iarc" onchange="updateParam('Iarc', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Uarc [V]</label>
+                            <input type="number" id="p-Uarc" onchange="updateParam('Uarc', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Tarc [ms]</label>
+                            <input type="number" id="p-Tarc" onchange="updateParam('Tarc', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Arc Length [mm]</label>
+                            <input type="number" id="p-ArcLength" onchange="updateParam('ArcLength', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Analysis Time [ms]</label>
+                            <input type="number" id="p-AnalysisTime" onchange="updateParam('AnalysisTime', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Target dt [ns]</label>
+                            <input type="number" id="p-DtNs" value="500" onchange="updateParam('DtNs', this.value)">
+                        </div>
+                        <div class="form-group">
+                            <label>Emissivity [-]</label>
+                            <input type="number" id="p-Emissivity" step="0.1" value="0.1" onchange="updateParam('Emissivity', this.value)">
+                        </div>
+                    </div>
+
+                    <div id="inspector" class="hidden">
+                        <div class="section-title" style="margin: 1rem 0;">Selection</div>
+                        <div id="vol-insp" class="hidden">
+                            <div class="form-group"><label>Symbol</label><input type="text" id="i-symbol" oninput="updateSelection('symbol', this.value)"></div>
+                            <div class="form-group"><label>Name</label><input type="text" id="i-name" oninput="updateSelection('name', this.value)"></div>
+                            <div class="form-group"><label>Vol [m³]</label><input type="number" step="0.01" id="i-vol" oninput="updateSelection('volume', this.value)"></div>
+                            <div class="form-group"><label><input type="checkbox" id="i-isArc" onchange="updateSelection('isArc', this.checked)"> Arc Volume</label></div>
+                        </div>
+                        <div id="conn-insp" class="hidden">
+                            <div class="form-group"><label>Area [m²]</label><input type="number" step="0.01" id="i-area" oninput="updateSelection('area', this.value)"></div>
+                            <div class="form-group"><label>Open P [Pa]</label><input type="number" id="i-openP" oninput="updateSelection('openP', this.value)"></div>
+                        </div>
+                        <button class="btn-danger" style="width:100%" onclick="deleteSelection()">Delete</button>
+                    </div>
+                </div>
+            </aside>
+            <div class="editor-workspace">
+                <div id="canvas-container" class="canvas-area">
+                    <svg id="canvas-svg" width="100%" height="100%">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#b2bec3" />
+                            </marker>
+                        </defs>
+                        <g id="viewport">
+                            <g id="conn-layer"></g>
+                            <g id="vol-layer"></g>
+                            <line id="temp-line" class="connection-line hidden" marker-end="url(#arrowhead)" />
+                        </g>
+                    </svg>
+                </div>
+                <div class="status-bar">
+                    <span id="coord-txt">0, 0</span>
+                    <span>Editor Mode - Drag to move, Shift+Drag to pan, Circle handle to connect</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulator Panel -->
+        <div id="panel-simulator" class="tab-panel">
+            <div class="simulator-content">
+                <div class="results-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Calculated Arc Energy</div>
+                        <div id="res-energy" class="stat-val">0.00 kJ</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Max System Overpressure</div>
+                        <div id="res-max-p" class="stat-val">0.00 kPa</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Analysis Steps</div>
+                        <div id="res-steps" class="stat-val">0</div>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <canvas id="mainChart"></canvas>
+                </div>
+
+                <div class="table-container">
+                    <table class="summary-table">
+                        <thead>
+                            <tr><th>Symbol</th><th>Name</th><th>Volume [m³]</th><th>Max P [kPa]</th><th>Max T [K]</th></tr>
+                        </thead>
+                        <tbody id="sim-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Panel -->
+        <div id="panel-info" class="tab-panel">
+            <div class="info-panel">
+                <h1>ThunderStroke V6 - High Fidelity Engine</h1>
+                <p>ThunderStroke V6 is a thermodynamic simulator designed to calculate pressure and temperature transients in electrical equipment during internal arc faults. It leverages a non-ideal gas model to account for thermal effects at extreme temperatures.</p>
+                
+                <h2>How it Works</h2>
+                <p>The engine uses a <b>Mass and Energy Balance</b> approach, integrating differential equations for each compartment defined in your geometry. The key improvement in V6 is the move away from the "Constant Specific Heat" assumption.</p>
+                
+                <div class="math">
+                    <b>Equation of State:</b> P = (m * R * T) / V <br>
+                    <b>Internal Energy:</b> U = m * Cv(T) * T
+                </div>
+
+                <h2>Physical Enhancements</h2>
+                <ul>
+                    <li><b>Variable Cv(T):</b> As temperature rises, vibrational modes of air molecules activate, absorbing more energy. This effectively "buffers" the pressure rise.</li>
+                    <li><b>Boltzmann Radiation:</b> Energy is lost to compartment walls proportional to T<sup>4</sup>. This is critical for modeling energy saturation.</li>
+                    <li><b>Refined Arc Model:</b> Full 3-phase power simulation with dynamic current limiting (k<sub>b</sub> factor).</li>
+                </ul>
+
+                <h2>Using the Tool</h2>
+                <ol>
+                    <li><b>Editor Tab:</b> Graphically layout your system. Add volumes, define their names/sizes, and draw connections (orifices) between them.</li>
+                    <li><b>Parameters:</b> Set the Irms (Current), Uarc (Voltage), and Tarc (Burning time).</li>
+                    <li><b>Run:</b> Click the "Run" button to execute the simulation. The data is instantly shared between the Editor and Simulator.</li>
+                    <li><b>Results:</b> Switch to the Simulator tab to view charts and summary data.</li>
+                </ol>
+
+                <h2>Under the Hood</h2>
+                <p>The simulation uses a high-resolution time-stepping algorithm (default 500ns) to ensure numerical stability during the rapid expansion phase of the arc fault.</p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- IO Modal -->
+<div id="modal-io" class="modal-overlay" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Import / Export Case</h3>
+        <p style="font-size: 0.8rem; color: #636e72;">Paste TOML content or copy the generated configuration.</p>
+        <textarea id="toml-io-text" style="height: 300px; font-family: monospace;"></textarea>
+        <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <button class="btn-primary" onclick="importFromPaste()">Import Paste</button>
+            <button class="btn-secondary" onclick="exportToText()">Refresh Export</button>
+            <button class="btn-secondary" style="background:#eee; color:#333" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Global State ---
+    const AIR = {
+        cp_perf: 1005, cv_perf: 718, Rspec: 287,
+        Po: 101325, To: 300, theta: 3055.0, sigma: 5.67e-8
+    };
+
+    let state = {
+        parameters: {
+            Iarc: 65, Uarc: 415, Tarc: 300, ArcLength: 100, AnalysisTime: 500,
+            DtNs: 500, Emissivity: 0.1, BackFlowRatio: 0.0, FiniteAir: true
+        },
+        volumes: [
+            { id: 'v1', symbol: 'V1', name: 'Arc Compartment', volume: 1.0, isArc: true, x: 100, y: 100 },
+            { id: 'v2', symbol: 'V2', name: 'Expansion Room', volume: 50.0, isArc: false, x: 350, y: 100 }
+        ],
+        connections: [
+            { id: 'c1', sourceId: 'v1', targetId: 'v2', area: 0.2, openP: 0 }
+        ]
+    };
+
+    // --- UI Context ---
+    let currentTab = 'editor';
+    let selectedId = null;
+    let selectedType = null;
+    let dragTarget = null;
+    let connectionSource = null;
+    let panX = 0, panY = 0, isPanning = false, startPanX = 0, startPanY = 0;
+    let mainChart = null;
+
+    // --- Physics Core ---
+    function getAirProps(T) {
+        T = Math.max(10, T);
+        const exp_term = Math.exp(AIR.theta / T);
+        const num = Math.pow(AIR.theta / T, 2) * exp_term;
+        const den = Math.pow(exp_term - 1, 2);
+        const cv_corr = (den !== 0) ? (0.4 * (num / den)) : 0;
+        const cv = AIR.cv_perf * (1 + cv_corr);
+        return { cv, cp: cv + AIR.Rspec };
+    }
+
+    class Compartment {
+        constructor(vData) {
+            this.symbol = vData.symbol;
+            this.name = vData.name;
+            this.V = vData.volume;
+            this.isArc = vData.isArc;
+            
+            this.P = AIR.Po;
+            this.T = AIR.To;
+            this.maxP = AIR.Po;
+            this.maxT = AIR.To;
+            
+            const props = getAirProps(this.T);
+            this.cv = props.cv; this.cp = props.cp;
+            
+            this.m = (this.P * this.V) / (AIR.Rspec * this.T);
+            this.m_initial = this.m;
+            this.m_displaced = 0;
+            this.exhausted = false;
+            
+            this.surfaceArea = 2 * (Math.pow(this.V, 2/3) * 3);
+            this.outlets = [];
+            this.dm = 0; this.dU = 0;
+        }
+
+        resetDeriv() { this.dm = 0; this.dU = 0; }
+        
+        calcFlows(dt) {
+            for(let out of this.outlets) {
+                let deltaP = this.P - out.target.P;
+                let dir = deltaP >= 0 ? 1 : -1;
+                deltaP = Math.abs(deltaP);
+
+                if (out.isOpen || deltaP > out.openP) {
+                    out.isOpen = true;
+                    let rho_src = dir > 0 ? (this.P / (AIR.Rspec * this.T)) : (out.target.P / (AIR.Rspec * out.target.T));
+                    let m_dot = dir * 0.6 * out.area * Math.sqrt(2 * Math.max(0, rho_src) * deltaP);
+                    let dm = m_dot * dt;
+                    
+                    // Limit
+                    dm = dir > 0 ? Math.min(dm, this.m * 0.1) : Math.max(dm, -out.target.m * 0.1);
+                    
+                    if (dir > 0) this.m_displaced += dm;
+                    this.dm -= dm; out.target.dm += dm;
+
+                    let T_src = dir > 0 ? this.T : out.target.T;
+                    let cp_src = dir > 0 ? this.cp : out.target.cp;
+                    let dH = dm * cp_src * T_src;
+                    this.dU -= dH; out.target.dU += dH;
+                }
+            }
+            if (state.parameters.FiniteAir && this.m_displaced >= this.m_initial) this.exhausted = true;
+        }
+
+        applyHeat(power, dt) {
+            const Q_arc = (this.exhausted ? 0 : power) * 0.6 * dt; // 0.6 is typical kp
+            const Q_rad = state.parameters.Emissivity * AIR.sigma * this.surfaceArea * (Math.pow(this.T, 4) - Math.pow(AIR.To, 4)) * dt;
+            this.dU += (Q_arc - Q_rad);
+        }
+
+        update() {
+            let U_old = this.m * this.cv * this.T;
+            this.m += this.dm;
+            this.m = Math.max(1e-6, this.m);
+            let U_new = U_old + this.dU;
+            
+            this.T = U_new / (this.m * this.cv);
+            this.T = Math.max(10, this.T);
+            
+            const props = getAirProps(this.T);
+            this.cv = props.cv; this.cp = props.cp;
+            
+            this.P = (this.m * AIR.Rspec * this.T) / this.V;
+            if (this.P > this.maxP) this.maxP = this.P;
+            if (this.T > this.maxT) this.maxT = this.T;
+        }
+    }
+
+    function calcArcPower(t, Irms, U, d) {
+        const f = 50, cosFi = 0.2;
+        const fi = Math.acos(cosFi);
+        const tanFi = Math.tan(fi);
+        const L_R = tanFi / (2 * Math.PI * f);
+        const R_L = 1 / L_R;
+        const Ub = 3.52 * Math.pow(U, 0.74) + 0.5 * d;
+        const kb = 1.0;
+        
+        const ia = kb * Math.sqrt(2) * Irms * (Math.sin(2*Math.PI*f*t - fi) - Math.sin(-fi)*Math.exp(-R_L*t));
+        const ib = kb * Math.sqrt(2) * Irms * (Math.sin(2*Math.PI*f*t - fi + 4*Math.PI/3) - Math.sin(-fi + 4*Math.PI/3)*Math.exp(-R_L*t));
+        const ic = kb * Math.sqrt(2) * Irms * (Math.sin(2*Math.PI*f*t - fi + 2*Math.PI/3) - Math.sin(-fi + 2*Math.PI/3)*Math.exp(-R_L*t));
+        
+        const ua = Math.sqrt(2/3) * Ub * Math.sin(2*Math.PI*f*t - fi);
+        const ub = Math.sqrt(2/3) * Ub * Math.sin(2*Math.PI*f*t - fi + 4*Math.PI/3);
+        const uc = Math.sqrt(2/3) * Ub * Math.sin(2*Math.PI*f*t - fi + 2*Math.PI/3);
+        
+        return Math.abs(ua*ia) + Math.abs(ub*ib) + Math.abs(uc*ic);
+    }
+
+    // --- Tab Logic ---
+    function switchTab(tab) {
+        currentTab = tab;
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('panel-' + tab).classList.add('active');
+        document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+        if (tab === 'editor') renderEditor();
+    }
+
+    function toggleSection(id) {
+        const content = document.getElementById(id);
+        content.classList.toggle('collapsed');
+        content.previousElementSibling.querySelector('.toggle-icon').textContent = content.classList.contains('collapsed') ? '◀' : '▼';
+    }
+
+    // --- Editor Logic ---
+    function renderEditor() {
+        const volLayer = document.getElementById('vol-layer');
+        const connLayer = document.getElementById('conn-layer');
+        const viewport = document.getElementById('viewport');
+        viewport.setAttribute("transform", `translate(${panX}, ${panY})`);
+        
+        volLayer.innerHTML = ''; connLayer.innerHTML = '';
+
+        state.connections.forEach(c => {
+            const s = state.volumes.find(v => v.id === c.sourceId);
+            const t = state.volumes.find(v => v.id === c.targetId);
+            if (!s || !t) return;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            const x1 = s.x + 60, y1 = s.y + 35, x2 = t.x + 60, y2 = t.y + 35;
+            line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+            line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+            line.setAttribute("class", `connection-line ${selectedId === c.id ? 'selected' : ''}`);
+            line.setAttribute("marker-end", "url(#arrowhead)");
+            line.onclick = (e) => selectItem(c.id, 'connection', e);
+            connLayer.appendChild(line);
+        });
+
+        state.volumes.forEach(v => {
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("transform", `translate(${v.x}, ${v.y})`);
+            g.setAttribute("class", `volume-node ${v.isArc ? 'arc' : ''} ${selectedId === v.id ? 'selected' : ''}`);
+            g.setAttribute("data-id", v.id);
+
+            const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            r.setAttribute("width", 120); r.setAttribute("height", 70); r.setAttribute("class", "volume-rect");
+            r.onmousedown = (e) => { if(e.button===0 && !e.shiftKey) { e.stopPropagation(); dragTarget = v.id; selectItem(v.id, 'volume'); } };
+            g.appendChild(r);
+
+            const t1 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t1.setAttribute("x", 60); t1.setAttribute("y", 30); t1.setAttribute("class", "volume-label");
+            t1.textContent = v.symbol; g.appendChild(t1);
+
+            const t2 = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            t2.setAttribute("x", 60); t2.setAttribute("y", 50); t2.setAttribute("class", "volume-sublabel");
+            t2.textContent = v.name; g.appendChild(t2);
+
+            const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            h.setAttribute("cx", 120); h.setAttribute("cy", 35); h.setAttribute("r", 6); h.setAttribute("class", "conn-handle");
+            h.onmousedown = (e) => { e.stopPropagation(); connectionSource = v.id; };
+            g.appendChild(h);
+
+            volLayer.appendChild(g);
+        });
+    }
+
+    function setupEvents() {
+        const svg = document.getElementById('canvas-svg');
+        svg.onmousedown = (e) => {
+            if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+                isPanning = true; startPanX = e.clientX - panX; startPanY = e.clientY - panY;
+                document.getElementById('canvas-container').classList.add('panning');
+            }
+        };
+        svg.onmousemove = (e) => {
+            const rect = svg.getBoundingClientRect();
+            const x = e.clientX - rect.left - panX;
+            const y = e.clientY - rect.top - panY;
+            document.getElementById('coord-txt').textContent = `${Math.round(x)}, ${Math.round(y)}`;
+
+            if (isPanning) {
+                panX = e.clientX - startPanX; panY = e.clientY - startPanY;
+                renderEditor();
+            } else if (dragTarget) {
+                const v = state.volumes.find(vol => vol.id === dragTarget);
+                v.x = Math.round((e.clientX - rect.left - panX - 60) / 20) * 20;
+                v.y = Math.round((e.clientY - rect.top - panY - 35) / 20) * 20;
+                renderEditor();
+            } else if (connectionSource) {
+                const s = state.volumes.find(vol => vol.id === connectionSource);
+                const line = document.getElementById('temp-line');
+                line.setAttribute("x1", s.x + 120); line.setAttribute("y1", s.y + 35);
+                line.setAttribute("x2", x + panX); line.setAttribute("y2", y + panY);
+                line.classList.remove('hidden');
+            }
+        };
+        window.onmouseup = (e) => {
+            if (connectionSource) {
+                const targetNode = e.target.closest('.volume-node');
+                if (targetNode) {
+                    const targetId = targetNode.getAttribute('data-id');
+                    if (targetId !== connectionSource) {
+                        state.connections.push({ id: 'c'+Date.now(), sourceId: connectionSource, targetId: targetId, area: 0.1, openP: 0 });
+                    }
+                }
+                connectionSource = null;
+                document.getElementById('temp-line').classList.add('hidden');
+            }
+            isPanning = false; dragTarget = null;
+            document.getElementById('canvas-container').classList.remove('panning');
+            renderEditor();
+        };
+    }
+
+    function selectItem(id, type, e) {
+        if(e) e.stopPropagation();
+        selectedId = id; selectedType = type;
+        document.getElementById('inspector').classList.remove('hidden');
+        document.getElementById('vol-insp').classList.toggle('hidden', type !== 'volume');
+        document.getElementById('conn-insp').classList.toggle('hidden', type !== 'connection');
+        if (type === 'volume') {
+            const v = state.volumes.find(vol => vol.id === id);
+            document.getElementById('i-symbol').value = v.symbol;
+            document.getElementById('i-name').value = v.name;
+            document.getElementById('i-vol').value = v.volume;
+            document.getElementById('i-isArc').checked = v.isArc;
+        } else {
+            const c = state.connections.find(conn => conn.id === id);
+            document.getElementById('i-area').value = c.area;
+            document.getElementById('i-openP').value = c.openP;
+        }
+        renderEditor();
+    }
+
+    function updateSelection(key, val) {
+        if (!selectedId) return;
+        if (selectedType === 'volume') {
+            const v = state.volumes.find(vol => vol.id === selectedId);
+            v[key] = (key === 'volume') ? parseFloat(val) : val;
+        } else {
+            const c = state.connections.find(conn => conn.id === selectedId);
+            c[key] = parseFloat(val) || 0;
+        }
+        renderEditor();
+    }
+
+    function deleteSelection() {
+        if (selectedType === 'volume') {
+            state.volumes = state.volumes.filter(v => v.id !== selectedId);
+            state.connections = state.connections.filter(c => c.sourceId !== selectedId && c.targetId !== selectedId);
+        } else {
+            state.connections = state.connections.filter(c => c.id !== selectedId);
+        }
+        selectedId = null; document.getElementById('inspector').classList.add('hidden');
+        renderEditor();
+    }
+
+    function addVolume() {
+        const id = 'v' + Date.now();
+        state.volumes.push({ id, symbol: 'V'+(state.volumes.length+1), name: 'New Node', volume: 1.0, isArc: false, x: 50-panX, y: 50-panY });
+        renderEditor();
+        selectItem(id, 'volume');
+    }
+
+    function updateParam(key, val) { state.parameters[key] = parseFloat(val); }
+
+    function updateParamUI() {
+        for (let k in state.parameters) {
+            const el = document.getElementById('p-' + k);
+            if (el) el.value = state.parameters[k];
+        }
+    }
+
+    // --- Simulator Logic ---
+    function runSimulationFromUI() {
+        switchTab('simulator');
+        const dt = state.parameters.DtNs / 1e9;
+        const totalT = state.parameters.AnalysisTime / 1000;
+        const Irms = state.parameters.Iarc * 1000;
+        const Uarc = state.parameters.Uarc;
+        const d = state.parameters.ArcLength;
+        const Tarc = state.parameters.Tarc / 1000;
+
+        const comps = state.volumes.map(v => new Compartment(v));
+        state.connections.forEach(c => {
+            const s = comps.find(comp => comp.symbol === state.volumes.find(v => v.id === c.sourceId).symbol);
+            const t = comps.find(comp => comp.symbol === state.volumes.find(v => v.id === c.targetId).symbol);
+            if (s && t) s.outlets.push({ target: t, area: c.area, openP: c.openP, isOpen: false });
+        });
+
+        const results = { t: [], p: comps.map(() => []), energy: 0 };
+        let t = 0, step = 0;
+        
+        while (t < totalT) {
+            comps.forEach(c => c.resetDeriv());
+            let power = (t <= Tarc) ? calcArcPower(t, Irms, Uarc, d) : 0;
+            if (t <= Tarc) results.energy += power * dt;
+
+            comps.forEach(c => {
+                if (c.isArc) c.applyHeat(power, dt);
+                c.calcFlows(dt);
+            });
+            comps.forEach(c => c.update());
+
+            if (step % 1000 === 0) {
+                results.t.push(t * 1000);
+                comps.forEach((c, idx) => results.p[idx].push((c.P - AIR.Po)/1000));
+            }
+            t += dt; step++;
+        }
+
+        updateSimulatorUI(results, comps);
+    }
+
+    function updateSimulatorUI(results, comps) {
+        document.getElementById('res-energy').textContent = (results.energy/1000).toFixed(2) + " kJ";
+        const maxP = Math.max(...comps.map(c => (c.maxP - AIR.Po)/1000));
+        document.getElementById('res-max-p').textContent = maxP.toFixed(2) + " kPa";
+        document.getElementById('res-steps').textContent = results.t.length * 1000;
+
+        const tbody = document.getElementById('sim-tbody');
+        tbody.innerHTML = '';
+        comps.forEach(c => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${c.symbol}</td><td>${c.name}</td><td>${c.V}</td><td>${((c.maxP-AIR.Po)/1000).toFixed(2)}</td><td>${c.maxT.toFixed(1)}</td>`;
+            tbody.appendChild(tr);
+        });
+
+        if (mainChart) mainChart.destroy();
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        mainChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: results.t,
+                datasets: comps.map((c, i) => ({
+                    label: c.symbol, data: results.p[i], borderColor: getCol(i), fill: false, pointRadius: 0, tension: 0.1
+                }))
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: 'Time [ms]' } },
+                    y: { title: { display: true, text: 'Overpressure [kPa]' } }
+                }
+            }
+        });
+    }
+
+    function getCol(i) { return ['#007bff','#28a745','#dc3545','#ffc107','#17a2b8','#6610f2'][i % 6]; }
+
+    // --- IO Logic ---
+    function showIO() {
+        const toml = generateTOML();
+        document.getElementById('toml-io-text').value = toml;
+        document.getElementById('modal-io').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('modal-io').style.display = 'none'; }
+
+    function generateTOML() {
+        let t = "[parameters]\n";
+        for (let k in state.parameters) t += `${k} = ${state.parameters[k]}\n`;
+        t += "\n[geometry]\nvolumes = \"\"\"\n";
+        state.volumes.forEach(v => t += `${v.symbol}, ${v.name}, ${v.volume}, ${v.isArc}\n`);
+        t += "\"\"\"\n\nconnections = \"\"\"\n";
+        state.connections.forEach(c => {
+            const s = state.volumes.find(v => v.id === c.sourceId);
+            const tg = state.volumes.find(v => v.id === c.targetId);
+            t += `${s.symbol}, ${tg.symbol}, ${c.area}, ${c.openP}\n`;
+        });
+        return t + "\"\"\"";
+    }
+
+    function importFromPaste() {
+        const text = document.getElementById('toml-io-text').value;
+        try {
+            const data = window.toml.parse(text);
+            if (data.parameters) state.parameters = { ...state.parameters, ...data.parameters };
+            const geo = data.geometry || data;
+            if (geo.volumes) {
+                state.volumes = geo.volumes.trim().split('\n').map((l, i) => {
+                    const [s, n, v, a] = l.split(',').map(x => x.trim());
+                    return { id: 'v'+i, symbol: s, name: n, volume: parseFloat(v), isArc: a==='true', x: 100+(i%4)*150, y: 100 };
+                });
+            }
+            if (geo.connections) {
+                state.connections = geo.connections.trim().split('\n').map((l, i) => {
+                    const [ss, ts, ar, op] = l.split(',').map(x => x.trim());
+                    return { id: 'c'+i, sourceId: state.volumes.find(v => v.symbol === ss).id, targetId: state.volumes.find(v => v.symbol === ts).id, area: parseFloat(ar), openP: parseFloat(op) };
+                });
+            }
+            updateParamUI(); renderEditor(); closeModal();
+        } catch(e) { alert("Parse Error: " + e.message); }
+    }
+
+    function handleFileImport(e) {
+        const f = e.target.files[0];
+        const r = new FileReader();
+        r.onload = (ev) => { document.getElementById('toml-io-text').value = ev.target.result; importFromPaste(); };
+        r.readAsText(f);
+    }
+
+    // --- Init ---
+    updateParamUI();
+    renderEditor();
+    setupEvents();
+
+</script>
+</body>
+</html>
