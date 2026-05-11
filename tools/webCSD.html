@@ -179,6 +179,7 @@ body {
 .prop-grid.cols1 { grid-template-columns:1fr; }
 .prop-field { display:flex; flex-direction:column; gap:3px; }
 .prop-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.4px; }
+.prop-lbl .u { text-transform: none; letter-spacing: 0; }
 .prop-inp, .prop-sel {
   background:var(--input); border:1px solid var(--border);
   border-radius:4px; color:var(--text);
@@ -515,7 +516,7 @@ body {
           <input class="prop-inp" id="s-freq" type="number" value="50" min="1" step="1">
         </div>
         <div class="prop-field">
-          <span class="prop-lbl">Length (mm)</span>
+          <span class="prop-lbl">Length <span class="u">(mm)</span></span>
           <input class="prop-inp" id="s-len" type="number" value="1000" min="1">
         </div>
         <div class="prop-field">
@@ -523,7 +524,7 @@ body {
           <input class="prop-inp" id="s-temp" type="number" value="20">
         </div>
         <div class="prop-field">
-          <span class="prop-lbl">Cell (mm)</span>
+          <span class="prop-lbl">Cell <span class="u">(mm)</span></span>
           <input class="prop-inp" id="s-cell" type="number" value="2" min="0.5" step="0.5">
         </div>
       </div>
@@ -1302,13 +1303,13 @@ function renderPropsPanel() {
   if (s.type === 'rect') {
     shapeFields = `
       <div class="prop-grid">
-        <div class="prop-field"><span class="prop-lbl">X (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">X <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-x" type="number" step="${snapVal||1}" value="${fmtMm(s.x)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Y (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Y <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-y" type="number" step="${snapVal||1}" value="${fmtMm(s.y)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Width (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Width <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-w" type="number" step="${snapVal||1}" min="0" value="${fmtMm(s.w)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Height (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Height <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-h" type="number" step="${snapVal||1}" min="0" value="${fmtMm(s.h)}"></div>
       </div>`;
   } else if (s.type === 'circle') {
@@ -1317,13 +1318,13 @@ function renderPropsPanel() {
     ).join('');
     shapeFields = `
       <div class="prop-grid">
-        <div class="prop-field"><span class="prop-lbl">Center X (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Center X <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-cx" type="number" step="${snapVal||1}" value="${fmtMm(s.cx)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Center Y (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Center Y <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-cy" type="number" step="${snapVal||1}" value="${fmtMm(s.cy)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Outer Ø (mm)</span>
+        <div class="prop-field"><span class="prop-lbl">Outer Ø <span class="u">(mm)</span></span>
           <input class="prop-inp" id="p-d" type="number" step="${snapVal||1}" min="0" value="${fmtMm(s.d)}"></div>
-        <div class="prop-field"><span class="prop-lbl">Inner Ø (mm) <span style="color:var(--text3)">(annulus)</span></span>
+        <div class="prop-field"><span class="prop-lbl">Inner Ø <span class="u">(mm)</span> <span style="color:var(--text3)">(annulus)</span></span>
           <input class="prop-inp" id="p-di" type="number" step="${snapVal||1}" min="0" value="${fmtMm(s.dInner||0)}"></div>
       </div>
       <div class="prop-grid cols1" id="inner-phase-row" style="${s.dInner > 0 ? '' : 'display:none'}">
@@ -2142,7 +2143,7 @@ function runSolver(params) {
   for (let i = 0; i < N; i++) heatmap[elemR[i] * cols + elemC[i]] = densVec[i];
 
   return { ok: true, N, heatmap, phaseResults, totalPower, maxDensity,
-           rows, cols, dXmm, minX, minY };
+           rows, cols, dXmm, minX, minY, length: params.length };
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2179,10 +2180,11 @@ function showResultsPanel(results) {
   if (info) info.textContent = `(N=${results.N}, cell=${results.dXmm}mm)`;
 
   const fmt = v => v < 1 ? v.toFixed(3) : v < 100 ? v.toFixed(2) : v.toFixed(1);
+  const lenMm = results.length ?? parseFloat(document.getElementById('s-len')?.value) ?? 1000;
   const rows = results.phaseResults.map(r =>
     `<div class="res-row">
       <span class="res-lbl">${r.label} (ph${r.pid})</span>
-      <span class="res-val">${fmt(r.power)} W/m</span>
+      <span class="res-val">${fmt(r.power)} W</span>
     </div>`
   ).join('');
 
@@ -2190,7 +2192,11 @@ function showResultsPanel(results) {
     ${rows}
     <div class="res-row" style="margin-top:4px">
       <span class="res-lbl res-total">Total</span>
-      <span class="res-val res-total">${fmt(results.totalPower)} W/m</span>
+      <span class="res-val res-total">${fmt(results.totalPower)} W</span>
+    </div>
+    <div class="res-row">
+      <span class="res-lbl">Length</span>
+      <span class="res-val">${lenMm} mm</span>
     </div>
     <div class="res-row">
       <span class="res-lbl">Max J</span>
@@ -2294,7 +2300,7 @@ function openReport() {
       <td>${irms} A</td>
       <td>${phi}°</td>
       <td>${matLabel(r.pid)}</td>
-      <td>${fmt(r.power)} W/m</td>
+      <td>${fmt(r.power)} W</td>
     </tr>`;
   }).join('');
 
@@ -2332,7 +2338,7 @@ function openReport() {
         to compute current distribution and Joule losses across the cross-section at
         <strong>${freq} Hz</strong>.
         The system comprises ${usedPhases.join(', ')}.
-        The conductor length used for normalisation is <strong>${length} mm</strong>.
+        The conductor length used in the analysis is <strong>${length} mm</strong>.
       </p>
     </div>
 
@@ -2359,13 +2365,13 @@ function openReport() {
       <h2>Power Loss Results</h2>
       <table class="rpt-res-table">
         <thead>
-          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss (W/m)</th></tr>
+          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss (W)</th></tr>
         </thead>
         <tbody>
           ${resultRows}
           <tr class="rpt-total">
-            <td colspan="5">Total power loss</td>
-            <td>${fmt(res.totalPower)} W/m</td>
+            <td colspan="5">Total power loss (for ${length} mm length)</td>
+            <td>${fmt(res.totalPower)} W</td>
           </tr>
           <tr>
             <td colspan="5">Maximum current density</td>
@@ -2927,7 +2933,7 @@ function runSolver(shapes, phases, params) {
   for (let i = 0; i < N; i++) heatmap[elemR[i] * cols + elemC[i]] = densVec[i];
 
   return { ok: true, N, heatmap, phaseResults, totalPower, maxDensity,
-           rows, cols, dXmm, minX, minY };
+           rows, cols, dXmm, minX, minY, length: params.length };
 }
 
 self.onmessage = function(e) {
