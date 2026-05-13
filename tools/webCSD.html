@@ -644,8 +644,12 @@ body.raster-mode .raster-only { display: flex !important; }
           <input class="prop-inp" id="s-len" type="number" value="1000" min="1">
         </div>
         <div class="prop-field">
-          <span class="prop-lbl">Temp (°C)</span>
-          <input class="prop-inp" id="s-temp" type="number" value="20">
+          <span class="prop-lbl">Cond. temp. (°C)</span>
+          <input class="prop-inp" id="s-temp" type="number" value="130">
+        </div>
+        <div class="prop-field">
+          <span class="prop-lbl">HTC <span class="u">(W/m²·K)</span></span>
+          <input class="prop-inp" id="s-htc" type="number" value="5" min="0" step="1" title="Heat transfer coefficient — natural convection in air ≈ 5–25, forced air ≈ 25–100">
         </div>
         <div class="prop-field">
           <span class="prop-lbl">Cell <span class="u">(mm)</span></span>
@@ -670,6 +674,7 @@ body.raster-mode .raster-only { display: flex !important; }
           <button id="report-btn" title="Generate report" style="font-size:11px;padding:2px 7px;background:var(--accent);border:none;color:#fff;border-radius:4px;cursor:pointer;font-weight:600">📋 Report</button>
         </div>
         <div id="results-table"></div>
+        <canvas id="conductor-map-canvas" style="display:none;width:100%;max-height:110px;image-rendering:pixelated;border:1px solid var(--border);border-radius:4px;margin-top:6px"></canvas>
       </div>
     </div>
   </div>
@@ -733,6 +738,7 @@ let clipboard     = [];          // copied shapes (deep copies)
 // Solver state
 let customMaterials = {};   // name → {sigma, alpha, mi_r}  (from defmat() lines)
 let solverResults    = null; // last successful solve result
+let solverComponents = null; // labelComponents() result for last solve
 let showHeatmap      = false;
 let showMeshPreview  = false;
 let _meshCache       = null; // cached rasterizeShapes() result; null = dirty
@@ -1957,6 +1963,7 @@ function paintCell(r, c, phId) {
   const { grid, rows, cols } = meshState;
   if (r < 0 || r >= rows || c < 0 || c >= cols) return;
   grid[r * cols + c] = phId;
+  meshState.components = null;
 }
 
 function bresenhamPaint(r0, c0, r1, c1, phId) {
@@ -2619,6 +2626,43 @@ function invalidateMesh() {
 }
 
 // ═══════════════════════════════════════════════════════
+// CONNECTED-COMPONENT LABELING (BFS flood fill)
+// ═══════════════════════════════════════════════════════
+function labelComponents(grid, rows, cols, dXmm) {
+  const compGrid = new Uint32Array(rows * cols);
+  const components = [];
+  let nextId = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c;
+      const phId = grid[idx];
+      if (phId === 0 || compGrid[idx] !== 0) continue;
+      const id = nextId++;
+      const comp = { id, phaseId: phId, cells: 0, perimeterEdges: 0 };
+      const queue = [idx];
+      compGrid[idx] = id;
+      let head = 0;
+      while (head < queue.length) {
+        const cur = queue[head++];
+        const cr = (cur / cols) | 0, cc = cur % cols;
+        comp.cells++;
+        for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+          const nr = cr + dr, nc = cc + dc;
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) { comp.perimeterEdges++; continue; }
+          const nIdx = nr * cols + nc;
+          if (grid[nIdx] !== phId) { comp.perimeterEdges++; }
+          else if (compGrid[nIdx] === 0) { compGrid[nIdx] = id; queue.push(nIdx); }
+        }
+      }
+      comp.areaMm2      = comp.cells * dXmm * dXmm;
+      comp.perimeterMm  = comp.perimeterEdges * dXmm;
+      components.push(comp);
+    }
+  }
+  return { compGrid, rows, cols, dXmm, count: components.length, components };
+}
+
+// ═══════════════════════════════════════════════════════
 // MATERIAL RESOLVER
 // ═══════════════════════════════════════════════════════
 function getPhaseMatProps(ph) {
@@ -2826,7 +2870,12 @@ function showResultsPanel(results) {
   const info  = document.getElementById('res-cell-info');
   if (!panel || !table) return;
 
-  if (!results?.ok) { panel.style.display = 'none'; return; }
+  if (!results?.ok) {
+    panel.style.display = 'none';
+    const mc = document.getElementById('conductor-map-canvas');
+    if (mc) mc.style.display = 'none';
+    return;
+  }
 
   panel.style.display = '';
   if (info) info.textContent = `(N=${results.N}, cell=${results.dXmm}mm)`;
@@ -2839,6 +2888,11 @@ function showResultsPanel(results) {
       <span class="res-val">${fmt(r.power)} W</span>
     </div>`
   ).join('');
+
+  const condCount = results.componentResults?.length;
+  const condRow = condCount != null
+    ? `<div class="res-row"><span class="res-lbl">Conductors</span><span class="res-val">${condCount}</span></div>`
+    : '';
 
   table.innerHTML = `
     ${rows}
@@ -2853,7 +2907,11 @@ function showResultsPanel(results) {
     <div class="res-row">
       <span class="res-lbl">Max J</span>
       <span class="res-val">${fmt(results.maxDensity)} A/mm²</span>
-    </div>`;
+    </div>
+    ${condRow}`;
+
+  const mapCanvas = document.getElementById('conductor-map-canvas');
+  if (mapCanvas) renderConductorMap(mapCanvas, solverComponents);
 
   const legend = document.getElementById('heatmap-legend');
   const legendMax = document.getElementById('legend-max');
@@ -2902,6 +2960,107 @@ function jetColorArr(t) {
   ];
 }
 
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => { const k = (n + h / 30) % 12; return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+  return [Math.round(f(0)*255), Math.round(f(8)*255), Math.round(f(4)*255)];
+}
+function conductorRGB(idx) { return hslToRgb((idx * 137.508) % 360, 65, 52); }
+function conductorCSS(idx) { const [r,g,b] = conductorRGB(idx); return `rgb(${r},${g},${b})`; }
+
+function renderConductorMap(canvas, comps) {
+  if (!comps) { canvas.style.display = 'none'; return; }
+  const { compGrid, components, rows, cols } = comps;
+  const colorMap = new Map([[0, [220, 220, 220]]]);
+  components.forEach((c, i) => colorMap.set(c.id, conductorRGB(i)));
+  canvas.width = cols; canvas.height = rows;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(cols, rows);
+  const d = img.data;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const [rr, gg, bb] = colorMap.get(compGrid[r * cols + c]) || [255,255,255];
+      const idx = ((rows - 1 - r) * cols + c) * 4;
+      d[idx] = rr; d[idx+1] = gg; d[idx+2] = bb; d[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  canvas.style.display = '';
+}
+
+function buildConductorMapDataURL(comps) {
+  if (!comps) return null;
+  const { compGrid, components, rows, cols } = comps;
+  const colorMap = new Map([[0, [220, 220, 220]]]);
+  components.forEach((c, i) => colorMap.set(c.id, conductorRGB(i)));
+  const oc = document.createElement('canvas');
+  oc.width = cols; oc.height = rows;
+  const ctx = oc.getContext('2d');
+  const img = ctx.createImageData(cols, rows);
+  const d = img.data;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const [rr, gg, bb] = colorMap.get(compGrid[r * cols + c]) || [255,255,255];
+      const idx = ((rows - 1 - r) * cols + c) * 4;
+      d[idx] = rr; d[idx+1] = gg; d[idx+2] = bb; d[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return oc.toDataURL('image/png');
+}
+
+function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
+  if (!comps || !res.componentResults?.length) return '';
+  const powerById = Object.fromEntries(res.componentResults.map(r => [r.compId, r.power]));
+  const htcOk = htc > 0;
+  const sorted = comps.components.map((c, i) => ({ ...c, colorIdx: i }))
+    .sort((a, b) => a.phaseId - b.phaseId);
+  let lastPhaseId = null;
+  const tableRows = sorted.map(c => {
+    const power     = powerById[c.id] || 0;
+    const coolingM2 = c.perimeterMm * length / 1e6;
+    const trise     = htcOk && coolingM2 > 0 ? power / (htc * coolingM2) : null;
+    const pLabel    = phases[c.phaseId]?.label || `ph${c.phaseId}`;
+    const swatch    = `<span style="display:inline-block;width:11px;height:11px;background:${conductorCSS(c.colorIdx)};border-radius:2px;vertical-align:middle;margin-right:4px"></span>`;
+    let groupRow = '';
+    if (c.phaseId !== lastPhaseId) {
+      lastPhaseId = c.phaseId;
+      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="7" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
+    }
+    return groupRow + `<tr>
+      <td>${swatch}${c.id}</td>
+      <td>${pLabel} (ph${c.phaseId})</td>
+      <td>${c.areaMm2.toFixed(2)}</td>
+      <td>${c.perimeterMm.toFixed(2)}</td>
+      <td>${(c.perimeterMm * length / 100).toFixed(1)}</td>
+      <td>${fmt(power)}</td>
+      <td>${trise !== null ? trise.toFixed(1) : '—'}</td>
+    </tr>`;
+  }).join('');
+  const htcNote = !htcOk
+    ? '<p style="color:#888;font-size:11px;margin-top:6px">Set HTC &gt; 0 to compute temperature rise.</p>' : '';
+  const mapUrl = buildConductorMapDataURL(comps);
+  const mapImg = mapUrl
+    ? `<div class="rpt-heatmap-wrap" style="margin-bottom:10px"><img src="${mapUrl}" style="border:1px solid #ccc;border-radius:4px;image-rendering:pixelated;width:calc(100% - 50px);max-height:520px;object-fit:contain"></div>`
+    : '';
+  return `
+    <div class="rpt-section">
+      <h2>Individual Conductors</h2>
+      ${mapImg}
+      <table class="rpt-res-table">
+        <thead><tr>
+          <th>ID</th><th>Phase</th><th>Cross-section (mm²)</th>
+          <th>Perimeter * (mm)</th><th>Cooling area (cm²)</th>
+          <th>Power loss (W)</th><th>ΔT (K)</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <p style="color:#888;font-size:11px;margin-top:4px">* Raster perimeter — overestimates curved surfaces by up to ~27% (π/4 factor). Exact for rectangles.</p>
+      ${htcNote}
+    </div>`;
+}
+
 function openReport() {
   if (!solverResults?.ok) return;
   const res = solverResults;
@@ -2911,6 +3070,7 @@ function openReport() {
   const freq   = parseFloat(document.getElementById('s-freq')?.value)  || 50;
   const length = parseFloat(document.getElementById('s-len')?.value)   || 1000;
   const temp   = parseFloat(document.getElementById('s-temp')?.value)  ?? 20;
+  const htc    = parseFloat(document.getElementById('s-htc')?.value)   || 0;
 
   // Phase summary for intro
   const usedPhases = res.phaseResults.map(r => {
@@ -2999,7 +3159,8 @@ function openReport() {
       <table class="rpt-param-table">
         <tr><td>Frequency</td><td>${freq} Hz</td></tr>
         <tr><td>Conductor length</td><td>${length} mm</td></tr>
-        <tr><td>Operating temperature</td><td>${temp} °C</td></tr>
+        <tr><td>Conductor temperature</td><td>${temp} °C</td></tr>
+        <tr><td>Heat transfer coefficient (HTC)</td><td>${htc > 0 ? htc + ' W/(m²·K)' : '— (not set)'}</td></tr>
         <tr><td>Mesh cell size</td><td>${res.dXmm} mm × ${res.dXmm} mm</td></tr>
         <tr><td>Total mesh elements (N)</td><td>${res.N}</td></tr>
         <tr><td>Number of phases</td><td>${res.phaseResults.length}</td></tr>
@@ -3032,6 +3193,8 @@ function openReport() {
         </tbody>
       </table>
     </div>
+
+    ${buildConductorSection(res, solverComponents, phases, htc, temp, length, fmt)}
 
     <div class="rpt-section">
       <h2>Geometry Definition (.ic code)</h2>
@@ -3116,6 +3279,7 @@ function triggerSolve() {
   const freq   = parseFloat(document.getElementById('s-freq')?.value)  || 50;
   const length = parseFloat(document.getElementById('s-len')?.value)   || 1000;
   const temp   = parseFloat(document.getElementById('s-temp')?.value)  ?? 20;
+  const htc    = parseFloat(document.getElementById('s-htc')?.value)   || 0;
   let   cellMm = parseFloat(document.getElementById('s-cell')?.value)  || 0;
   if (cellMm <= 0) cellMm = autoPickCellSize(shapes);
 
@@ -3124,6 +3288,25 @@ function triggerSolve() {
   setStatus('Solving…');
 
   if (_solverWorker) { _solverWorker.terminate(); _solverWorker = null; }
+
+  // Resolve grid and component labels on main thread (both modes)
+  let gridInfo;
+  if (editorMode === 'raster' && meshState) {
+    gridInfo = { grid: meshState.grid, rows: meshState.rows, cols: meshState.cols,
+                 dXmm: meshState.dXmm, minX: meshState.minX, minY: meshState.minY };
+    if (!meshState.components) {
+      meshState.components = labelComponents(meshState.grid, meshState.rows, meshState.cols, meshState.dXmm);
+    }
+    solverComponents = meshState.components;
+  } else {
+    gridInfo = rasterizeShapes(shapes, cellMm);
+    if (!gridInfo) {
+      setStatus('Nothing to rasterize — draw some shapes first.', 'error');
+      if (btn) btn.disabled = false;
+      return;
+    }
+    solverComponents = labelComponents(gridInfo.grid, gridInfo.rows, gridInfo.cols, gridInfo.dXmm);
+  }
 
   const worker = new Worker(getSolverWorkerUrl());
   _solverWorker = worker;
@@ -3163,22 +3346,15 @@ function triggerSolve() {
     phasesForWorker[id] = { ...ph, customMat: getPhaseMatProps(ph) };
   }
 
-  if (editorMode === 'raster' && meshState) {
-    // Pass a copy of the grid so the worker doesn't hold a reference to the live buffer
-    const gridCopy = meshState.grid.slice();
-    worker.postMessage({
-      gridData: { grid: gridCopy, rows: meshState.rows, cols: meshState.cols,
-                  dXmm: meshState.dXmm, minX: meshState.minX, minY: meshState.minY },
-      phases: phasesForWorker,
-      params: { freq, length, temp, dXmm: meshState.dXmm }
-    }, [gridCopy.buffer]);
-  } else {
-    worker.postMessage({
-      shapes,
-      phases: phasesForWorker,
-      params: { freq, length, temp, dXmm: cellMm }
-    });
-  }
+  const gridCopy     = gridInfo.grid.slice();
+  const compGridCopy = solverComponents.compGrid.slice();
+  worker.postMessage({
+    gridData: { grid: gridCopy, rows: gridInfo.rows, cols: gridInfo.cols,
+                dXmm: gridInfo.dXmm, minX: gridInfo.minX, minY: gridInfo.minY },
+    compGrid: compGridCopy,
+    phases: phasesForWorker,
+    params: { freq, length, temp, htc, dXmm: gridInfo.dXmm }
+  }, [gridCopy.buffer, compGridCopy.buffer]);
 }
 
 document.getElementById('solve-btn')?.addEventListener('click', triggerSolve);
@@ -3474,7 +3650,7 @@ function rasterizeShapes(shapeList, dXmm) {
   return { grid, rows, cols, dXmm, minX, minY };
 }
 
-function runSolver(shapes, phases, params, gridData) {
+function runSolver(shapes, phases, params, gridData, compGrid) {
   const { freq, length, temp, dXmm: cellMm } = params;
   const omega = 2 * Math.PI * freq;
 
@@ -3606,6 +3782,17 @@ function runSolver(shapes, phases, params, gridData) {
   const powerVec = new Float64Array(N);
   for (let i = 0; i < N; i++) powerVec[i] = Rvec[i] * Imagn[i]**2;
 
+  // Per-component power aggregation
+  let componentResults = null;
+  if (compGrid) {
+    const compPowerMap = new Map();
+    for (let i = 0; i < N; i++) {
+      const cid = compGrid[elemR[i] * cols + elemC[i]];
+      if (cid > 0) compPowerMap.set(cid, (compPowerMap.get(cid) || 0) + powerVec[i]);
+    }
+    componentResults = [...compPowerMap.entries()].map(([compId, power]) => ({ compId, power }));
+  }
+
   const phaseResults = phaseBounds.map(({ start, end, pid }) => {
     let power = 0;
     for (let i = start; i < end; i++) power += powerVec[i];
@@ -3621,13 +3808,13 @@ function runSolver(shapes, phases, params, gridData) {
   for (let i = 0; i < N; i++) heatmap[elemR[i] * cols + elemC[i]] = densVec[i];
 
   return { ok: true, N, heatmap, phaseResults, totalPower, maxDensity,
-           rows, cols, dXmm, minX, minY, length: params.length };
+           rows, cols, dXmm, minX, minY, length: params.length, componentResults };
 }
 
 self.onmessage = function(e) {
   try {
-    const { shapes, gridData, phases, params } = e.data;
-    const result = runSolver(shapes, phases, params, gridData);
+    const { shapes, gridData, compGrid, phases, params } = e.data;
+    const result = runSolver(shapes, phases, params, gridData, compGrid);
     if (result.ok) {
       self.postMessage(result, [result.heatmap.buffer]);
     } else {
