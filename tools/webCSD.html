@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CSD Geometry Editor</title>
+<title>CSD Editor — Raster Mode TEST</title>
 <style>
 :root {
   --bg:       #f0f2f5;
@@ -413,23 +413,45 @@ body {
 }
 .rpt-print-btn:hover { background: #1a68d1; }
 
+/* ── Raster mode ── */
+#raster-banner {
+  display: none; align-items: center; gap: 8px;
+  padding: 5px 14px; background: #fef3c7; border-bottom: 1px solid #f59e0b;
+  font-size: 11px; color: #92400e; font-weight: 600; grid-area: tb;
+  position: fixed; top: 46px; left: 0; right: 0; z-index: 50;
+  pointer-events: none;
+}
+body.raster-mode #raster-banner { display: flex; }
+body.raster-mode { grid-template-rows: 46px 1fr 180px; }
+#canvas-wrap.raster-paint  #editor-canvas { cursor: crosshair; }
+#canvas-wrap.raster-erase  #editor-canvas { cursor: cell; }
+.raster-only { display: none; }
+body.raster-mode .vector-only { display: none !important; }
+body.raster-mode .raster-only { display: flex !important; }
+.tb-btn.raster-tool { border-color: #f59e0b; color: #92400e; }
+.tb-btn.raster-tool.active { background: #f59e0b; border-color: #d97706; color: #fff; }
+#rasterize-btn { border-color: #f59e0b; color: #92400e; font-weight: 700; }
+#rasterize-btn:hover { background: #fef3c7; border-color: #d97706; }
+.raster-info { font-size:10px; color:var(--text3); padding: 6px 12px; }
+
 </style>
 </head>
 <body>
 
 <!-- ── Toolbar ──────────────────────────────────── -->
 <div id="toolbar">
-  <span class="app-title">⚡ CSD Editor</span>
+  <span class="app-title">⚡ CSD Editor <span style="font-size:9px;color:#f59e0b;vertical-align:middle" id="mode-badge"></span></span>
   <div class="tb-sep"></div>
 
-  <button class="tb-btn active" data-tool="select" title="Select &amp; move (V)">▲ Select</button>
-  <button class="tb-btn" data-tool="rect"   title="Rectangle (R)">▭ Rect</button>
-  <button class="tb-btn" data-tool="circle" title="Circle / Annulus (C)">● Circle</button>
+  <!-- Vector-mode tools -->
+  <button class="tb-btn vector-only active" data-tool="select" title="Select &amp; move (V)">▲ Select</button>
+  <button class="tb-btn vector-only" data-tool="rect"   title="Rectangle (R)">▭ Rect</button>
+  <button class="tb-btn vector-only" data-tool="circle" title="Circle / Annulus (C)">● Circle</button>
 
-  <div class="tb-sep"></div>
+  <div class="tb-sep vector-only"></div>
 
-  <span class="tb-label">Snap</span>
-  <select id="snap-sel" class="tb-select">
+  <span class="tb-label vector-only">Snap</span>
+  <select id="snap-sel" class="tb-select vector-only">
     <option value="0">None</option>
     <option value="1">1 mm</option>
     <option value="2">2 mm</option>
@@ -442,14 +464,27 @@ body {
   <button class="tb-btn" id="fit-btn" title="Fit content (F)">⊡ Fit</button>
   <button class="tb-btn" id="reset-btn" title="Reset view">↺ Reset</button>
 
-  <div class="tb-sep"></div>
+  <div class="tb-sep vector-only"></div>
 
-  <button class="tb-btn" id="import-btn" title="Import .ic file">⤵ Import</button>
+  <button class="tb-btn vector-only" id="import-btn" title="Import .ic file">⤵ Import</button>
   <input type="file" id="import-file" accept=".ic,.txt" style="display:none">
 
-  <div class="tb-sep"></div>
-  <button class="tb-btn" id="mat-mgr-btn" title="Manage custom materials">⚙ Materials</button>
-  <button class="tb-btn" id="pattern-btn" title="Repeat selected shapes in a grid (P)" disabled>⊞ Pattern</button>
+  <div class="tb-sep vector-only"></div>
+  <button class="tb-btn vector-only" id="mat-mgr-btn" title="Manage custom materials">⚙ Materials</button>
+  <button class="tb-btn vector-only" id="pattern-btn" title="Repeat selected shapes in a grid (P)" disabled>⊞ Pattern</button>
+
+  <!-- Rasterize button (vector mode only) -->
+  <div class="tb-sep vector-only"></div>
+  <button class="tb-btn vector-only" id="rasterize-btn" title="Convert geometry to raster mesh for cell-level editing">⬛ Rasterize…</button>
+
+  <!-- Raster-mode paint tools -->
+  <button class="tb-btn raster-tool raster-only active" id="raster-paint-btn" data-rtool="paint" title="Paint cells with active phase (B)">🖌 Paint</button>
+  <button class="tb-btn raster-tool raster-only" id="raster-erase-btn" data-rtool="erase" title="Erase cells (E)">◻ Erase</button>
+  <div class="tb-sep raster-only"></div>
+  <button class="tb-btn raster-only" id="export-mesh-btn" title="Export mesh as JSON">⬇ Export Mesh</button>
+  <button class="tb-btn" id="import-mesh-btn" title="Import .csdm mesh file">⤵ Import Mesh</button>
+  <input type="file" id="import-mesh-file" accept=".csdm" style="display:none">
+
   <button class="tb-btn" id="tb-solve-btn" title="Run power loss solver (⚡)">⚡ Solve</button>
 
   <span id="cursor-info">x: —  y: — mm</span>
@@ -533,6 +568,35 @@ body {
   </div>
 </div>
 
+<!-- ── Rasterize confirmation modal ─────────────────── -->
+<div id="rasterize-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal-box" style="min-width:400px;max-width:480px">
+    <div class="modal-hdr">
+      <span>⬛ Convert to Raster Mesh</span>
+      <button id="rasterize-modal-close" title="Close">✕</button>
+    </div>
+    <div class="modal-body" style="padding:18px 20px">
+      <p style="font-size:13px;line-height:1.65;color:var(--text);margin-bottom:12px">
+        This will convert your vector shapes into a fixed cell grid using the current
+        <strong>Cell</strong> size. After conversion you can paint or erase individual cells
+        and run the solver directly.
+      </p>
+      <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:10px 14px;font-size:12px;color:#92400e;margin-bottom:14px">
+        <strong>⚠ This action cannot be undone.</strong><br>
+        The original vector shapes will be discarded. The .ic code export will be replaced by a mesh JSON export.
+      </div>
+      <div id="rasterize-info" style="font-size:12px;color:var(--text2);background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:8px 12px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-add-btn" id="rasterize-confirm-btn" style="background:#f59e0b;border-color:#d97706">⬛ Confirm — Rasterize</button>
+      <button class="modal-close-btn" id="rasterize-cancel-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Raster mode warning banner ─────────────────────── -->
+<div id="raster-banner">⬛ RASTER MODE — cell-level editing active &nbsp;|&nbsp; vector shapes have been discarded &nbsp;|&nbsp; .ic export not available</div>
+
 <!-- ── Left panel (phases) ──────────────────────── -->
 <div id="left-panel">
   <div class="panel-hdr">Phases</div>
@@ -614,11 +678,12 @@ body {
 <!-- ── Preview panel ────────────────────────────── -->
 <div id="preview-panel">
   <div id="preview-hdr">
-    <span class="pv-title">.ic Code</span>
-    <span class="pv-hint" id="pv-hint" style="font-size:10px;color:var(--text3);flex:1;margin-left:8px;">Edit or paste .ic code, then click Load ↑</span>
-    <button class="pv-btn" id="parse-btn" title="Parse the text below and recreate shapes on canvas">↑ Load</button>
-    <button class="pv-btn" id="copy-btn">⎘ Copy</button>
-    <button class="pv-btn primary" id="download-btn">⬇ Download .ic</button>
+    <span class="pv-title" id="preview-panel-title">.ic Code</span>
+    <span class="pv-hint vector-only" id="pv-hint" style="font-size:10px;color:var(--text3);flex:1;margin-left:8px;">Edit or paste .ic code, then click Load ↑</span>
+    <span class="raster-only" id="raster-hint" style="font-size:10px;color:#92400e;flex:1;margin-left:8px;font-weight:600">Raster mesh active — .ic code not available</span>
+    <button class="pv-btn vector-only" id="parse-btn" title="Parse the text below and recreate shapes on canvas">↑ Load</button>
+    <button class="pv-btn vector-only" id="copy-btn">⎘ Copy</button>
+    <button class="pv-btn primary vector-only" id="download-btn">⬇ Download .ic</button>
   </div>
   <textarea id="ic-preview" spellcheck="false"></textarea>
 </div>
@@ -671,6 +736,14 @@ let solverResults    = null; // last successful solve result
 let showHeatmap      = false;
 let showMeshPreview  = false;
 let _meshCache       = null; // cached rasterizeShapes() result; null = dirty
+
+// Raster edit mode
+let editorMode      = 'vector';  // 'vector' | 'raster'
+let meshState       = null;      // { grid:Uint16Array, rows, cols, dXmm, minX, minY }
+let rasterTool      = 'paint';   // 'paint' | 'erase'
+let isPainting      = false;
+let lastPaintCell   = null;      // { r, c } — for Bresenham drag interpolation
+let rasterCursorCell = null;     // { r, c } — cell under mouse for highlight
 
 // Camera — cam.ox/oy are canvas-px position of mm(0,0)
 // canvas_x = ox + mm_x * scale
@@ -942,8 +1015,49 @@ function render() {
 
   const heatmapActive = showHeatmap && solverResults?.ok;
   const meshActive    = showMeshPreview && !heatmapActive;
+  const rasterActive  = editorMode === 'raster';
 
-  if (!heatmapActive && !meshActive) {
+  // ── Raster edit mode view ────────────────────────────
+  if (rasterActive && meshState) {
+    const { grid, rows, cols, dXmm: mDX, minX: mMinX, minY: mMinY } = meshState;
+    const cellPx = mDX * cam.scale;
+    const gap    = cellPx >= 4 ? 1 : 0;
+
+    // Viewport culling — only iterate visible rows/cols
+    const [mxL, myB] = toMm(0, H);
+    const [mxR, myT] = toMm(W, 0);
+    const cMin = Math.max(0, Math.floor((mxL - mMinX) / mDX) - 1);
+    const cMax = Math.min(cols - 1, Math.ceil((mxR - mMinX) / mDX) + 1);
+    const rMin = Math.max(0, Math.floor((myB - mMinY) / mDX) - 1);
+    const rMax = Math.min(rows - 1, Math.ceil((myT - mMinY) / mDX) + 1);
+
+    for (let r = rMin; r <= rMax; r++) {
+      for (let c = cMin; c <= cMax; c++) {
+        const phId = grid[r * cols + c];
+        const mmX = mMinX + c * mDX;
+        const mmY = mMinY + r * mDX;
+        const [px, py] = toCanvas(mmX, mmY + mDX);
+        ctx.fillStyle = phId ? (phaseColor(phId) || '#888') : '#e8eaed';
+        ctx.fillRect(px + gap, py + gap, Math.max(1, cellPx - gap), Math.max(1, cellPx - gap));
+      }
+    }
+
+    // Cursor highlight
+    if (rasterCursorCell) {
+      const { r: cr, c: cc } = rasterCursorCell;
+      if (cr >= 0 && cr < rows && cc >= 0 && cc < cols) {
+        const mmX = mMinX + cc * mDX;
+        const mmY = mMinY + cr * mDX;
+        const [px, py] = toCanvas(mmX, mmY + mDX);
+        ctx.strokeStyle = rasterTool === 'erase' ? '#dc2626' : '#0078d4';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.strokeRect(px, py, Math.max(1, cellPx), Math.max(1, cellPx));
+      }
+    }
+  }
+
+  if (!heatmapActive && !meshActive && !rasterActive) {
     // Draw non-zero phases, then zero (overlay/erase)
     for (const s of shapes) {
       if ((s.phaseId ?? 1) !== 0) {
@@ -1059,6 +1173,18 @@ canvas.addEventListener('mousedown', e => {
   }
   if (e.button !== 0) return;
 
+  // ── Raster paint ────────────────────────────────────
+  if (editorMode === 'raster') {
+    isPainting = true;
+    const cell = mmToCell(mx, my);
+    if (cell) {
+      const phId = rasterTool === 'erase' ? 0 : (activePhaseId || 0);
+      paintCell(cell.r, cell.c, phId);
+      lastPaintCell = cell;
+    }
+    return;
+  }
+
   if (currentTool === 'select') {
     const hit = hitTest(mx, my);
 
@@ -1106,6 +1232,33 @@ canvas.addEventListener('mousemove', e => {
   const [mx, my] = evMm(e);
   const [px, py] = evPx(e);
 
+  if (editorMode === 'raster') {
+    const cell = mmToCell(mx, my);
+    rasterCursorCell = cell;
+    if (cell && meshState) {
+      const phId = meshState.grid[cell.r * meshState.cols + cell.c];
+      const phaseName = phId ? (phases[phId]?.label || `ph${phId}`) : 'empty';
+      coordOvl.textContent  = `cell (${cell.c}, ${cell.r})  phase: ${phaseName}`;
+      cursorInfo.textContent = `x: ${mx.toFixed(1)}  y: ${my.toFixed(1)} mm`;
+    }
+    if (isPainting && cell) {
+      const phId = rasterTool === 'erase' ? 0 : (activePhaseId || 0);
+      if (lastPaintCell) {
+        bresenhamPaint(lastPaintCell.r, lastPaintCell.c, cell.r, cell.c, phId);
+      } else {
+        paintCell(cell.r, cell.c, phId);
+      }
+      lastPaintCell = cell;
+    }
+    if (panning) {
+      const dx = px - panning.startPx[0];
+      const dy = py - panning.startPx[1];
+      cam.ox = panning.origCam.ox + dx;
+      cam.oy = panning.origCam.oy + dy;
+    }
+    return;
+  }
+
   coordOvl.textContent  = `x: ${mx.toFixed(1)}  y: ${my.toFixed(1)} mm`;
   cursorInfo.textContent = `x: ${mx.toFixed(1)}  y: ${my.toFixed(1)} mm`;
 
@@ -1150,6 +1303,13 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('mouseup', e => {
+  if (editorMode === 'raster') {
+    isPainting = false;
+    lastPaintCell = null;
+    if (panning) { panning = null; wrap.classList.remove('panning'); }
+    return;
+  }
+
   if (panning) {
     panning = null;
     wrap.classList.remove('panning');
@@ -1196,6 +1356,9 @@ canvas.addEventListener('mouseup', e => {
 });
 
 canvas.addEventListener('mouseleave', () => {
+  rasterCursorCell = null;
+  isPainting = false;
+  lastPaintCell = null;
   coordOvl.textContent  = 'x: —  y: — mm';
   cursorInfo.textContent = 'x: —  y: — mm';
 });
@@ -1240,8 +1403,16 @@ document.addEventListener('keydown', e => {
   if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault(); selectedIds = new Set(shapes.map(s => s.id)); renderPropsPanel();
   }
-  if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && selectedIds.size > 0) {
+  if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && selectedIds.size > 0 && editorMode === 'vector') {
     openPatternModal();
+  }
+  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    if (confirm('Start new analysis? All current work will be lost.')) location.reload();
+  }
+  if (editorMode === 'raster') {
+    if (e.key === 'b' || e.key === 'B') setRasterTool('paint');
+    if (e.key === 'e' || e.key === 'E') setRasterTool('erase');
   }
 });
 document.addEventListener('keyup', e => {
@@ -1675,9 +1846,212 @@ document.getElementById('pat-modal')?.addEventListener('click', e => {
 );
 
 // ═══════════════════════════════════════════════════════
+// RASTER MODE
+// ═══════════════════════════════════════════════════════
+const RASTER_MARGIN = 5;  // extra empty cells added on each side after rasterize
+
+function mmToCell(mx, my) {
+  if (!meshState) return null;
+  const { rows, cols, dXmm, minX, minY } = meshState;
+  const c = Math.floor((mx - minX) / dXmm);
+  const r = Math.floor((my - minY) / dXmm);
+  if (c < 0 || c >= cols || r < 0 || r >= rows) return null;
+  return { r, c };
+}
+
+function paintCell(r, c, phId) {
+  if (!meshState) return;
+  const { grid, rows, cols } = meshState;
+  if (r < 0 || r >= rows || c < 0 || c >= cols) return;
+  grid[r * cols + c] = phId;
+}
+
+function bresenhamPaint(r0, c0, r1, c1, phId) {
+  const dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0);
+  const sr = r0 < r1 ? 1 : -1, sc = c0 < c1 ? 1 : -1;
+  let err = dr - dc, r = r0, c = c0;
+  while (true) {
+    paintCell(r, c, phId);
+    if (r === r1 && c === c1) break;
+    const e2 = 2 * err;
+    if (e2 > -dc) { err -= dc; r += sr; }
+    if (e2 <  dr) { err += dr; c += sc; }
+  }
+}
+
+function setRasterTool(t) {
+  rasterTool = t;
+  document.querySelectorAll('[data-rtool]').forEach(b =>
+    b.classList.toggle('active', b.dataset.rtool === t)
+  );
+  wrap.className = wrap.className.replace(/raster-\w+/g, '').trim();
+  wrap.classList.add(t === 'erase' ? 'raster-erase' : 'raster-paint');
+}
+
+function updateRasterUI() {
+  const isRaster = editorMode === 'raster';
+  document.body.classList.toggle('raster-mode', isRaster);
+  document.getElementById('mode-badge').textContent = isRaster ? '[RASTER]' : '';
+  document.getElementById('rasterize-btn')?.toggleAttribute('disabled', isRaster);
+  if (isRaster) {
+    setRasterTool(rasterTool);
+    document.getElementById('preview-panel-title').textContent = 'Mesh Info';
+    propsDiv.innerHTML = `<div class="empty-state">
+      <b>Raster edit mode</b><br><br>
+      Click on the canvas to paint cells with the active phase.<br><br>
+      <b>Shortcuts:</b><br>
+      B — Paint &nbsp; E — Erase<br>
+      F — Fit view<br>
+      Scroll — Zoom &nbsp; Mid/Space+drag — Pan<br><br>
+      Select a phase on the left to paint with it.
+    </div>`;
+  } else {
+    document.getElementById('preview-panel-title').textContent = '.ic Code';
+    wrap.className = wrap.className.replace(/raster-\w+/g, '').trim();
+  }
+}
+
+function openRasterizeModal() {
+  if (!shapes.length) { alert('No shapes to rasterize.'); return; }
+  const cellMm = parseFloat(document.getElementById('s-cell')?.value) || 2;
+  const raw = rasterizeShapes(shapes, cellMm);
+  if (!raw) { alert('Could not rasterize — check shapes and cell size.'); return; }
+  const rows = raw.rows + 2 * RASTER_MARGIN;
+  const cols = raw.cols + 2 * RASTER_MARGIN;
+  document.getElementById('rasterize-info').innerHTML =
+    `Cell size: <b>${cellMm} mm</b><br>` +
+    `Grid: <b>${rows} × ${cols}</b> = <b>${rows * cols}</b> cells<br>` +
+    `Conducting cells: <b>${Array.from(raw.grid).filter(v => v > 0).length}</b>` +
+    `&nbsp;+ ${RASTER_MARGIN}-cell empty margin on each side`;
+  document.getElementById('rasterize-modal').style.display = 'flex';
+}
+
+function enterRasterMode() {
+  const cellMm = parseFloat(document.getElementById('s-cell')?.value) || 2;
+  const raw = rasterizeShapes(shapes, cellMm);
+  if (!raw) { setStatus('Rasterize failed — no geometry.', 'error'); return; }
+
+  const newRows = raw.rows + 2 * RASTER_MARGIN;
+  const newCols = raw.cols + 2 * RASTER_MARGIN;
+  const newGrid = new Uint16Array(newRows * newCols);
+  for (let r = 0; r < raw.rows; r++)
+    for (let c = 0; c < raw.cols; c++)
+      newGrid[(r + RASTER_MARGIN) * newCols + (c + RASTER_MARGIN)] = raw.grid[r * raw.cols + c];
+
+  meshState  = { grid: newGrid, rows: newRows, cols: newCols,
+                 dXmm: cellMm,
+                 minX: raw.minX - RASTER_MARGIN * cellMm,
+                 minY: raw.minY - RASTER_MARGIN * cellMm };
+  shapes     = [];
+  editorMode = 'raster';
+  clearSelection();
+  invalidateMesh();
+  updateRasterUI();
+  updatePreview();
+  setStatus(`Raster mode — ${newRows} × ${newCols} cells, ${cellMm} mm/cell`, 'ok');
+  // Update IC textarea with mesh summary
+  preview.value = `# Raster mesh — cell-level editing\n# Grid: ${newRows} × ${newCols}, cell = ${cellMm} mm\n# Use Export Mesh button to save as JSON`;
+}
+
+function exportMeshJSON() {
+  if (!meshState) return;
+  const out = {
+    type: 'csdm',
+    dXmm: meshState.dXmm,
+    rows: meshState.rows,
+    cols: meshState.cols,
+    minX: meshState.minX,
+    minY: meshState.minY,
+    grid: Array.from(meshState.grid),
+    phases: Object.fromEntries(Object.entries(phases).map(([k,v]) => [k, { ...v }])),
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mesh.csdm';
+  a.click();
+}
+
+function loadMeshFromJSON(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { alert('Invalid .csdm file.'); return; }
+  if (data.type !== 'csdm' || !data.grid || !data.rows || !data.cols) {
+    alert('File does not appear to be a valid .csdm mesh file.');
+    return;
+  }
+  // Restore mesh state
+  meshState = {
+    grid: new Uint16Array(data.grid),
+    rows: data.rows,
+    cols: data.cols,
+    dXmm: data.dXmm,
+    minX: data.minX,
+    minY: data.minY,
+  };
+  // Restore phases (clear existing, re-populate)
+  phases = {};
+  nextPhaseId = 1;
+  if (data.phases) {
+    for (const [k, v] of Object.entries(data.phases)) {
+      const id = parseInt(k);
+      phases[id] = { ...v };
+      if (id >= nextPhaseId) nextPhaseId = id + 1;
+    }
+  }
+  // Activate first phase
+  const ids = Object.keys(phases).map(Number).sort((a,b)=>a-b);
+  activePhaseId = ids.length ? ids[0] : 1;
+  // Enter raster mode
+  shapes = [];
+  selectedIds = new Set();
+  editorMode = 'raster';
+  updateRasterUI();
+  renderPhasePanel();
+  fitContent();
+  render();
+}
+
+document.getElementById('import-mesh-btn')?.addEventListener('click', () => {
+  document.getElementById('import-mesh-file').click();
+});
+document.getElementById('import-mesh-file')?.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadMeshFromJSON(ev.target.result);
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('rasterize-btn')?.addEventListener('click', openRasterizeModal);
+document.getElementById('rasterize-modal-close')?.addEventListener('click', () => {
+  document.getElementById('rasterize-modal').style.display = 'none';
+});
+document.getElementById('rasterize-cancel-btn')?.addEventListener('click', () => {
+  document.getElementById('rasterize-modal').style.display = 'none';
+});
+document.getElementById('rasterize-confirm-btn')?.addEventListener('click', () => {
+  document.getElementById('rasterize-modal').style.display = 'none';
+  enterRasterMode();
+});
+document.getElementById('export-mesh-btn')?.addEventListener('click', exportMeshJSON);
+document.querySelectorAll('[data-rtool]').forEach(b =>
+  b.addEventListener('click', () => setRasterTool(b.dataset.rtool))
+);
+
+// ═══════════════════════════════════════════════════════
 // FIT / RESET VIEW
 // ═══════════════════════════════════════════════════════
 function fitContent() {
+  if (editorMode === 'raster' && meshState) {
+    const { rows, cols, dXmm, minX, minY } = meshState;
+    const x0 = minX, y0 = minY, x1 = minX + cols * dXmm, y1 = minY + rows * dXmm;
+    const W = canvas.width, H = canvas.height, pad = 30;
+    cam.scale = Math.min((W-2*pad)/(x1-x0), (H-2*pad)/(y1-y0));
+    cam.ox = (W - (x1-x0)*cam.scale)/2 - x0*cam.scale;
+    cam.oy = (H - (y1-y0)*cam.scale)/2 + y1*cam.scale;
+    return;
+  }
   if (!shapes.length) { resetView(); return; }
   let x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity;
   for (const s of shapes) {
@@ -1953,7 +2327,11 @@ wrap.addEventListener('drop', e => {
   const file = e.dataTransfer.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => importIC(ev.target.result);
+  if (file.name.endsWith('.csdm')) {
+    reader.onload = ev => loadMeshFromJSON(ev.target.result);
+  } else {
+    reader.onload = ev => importIC(ev.target.result);
+  }
   reader.readAsText(file);
 });
 
@@ -2687,18 +3065,27 @@ function triggerSolve() {
     if (btn) btn.disabled = false;
   };
 
-  // Pre-resolve named/anonymous custom materials into customMat so the
-  // worker's simple ph.customMat check works without needing the global dict.
   const phasesForWorker = {};
   for (const [id, ph] of Object.entries(phases)) {
     phasesForWorker[id] = { ...ph, customMat: getPhaseMatProps(ph) };
   }
 
-  worker.postMessage({
-    shapes,
-    phases: phasesForWorker,
-    params: { freq, length, temp, dXmm: cellMm }
-  });
+  if (editorMode === 'raster' && meshState) {
+    // Pass a copy of the grid so the worker doesn't hold a reference to the live buffer
+    const gridCopy = meshState.grid.slice();
+    worker.postMessage({
+      gridData: { grid: gridCopy, rows: meshState.rows, cols: meshState.cols,
+                  dXmm: meshState.dXmm, minX: meshState.minX, minY: meshState.minY },
+      phases: phasesForWorker,
+      params: { freq, length, temp, dXmm: meshState.dXmm }
+    }, [gridCopy.buffer]);
+  } else {
+    worker.postMessage({
+      shapes,
+      phases: phasesForWorker,
+      params: { freq, length, temp, dXmm: cellMm }
+    });
+  }
 }
 
 document.getElementById('solve-btn')?.addEventListener('click', triggerSolve);
@@ -2994,11 +3381,11 @@ function rasterizeShapes(shapeList, dXmm) {
   return { grid, rows, cols, dXmm, minX, minY };
 }
 
-function runSolver(shapes, phases, params) {
+function runSolver(shapes, phases, params, gridData) {
   const { freq, length, temp, dXmm: cellMm } = params;
   const omega = 2 * Math.PI * freq;
 
-  const gridInfo = rasterizeShapes(shapes, cellMm);
+  const gridInfo = gridData || rasterizeShapes(shapes, cellMm);
   if (!gridInfo) return { error: 'Nothing to rasterize — draw some shapes first.' };
   const { grid, rows, cols, dXmm, minX, minY } = gridInfo;
 
@@ -3146,8 +3533,8 @@ function runSolver(shapes, phases, params) {
 
 self.onmessage = function(e) {
   try {
-    const { shapes, phases, params } = e.data;
-    const result = runSolver(shapes, phases, params);
+    const { shapes, gridData, phases, params } = e.data;
+    const result = runSolver(shapes, phases, params, gridData);
     if (result.ok) {
       self.postMessage(result, [result.heatmap.buffer]);
     } else {
