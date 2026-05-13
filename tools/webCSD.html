@@ -401,6 +401,7 @@ body {
 }
 .rpt-res-table td { padding: 5px 10px; border-bottom: 1px solid #eee; color: #222; }
 .rpt-res-table tr.rpt-total td { font-weight: 700; background: #f9f9f9; }
+.rpt-res-table th .u { text-transform: none; letter-spacing: 0; }
 .rpt-code {
   background: #f6f8fa; border: 1px solid #ddd; border-radius: 6px;
   padding: 12px 14px; font-family: 'Courier New', monospace; font-size: 11px;
@@ -3050,9 +3051,9 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
       ${mapImg}
       <table class="rpt-res-table">
         <thead><tr>
-          <th>ID</th><th>Phase</th><th>Cross-section (mm²)</th>
-          <th>Perimeter * (mm)</th><th>Cooling area (cm²)</th>
-          <th>Power loss (W)</th><th>ΔT (K)</th>
+          <th>ID</th><th>Phase</th><th>Cross-section <span class="u">(mm²)</span></th>
+          <th>Perimeter * <span class="u">(mm)</span></th><th>Cooling area <span class="u">(cm²)</span></th>
+          <th>Power loss <span class="u">(W)</span></th><th>ΔT <span class="u">(K)</span></th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -3102,10 +3103,19 @@ function openReport() {
   }
 
   // Results table rows
+  const fmtZ = v => { const m = Math.abs(v)*1000; return (m < 1 ? m.toFixed(3) : m < 100 ? m.toFixed(2) : m.toFixed(1)); };
   const resultRows = res.phaseResults.map(r => {
     const ph   = phases[r.pid];
     const irms = ph?.Irms  ?? 0;
     const phi  = ((ph?.phi ?? 0) + (ph?.shift ?? 0)).toFixed(1);
+    const LuH = r.L != null ? (r.L * 1e6) : null;
+    const fmtL = v => v < 1 ? v.toFixed(3) : v < 100 ? v.toFixed(2) : v.toFixed(1);
+    const zCols = r.Zmag != null ? `
+      <td>${fmtZ(r.Zre)}</td>
+      <td>${fmtZ(r.Zim)}</td>
+      <td>${fmtZ(r.Zmag)}</td>
+      <td>${r.Zang.toFixed(1)}</td>
+      <td>${LuH != null ? fmtL(LuH) : '—'}</td>` : `<td colspan="5">—</td>`;
     return `<tr>
       <td>${r.pid}</td>
       <td>${ph?.label || '—'}</td>
@@ -3113,6 +3123,7 @@ function openReport() {
       <td>${phi}°</td>
       <td>${matLabel(r.pid)}</td>
       <td>${fmt(r.power)} W</td>
+      ${zCols}
     </tr>`;
   }).join('');
 
@@ -3178,16 +3189,16 @@ function openReport() {
       <h2>Power Loss Results</h2>
       <table class="rpt-res-table">
         <thead>
-          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss (W)</th></tr>
+          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss <span class="u">(W)</span></th><th>R <span class="u">(mΩ)</span></th><th>X <span class="u">(mΩ)</span></th><th>|Z| <span class="u">(mΩ)</span></th><th>φZ <span class="u">(°)</span></th><th>L <span class="u">(μH)</span></th></tr>
         </thead>
         <tbody>
           ${resultRows}
           <tr class="rpt-total">
-            <td colspan="5">Total power loss (for ${length} mm length)</td>
+            <td colspan="10">Total power loss (for ${length} mm length)</td>
             <td>${fmt(res.totalPower)} W</td>
           </tr>
           <tr>
-            <td colspan="5">Maximum current density</td>
+            <td colspan="10">Maximum current density</td>
             <td>${fmt(res.maxDensity)} A/mm²</td>
           </tr>
         </tbody>
@@ -3242,6 +3253,7 @@ document.getElementById('report-print-btn')?.addEventListener('click', () => {
     padding: 6px 10px; border-bottom: 2px solid #ddd; }
   .rpt-res-table td { padding: 5px 10px; border-bottom: 1px solid #eee; color: #222; }
   .rpt-res-table tr.rpt-total td { font-weight: 700; background: #f9f9f9; }
+  .rpt-res-table th .u { text-transform: none; letter-spacing: 0; }
   .rpt-code { background: #f6f8fa; border: 1px solid #ddd; border-radius: 6px;
     padding: 14px 16px; font-family: monospace; font-size: 11px; color: #24292e;
     white-space: pre; overflow-x: auto; }
@@ -3768,6 +3780,7 @@ function runSolver(shapes, phases, params, gridData, compGrid) {
   const [I2r, I2i] = complexLUSolve(N, Zre, Zim, piv, V2r, V2i);
 
   const Imagn = new Float64Array(N);
+  const phaseCurrentPhasors = [];   // [{re, im}] scaled complex current per phase
   for (let pi = 0; pi < numPhases; pi++) {
     const { start, end } = phaseBounds[pi];
     let sr = 0, si = 0;
@@ -3777,6 +3790,7 @@ function runSolver(shapes, phases, params, gridData, compGrid) {
     const scale  = (modSum > 1e-30 && tgt > 0) ? tgt / modSum : 0;
     for (let i = start; i < end; i++)
       Imagn[i] = Math.hypot(I2r[i], I2i[i]) * scale;
+    phaseCurrentPhasors.push({ re: sr * scale, im: si * scale });
   }
 
   const powerVec = new Float64Array(N);
@@ -3793,10 +3807,19 @@ function runSolver(shapes, phases, params, gridData, compGrid) {
     componentResults = [...compPowerMap.entries()].map(([compId, power]) => ({ compId, power }));
   }
 
-  const phaseResults = phaseBounds.map(({ start, end, pid }) => {
+  const phaseResults = phaseBounds.map(({ start, end, pid }, pi) => {
     let power = 0;
     for (let i = start; i < end; i++) power += powerVec[i];
-    return { pid, power, label: phases[pid]?.label || `Ph${pid}` };
+    // Z = U / I  (complex division, |I|² = Irms²)
+    const Ire = phaseCurrentPhasors[pi].re, Iim = phaseCurrentPhasors[pi].im;
+    const Vre = Ure[pi], Vim = Uim[pi];
+    const I2   = Ire*Ire + Iim*Iim;
+    const phZre = I2 > 1e-30 ? (Vre*Ire + Vim*Iim) / I2 : 0;
+    const phZim = I2 > 1e-30 ? (Vim*Ire - Vre*Iim) / I2 : 0;
+    const Zmag = Math.hypot(phZre, phZim);
+    const Zang = Math.atan2(phZim, phZre) * 180 / Math.PI;
+    const L    = omega > 0 ? phZim / omega : 0;   // [H]
+    return { pid, power, label: phases[pid]?.label || `Ph${pid}`, Zre: phZre, Zim: phZim, Zmag, Zang, L };
   });
   const totalPower = phaseResults.reduce((s, r) => s + r.power, 0);
 
