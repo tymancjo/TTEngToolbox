@@ -1488,6 +1488,7 @@ function renderPhasePanel() {
       activePhaseId = pid;
       document.querySelectorAll('.phase-row').forEach(r => r.classList.remove('active'));
       row.classList.add('active');
+      if (selectedIds.size === 0) renderPropsPanel();
     });
     phaseList.appendChild(row);
   }
@@ -1501,13 +1502,105 @@ function renderPropsPanel() {
   const selected = getSelected();
   updatePatternBtn();
 
-  // ── Empty state ──────────────────────────────────────
+  // ── Empty state / phase editor ───────────────────────
   if (selected.length === 0) {
-    propsDiv.innerHTML = `<div class="empty-state">No shape selected.<br><br>
-      <b>Shortcuts:</b><br>V — Select &nbsp; R — Rect &nbsp; C — Circle<br>
-      F — Fit &nbsp; Del — Delete &nbsp; Ctrl+D — Duplicate<br>
-      P — Pattern &nbsp; Ctrl+C/V — Copy/Paste &nbsp; Ctrl+A — Select All<br>
-      Scroll — Zoom &nbsp; Mid‑drag / Space+drag — Pan</div>`;
+    const hintHtml = editorMode === 'raster'
+      ? `<div class="empty-state" style="margin-bottom:8px">Raster mode — select a phase on the left to edit its properties.</div>`
+      : `<div class="empty-state" style="margin-bottom:8px">No shape selected.<br><br>
+          <b>Shortcuts:</b><br>V — Select &nbsp; R — Rect &nbsp; C — Circle<br>
+          F — Fit &nbsp; Del — Delete &nbsp; Ctrl+D — Duplicate<br>
+          P — Pattern &nbsp; Ctrl+C/V — Copy/Paste &nbsp; Ctrl+A — Select All<br>
+          Scroll — Zoom &nbsp; Mid‑drag / Space+drag — Pan</div>`;
+
+    if (!activePhaseId || !phases[activePhaseId]) {
+      propsDiv.innerHTML = hintHtml;
+      return;
+    }
+
+    const eph = phases[activePhaseId];
+    const eIsCustomNamed = !!(eph.customMatName && customMaterials[eph.customMatName]);
+    const eIsCustomAnon  = !!(eph.customMat && !eph.customMatName);
+    const eIsCustomMat   = eIsCustomNamed || eIsCustomAnon;
+    const eCustNames = Object.keys(customMaterials);
+    const eMatOptions = MATERIALS.map((m, i) =>
+      `<option value="${i}" ${!eIsCustomMat && i === (eph.material ?? 0) ? 'selected' : ''}>${i}: ${m}</option>`
+    ).join('')
+    + (eCustNames.length ? eCustNames.map(name => {
+        const m = customMaterials[name];
+        return `<option value="custom:${name}" ${eph.customMatName === name ? 'selected' : ''}>${name} (σ=${(m.sigma/1e6).toFixed(1)}M)</option>`;
+      }).join('') : '')
+    + `<option value="-1" ${eIsCustomAnon ? 'selected' : ''}>+ New anonymous…</option>`;
+
+    const ecm = eIsCustomNamed ? customMaterials[eph.customMatName]
+                               : (eph.customMat || { sigma: 56e6, alpha: 3.9e-3, mi_r: 1 });
+    const ecmTitle = eIsCustomNamed ? `Custom: <em>${eph.customMatName}</em>` : 'Custom (anonymous)';
+    const eCustomMatFields = eIsCustomMat ? `
+      <div class="custom-mat-block prop-grid" id="custom-mat-block">
+        <div class="prop-field cols1"><span class="prop-lbl" style="font-style:normal">${ecmTitle}</span></div>
+        <div class="prop-field"><span class="prop-lbl">σ (S/m)</span>
+          <input class="prop-inp" id="cm-sigma" type="number" value="${ecm.sigma}" step="1e6" min="1"></div>
+        <div class="prop-field"><span class="prop-lbl">α (1/K)</span>
+          <input class="prop-inp" id="cm-alpha" type="number" value="${ecm.alpha}" step="0.0001"></div>
+        <div class="prop-field"><span class="prop-lbl">μr (−)</span>
+          <input class="prop-inp" id="cm-mir" type="number" value="${ecm.mi_r}" step="1" min="1"></div>
+      </div>` : `<div id="custom-mat-block" style="display:none"></div>`;
+
+    propsDiv.innerHTML = hintHtml + `
+      <div class="prop-block">
+        <div class="prop-title">Phase ${activePhaseId} — ${eph.label || ''}</div>
+        <div class="prop-grid">
+          <div class="prop-field"><span class="prop-lbl">I rms (A)</span>
+            <input class="prop-inp" id="ph-irms" type="number" min="0" value="${eph.Irms}"></div>
+          <div class="prop-field"><span class="prop-lbl">Phase φ (°)</span>
+            <input class="prop-inp" id="ph-phi" type="number" value="${eph.phi}"></div>
+          <div class="prop-field"><span class="prop-lbl">Extra Shift (°)</span>
+            <input class="prop-inp" id="ph-shift" type="number" value="${eph.shift}"></div>
+        </div>
+        <div class="prop-grid cols1" style="margin-top:8px">
+          <div class="prop-field"><span class="prop-lbl">Material</span>
+            <select class="prop-sel" id="ph-mat">${eMatOptions}</select></div>
+          <div class="prop-field"><span class="prop-lbl">Label</span>
+            <input class="prop-inp" id="ph-lbl" type="text" value="${eph.label}"></div>
+        </div>
+        ${eCustomMatFields}
+      </div>`;
+
+    const ebind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('input', fn); };
+    ebind('ph-irms',  ev => { phases[activePhaseId].Irms  = parseFloat(ev.target.value)||0; updatePreview(); });
+    ebind('ph-phi',   ev => { phases[activePhaseId].phi   = parseFloat(ev.target.value)||0; updatePreview(); });
+    ebind('ph-shift', ev => { phases[activePhaseId].shift = parseFloat(ev.target.value)||0; updatePreview(); });
+    ebind('ph-lbl',   ev => { phases[activePhaseId].label = ev.target.value; renderPhasePanel(); updatePreview(); });
+    ebind('ph-mat', ev => {
+      const val = ev.target.value;
+      if (val.startsWith('custom:')) {
+        const name = val.slice(7);
+        phases[activePhaseId].customMatName = name;
+        delete phases[activePhaseId].customMat;
+        phases[activePhaseId].material = -1;
+        renderPropsPanel();
+      } else if (val === '-1') {
+        phases[activePhaseId].customMat = { sigma: 56e6, alpha: 3.9e-3, mi_r: 1 };
+        delete phases[activePhaseId].customMatName;
+        phases[activePhaseId].material = -1;
+        renderPropsPanel();
+      } else {
+        delete phases[activePhaseId].customMat;
+        delete phases[activePhaseId].customMatName;
+        phases[activePhaseId].material = parseInt(val);
+      }
+      updatePreview();
+    });
+    function eSetCustomProp(key, value) {
+      const eph2 = phases[activePhaseId];
+      if (eph2.customMatName && customMaterials[eph2.customMatName]) {
+        customMaterials[eph2.customMatName][key] = value;
+      } else if (eph2.customMat) {
+        eph2.customMat[key] = value;
+      }
+    }
+    ebind('cm-sigma', ev => { eSetCustomProp('sigma', parseFloat(ev.target.value)||56e6); updatePreview(); });
+    ebind('cm-alpha', ev => { eSetCustomProp('alpha', parseFloat(ev.target.value)||3.9e-3); updatePreview(); });
+    ebind('cm-mir',   ev => { eSetCustomProp('mi_r',  parseFloat(ev.target.value)||1); updatePreview(); });
     return;
   }
 
