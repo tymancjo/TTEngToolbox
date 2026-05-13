@@ -247,6 +247,7 @@ body {
 }
 .solve-btn-main:hover { opacity: .85; }
 .solve-btn-main:disabled { opacity: .45; cursor: not-allowed; }
+.tb-btn:disabled { opacity: .38; cursor: not-allowed; pointer-events: none; }
 #solver-status {
   font-size: 11px; color: var(--text3); min-height: 16px;
   margin-top: 5px; line-height: 1.4;
@@ -336,6 +337,23 @@ body {
 .legend-bar {
   width: 90px; height: 10px; border-radius: 2px;
   background: linear-gradient(to right, #00008b, #0000ff, #00ffff, #00ff00, #ffff00, #ff8000, #ff0000);
+}
+
+/* ── Pattern modal ── */
+#pat-modal .modal-box { min-width: 340px; max-width: 400px; }
+.pat-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px;
+  margin: 8px 0 12px;
+}
+.pat-axis-hdr {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--accent); padding-bottom: 4px;
+  border-bottom: 1px solid var(--border); margin-bottom: 2px;
+}
+.pat-preview {
+  font-size: 11px; color: var(--text2); background: var(--panel2);
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 7px 10px; margin-bottom: 4px;
 }
 
 /* ── Report modal ── */
@@ -431,6 +449,7 @@ body {
 
   <div class="tb-sep"></div>
   <button class="tb-btn" id="mat-mgr-btn" title="Manage custom materials">⚙ Materials</button>
+  <button class="tb-btn" id="pattern-btn" title="Repeat selected shapes in a grid (P)" disabled>⊞ Pattern</button>
   <button class="tb-btn" id="tb-solve-btn" title="Run power loss solver (⚡)">⚡ Solve</button>
 
   <span id="cursor-info">x: —  y: — mm</span>
@@ -469,6 +488,47 @@ body {
     <div class="modal-footer">
       <button class="modal-add-btn" id="mat-add-btn">＋ Add Material</button>
       <button class="modal-close-btn" id="mat-modal-close2">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Pattern modal ─────────────────────────────────── -->
+<div id="pat-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <span>⊞ Linear Pattern</span>
+      <button id="pat-modal-close" title="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pat-grid">
+        <div>
+          <div class="pat-axis-hdr">Columns (X)</div>
+          <div class="prop-field" style="margin-top:6px">
+            <span class="prop-lbl">Count</span>
+            <input class="prop-inp" id="pat-nx" type="number" value="3" min="1" step="1">
+          </div>
+          <div class="prop-field" style="margin-top:6px">
+            <span class="prop-lbl">Spacing <span class="u">(mm)</span></span>
+            <input class="prop-inp" id="pat-dx" type="number" value="20" step="1">
+          </div>
+        </div>
+        <div>
+          <div class="pat-axis-hdr">Rows (Y)</div>
+          <div class="prop-field" style="margin-top:6px">
+            <span class="prop-lbl">Count</span>
+            <input class="prop-inp" id="pat-ny" type="number" value="1" min="1" step="1">
+          </div>
+          <div class="prop-field" style="margin-top:6px">
+            <span class="prop-lbl">Spacing <span class="u">(mm)</span></span>
+            <input class="prop-inp" id="pat-dy" type="number" value="0" step="1">
+          </div>
+        </div>
+      </div>
+      <div class="pat-preview" id="pat-preview">—</div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-add-btn" id="pat-apply-btn">⊞ Apply</button>
+      <button class="modal-close-btn" id="pat-modal-close2">Cancel</button>
     </div>
   </div>
 </div>
@@ -530,6 +590,9 @@ body {
       </div>
       <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
         <button class="solve-btn-main" id="solve-btn">⚡ Solve</button>
+        <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="mesh-toggle"> Mesh
+        </label>
         <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="heatmap-toggle"> Heatmap
         </label>
@@ -604,8 +667,10 @@ let clipboard     = [];          // copied shapes (deep copies)
 
 // Solver state
 let customMaterials = {};   // name → {sigma, alpha, mi_r}  (from defmat() lines)
-let solverResults   = null; // last successful solve result
-let showHeatmap     = false;
+let solverResults    = null; // last successful solve result
+let showHeatmap      = false;
+let showMeshPreview  = false;
+let _meshCache       = null; // cached rasterizeShapes() result; null = dirty
 
 // Camera — cam.ox/oy are canvas-px position of mm(0,0)
 // canvas_x = ox + mm_x * scale
@@ -876,8 +941,9 @@ function render() {
   drawGrid();
 
   const heatmapActive = showHeatmap && solverResults?.ok;
+  const meshActive    = showMeshPreview && !heatmapActive;
 
-  if (!heatmapActive) {
+  if (!heatmapActive && !meshActive) {
     // Draw non-zero phases, then zero (overlay/erase)
     for (const s of shapes) {
       if ((s.phaseId ?? 1) !== 0) {
@@ -889,6 +955,29 @@ function render() {
       if ((s.phaseId ?? 1) === 0) {
         renderShape(s, false);
         if (selectedIds.has(s.id)) renderSelection(s);
+      }
+    }
+  }
+
+  // Mesh preview overlay (replaces geometry; shows rasterized cells colored by phase)
+  if (meshActive) {
+    if (!_meshCache) _meshCache = getCachedMesh();
+    const mp = _meshCache;
+    if (mp) {
+      const { grid, rows, cols, dXmm: mDX, minX: mMinX, minY: mMinY } = mp;
+      const cellPx = mDX * cam.scale;
+      const gap    = cellPx >= 3 ? 1 : 0; // show cell gaps only when zoomed in
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const phId = grid[r * cols + c];
+          if (!phId) continue;
+          const color = phaseColor(phId) || '#888';
+          const mmX = mMinX + c * mDX;
+          const mmY = mMinY + r * mDX;
+          const [px, py] = toCanvas(mmX, mmY + mDX);
+          ctx.fillStyle = color;
+          ctx.fillRect(px + gap, py + gap, Math.max(1, cellPx - gap), Math.max(1, cellPx - gap));
+        }
       }
     }
   }
@@ -1151,6 +1240,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault(); selectedIds = new Set(shapes.map(s => s.id)); renderPropsPanel();
   }
+  if ((e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && selectedIds.size > 0) {
+    openPatternModal();
+  }
 });
 document.addEventListener('keyup', e => {
   if (e.key === ' ') { spaceDown = false; wrap.classList.remove('tool-pan'); }
@@ -1236,13 +1328,14 @@ document.getElementById('add-phase-btn').addEventListener('click', addPhase);
 // ═══════════════════════════════════════════════════════
 function renderPropsPanel() {
   const selected = getSelected();
+  updatePatternBtn();
 
   // ── Empty state ──────────────────────────────────────
   if (selected.length === 0) {
     propsDiv.innerHTML = `<div class="empty-state">No shape selected.<br><br>
       <b>Shortcuts:</b><br>V — Select &nbsp; R — Rect &nbsp; C — Circle<br>
       F — Fit &nbsp; Del — Delete &nbsp; Ctrl+D — Duplicate<br>
-      Ctrl+C/V — Copy/Paste &nbsp; Ctrl+A — Select All<br>
+      P — Pattern &nbsp; Ctrl+C/V — Copy/Paste &nbsp; Ctrl+A — Select All<br>
       Scroll — Zoom &nbsp; Mid‑drag / Space+drag — Pan</div>`;
     return;
   }
@@ -1509,6 +1602,79 @@ function pasteClipboard() {
 }
 
 // ═══════════════════════════════════════════════════════
+// PATTERN
+// ═══════════════════════════════════════════════════════
+function updatePatternBtn() {
+  const btn = document.getElementById('pattern-btn');
+  if (btn) btn.disabled = selectedIds.size === 0;
+}
+
+function updatePatternPreview() {
+  const el = document.getElementById('pat-preview');
+  if (!el) return;
+  const nx = Math.max(1, parseInt(document.getElementById('pat-nx')?.value) || 1);
+  const ny = Math.max(1, parseInt(document.getElementById('pat-ny')?.value) || 1);
+  const dx = parseFloat(document.getElementById('pat-dx')?.value) || 0;
+  const dy = parseFloat(document.getElementById('pat-dy')?.value) || 0;
+  const sel = getSelected();
+  const newCopies = nx * ny - 1;
+  el.textContent = `${nx} column${nx>1?'s':''} × ${ny} row${ny>1?'s':''} `
+    + `— spacing ${dx} mm (X), ${dy} mm (Y)`
+    + `\n${newCopies} new shape${newCopies!==1?'s':''} will be created`
+    + (sel.length > 1 ? ` (${sel.length} selected shapes each)` : '');
+}
+
+function openPatternModal() {
+  if (!selectedIds.size) return;
+  updatePatternPreview();
+  document.getElementById('pat-modal').style.display = 'flex';
+}
+
+function closePatternModal() {
+  document.getElementById('pat-modal').style.display = 'none';
+}
+
+function applyPattern() {
+  const sel = getSelected();
+  if (!sel.length) return;
+  const nx = Math.max(1, parseInt(document.getElementById('pat-nx').value) || 1);
+  const dx = parseFloat(document.getElementById('pat-dx').value) || 0;
+  const ny = Math.max(1, parseInt(document.getElementById('pat-ny').value) || 1);
+  const dy = parseFloat(document.getElementById('pat-dy').value) || 0;
+
+  const newIds = new Set([...selectedIds]);
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      if (i === 0 && j === 0) continue;
+      for (const s of sel) {
+        const copy = JSON.parse(JSON.stringify(s));
+        copy.id = nShapeId++;
+        if (copy.type === 'rect') { copy.x += i * dx; copy.y += j * dy; }
+        else                      { copy.cx += i * dx; copy.cy += j * dy; }
+        shapes.push(copy);
+        newIds.add(copy.id);
+      }
+    }
+  }
+
+  selectedIds = newIds;
+  closePatternModal();
+  renderPropsPanel();
+  updatePreview();
+}
+
+document.getElementById('pattern-btn')?.addEventListener('click', openPatternModal);
+document.getElementById('pat-modal-close')?.addEventListener('click', closePatternModal);
+document.getElementById('pat-modal-close2')?.addEventListener('click', closePatternModal);
+document.getElementById('pat-apply-btn')?.addEventListener('click', applyPattern);
+document.getElementById('pat-modal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('pat-modal')) closePatternModal();
+});
+['pat-nx','pat-dx','pat-ny','pat-dy'].forEach(id =>
+  document.getElementById(id)?.addEventListener('input', updatePatternPreview)
+);
+
+// ═══════════════════════════════════════════════════════
 // FIT / RESET VIEW
 // ═══════════════════════════════════════════════════════
 function fitContent() {
@@ -1623,6 +1789,7 @@ function generateIC() {
 function updatePreview() {
   if (document.activeElement === preview) return;  // don't overwrite mid-edit
   preview.value = generateIC();
+  invalidateMesh();
 }
 
 document.getElementById('copy-btn').addEventListener('click', () => {
@@ -1964,6 +2131,20 @@ function rasterizeShapes(shapeList, dXmm) {
     }
   }
   return { grid, rows, cols, dXmm, minX, minY };
+}
+
+// ═══════════════════════════════════════════════════════
+// MESH PREVIEW CACHE
+// ═══════════════════════════════════════════════════════
+function getCachedMesh() {
+  const cellMm = parseFloat(document.getElementById('s-cell')?.value) || 2;
+  if (!shapes.length) return null;
+  return rasterizeShapes(shapes, cellMm);
+}
+
+function invalidateMesh() {
+  _meshCache = null;
+  if (showMeshPreview) requestAnimationFrame(render);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2522,6 +2703,33 @@ function triggerSolve() {
 
 document.getElementById('solve-btn')?.addEventListener('click', triggerSolve);
 document.getElementById('tb-solve-btn')?.addEventListener('click', triggerSolve);
+
+document.getElementById('mesh-toggle')?.addEventListener('change', e => {
+  showMeshPreview = e.target.checked;
+  if (showMeshPreview) {
+    invalidateMesh();  // force recompute with current cell size
+    const mp = getCachedMesh();
+    _meshCache = mp;
+    if (mp) {
+      setStatus(`Mesh: ${mp.rows * mp.cols} cells  (${mp.rows} × ${mp.cols}, ${mp.dXmm} mm)`);
+    } else {
+      setStatus('No geometry to rasterize.', 'error');
+    }
+  } else {
+    setStatus('');
+  }
+  requestAnimationFrame(render);
+});
+
+document.getElementById('s-cell')?.addEventListener('input', () => {
+  invalidateMesh();
+  if (showMeshPreview) {
+    const mp = getCachedMesh();
+    _meshCache = mp;
+    if (mp) setStatus(`Mesh: ${mp.rows * mp.cols} cells  (${mp.rows} × ${mp.cols}, ${mp.dXmm} mm)`);
+    requestAnimationFrame(render);
+  }
+});
 
 document.getElementById('heatmap-toggle')?.addEventListener('change', e => {
   showHeatmap = e.target.checked;
