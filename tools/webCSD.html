@@ -3024,10 +3024,18 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
     const trise     = htcOk && coolingM2 > 0 ? power / (htc * coolingM2) : null;
     const pLabel    = phases[c.phaseId]?.label || `ph${c.phaseId}`;
     const swatch    = `<span style="display:inline-block;width:11px;height:11px;background:${conductorCSS(c.colorIdx)};border-radius:2px;vertical-align:middle;margin-right:4px"></span>`;
+    // Per-conductor I rms: I = sqrt(P / R), R = length[m] / (areaMm2[m²] × sigma_T)
+    let irms = null;
+    if (c.areaMm2 > 0 && power >= 0) {
+      const { sigma, alpha } = getPhaseMatProps(phases[c.phaseId]);
+      const sigmaT = sigma / (1 + alpha * (temp - 20));
+      const R = (length * 1e-3) / (c.areaMm2 * 1e-6 * sigmaT); // Ω
+      irms = R > 0 ? Math.sqrt(power / R) : null;
+    }
     let groupRow = '';
     if (c.phaseId !== lastPhaseId) {
       lastPhaseId = c.phaseId;
-      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="7" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
+      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="8" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
     }
     return groupRow + `<tr>
       <td>${swatch}${c.id}</td>
@@ -3036,6 +3044,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
       <td>${c.perimeterMm.toFixed(2)}</td>
       <td>${(c.perimeterMm * length / 100).toFixed(1)}</td>
       <td>${fmt(power)}</td>
+      <td>${irms !== null ? irms.toFixed(1) : '—'}</td>
       <td>${trise !== null ? trise.toFixed(1) : '—'}</td>
     </tr>`;
   }).join('');
@@ -3053,7 +3062,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
         <thead><tr>
           <th>ID</th><th>Phase</th><th>Cross-section <span class="u">(mm²)</span></th>
           <th>Perimeter * <span class="u">(mm)</span></th><th>Cooling area <span class="u">(cm²)</span></th>
-          <th>Power loss <span class="u">(W)</span></th><th>ΔT <span class="u">(K)</span></th>
+          <th>Power loss <span class="u">(W)</span></th><th>I rms <span class="u">(A)</span></th><th>ΔT <span class="u">(K)</span></th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
