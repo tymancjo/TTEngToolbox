@@ -3014,6 +3014,7 @@ function buildConductorMapDataURL(comps) {
 function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
   if (!comps || !res.componentResults?.length) return '';
   const powerById = Object.fromEntries(res.componentResults.map(r => [r.compId, r.power]));
+  const irmsById  = Object.fromEntries(res.componentResults.map(r => [r.compId, r.Irms]));
   const htcOk = htc > 0;
   const sorted = comps.components.map((c, i) => ({ ...c, colorIdx: i }))
     .sort((a, b) => a.phaseId - b.phaseId);
@@ -3024,6 +3025,8 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
     const trise     = htcOk && coolingM2 > 0 ? power / (htc * coolingM2) : null;
     const pLabel    = phases[c.phaseId]?.label || `ph${c.phaseId}`;
     const swatch    = `<span style="display:inline-block;width:11px;height:11px;background:${conductorCSS(c.colorIdx)};border-radius:2px;vertical-align:middle;margin-right:4px"></span>`;
+    // Per-conductor I from phasor sum of element currents (transport current)
+    const irmsSum = irmsById[c.id] ?? null;
     // Per-conductor I rms: I = sqrt(P / R), R = length[m] / (areaMm2[m²] × sigma_T)
     let irms = null;
     if (c.areaMm2 > 0 && power >= 0) {
@@ -3035,7 +3038,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
     let groupRow = '';
     if (c.phaseId !== lastPhaseId) {
       lastPhaseId = c.phaseId;
-      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="8" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
+      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="9" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
     }
     return groupRow + `<tr>
       <td>${swatch}${c.id}</td>
@@ -3044,6 +3047,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
       <td>${c.perimeterMm.toFixed(2)}</td>
       <td>${(c.perimeterMm * length / 100).toFixed(1)}</td>
       <td>${fmt(power)}</td>
+      <td>${irmsSum !== null ? irmsSum.toFixed(1) : '—'}</td>
       <td>${irms !== null ? irms.toFixed(1) : '—'}</td>
       <td>${trise !== null ? trise.toFixed(1) : '—'}</td>
     </tr>`;
@@ -3062,7 +3066,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
         <thead><tr>
           <th>ID</th><th>Phase</th><th>Cross-section <span class="u">(mm²)</span></th>
           <th>Perimeter * <span class="u">(mm)</span></th><th>Cooling area <span class="u">(cm²)</span></th>
-          <th>Power loss <span class="u">(W)</span></th><th>I rms <span class="u">(A)</span></th><th>ΔT <span class="u">(K)</span></th>
+          <th>Power loss <span class="u">(W)</span></th><th>I Σ <span class="u">(A)</span></th><th>I rms <span class="u">(A)</span></th><th>ΔT <span class="u">(K)</span></th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -3789,6 +3793,8 @@ function runSolver(shapes, phases, params, gridData, compGrid) {
   const [I2r, I2i] = complexLUSolve(N, Zre, Zim, piv, V2r, V2i);
 
   const Imagn = new Float64Array(N);
+  const scIre  = new Float64Array(N);   // scaled complex current re per element
+  const scIim  = new Float64Array(N);   // scaled complex current im per element
   const phaseCurrentPhasors = [];   // [{re, im}] scaled complex current per phase
   for (let pi = 0; pi < numPhases; pi++) {
     const { start, end } = phaseBounds[pi];
@@ -3797,23 +3803,35 @@ function runSolver(shapes, phases, params, gridData, compGrid) {
     const modSum = Math.hypot(sr, si);
     const tgt    = Itgt[pi].mag;
     const scale  = (modSum > 1e-30 && tgt > 0) ? tgt / modSum : 0;
-    for (let i = start; i < end; i++)
+    for (let i = start; i < end; i++) {
       Imagn[i] = Math.hypot(I2r[i], I2i[i]) * scale;
+      scIre[i] = I2r[i] * scale;
+      scIim[i] = I2i[i] * scale;
+    }
     phaseCurrentPhasors.push({ re: sr * scale, im: si * scale });
   }
 
   const powerVec = new Float64Array(N);
   for (let i = 0; i < N; i++) powerVec[i] = Rvec[i] * Imagn[i]**2;
 
-  // Per-component power aggregation
+  // Per-component power and phasor-sum current aggregation
   let componentResults = null;
   if (compGrid) {
     const compPowerMap = new Map();
+    const compIreMap   = new Map();
+    const compIimMap   = new Map();
     for (let i = 0; i < N; i++) {
       const cid = compGrid[elemR[i] * cols + elemC[i]];
-      if (cid > 0) compPowerMap.set(cid, (compPowerMap.get(cid) || 0) + powerVec[i]);
+      if (cid > 0) {
+        compPowerMap.set(cid, (compPowerMap.get(cid) || 0) + powerVec[i]);
+        compIreMap.set(cid,   (compIreMap.get(cid)   || 0) + scIre[i]);
+        compIimMap.set(cid,   (compIimMap.get(cid)   || 0) + scIim[i]);
+      }
     }
-    componentResults = [...compPowerMap.entries()].map(([compId, power]) => ({ compId, power }));
+    componentResults = [...compPowerMap.entries()].map(([compId, power]) => ({
+      compId, power,
+      Irms: Math.hypot(compIreMap.get(compId) || 0, compIimMap.get(compId) || 0)
+    }));
   }
 
   const phaseResults = phaseBounds.map(({ start, end, pid }, pi) => {
