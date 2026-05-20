@@ -1,0 +1,2962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TnT-3 Solver v3</title>
+<style>
+:root {
+  --bg:     #f0f2f5;
+  --panel:  #ffffff;
+  --border: #d1d5db;
+  --accent: #0078d4;
+  --text:   #111827;
+  --text2:  #6b7280;
+  --danger: #dc2626;
+  --ok:     #27ae60;
+  --warn:   #d97706;
+  --radius: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 46px 1fr;
+  grid-template-columns: 420px 1fr;
+  grid-template-areas: "tb tb" "lp rp";
+  overflow: hidden;
+}
+
+/* ── Toolbar ────────────────────────────────────────── */
+#toolbar {
+  grid-area: tb;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.app-title { font-size: 13px; font-weight: 700; color: var(--accent); margin-right: 6px; }
+.tb-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+.tb-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: #f5f7fa; color: var(--text2); cursor: pointer; font-size: 12px;
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.tb-btn:hover { background: #e4e7ec; color: var(--text); border-color: var(--accent); }
+.tb-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tb-btn.primary:hover { background: #006cbe; }
+.tb-btn.run-btn { background: #166534; border-color: #14532d; color: #fff; }
+.tb-btn.run-btn:hover { background: #15803d; }
+.tb-btn.stop-btn { background: #991b1b; border-color: #7f1d1d; color: #fff; }
+.tb-btn.stop-btn:hover { background: #b91c1c; }
+/* Steady State button */
+.tb-btn.ss-btn { background: #78350f; border-color: #92400e; color: #fde68a; }
+.tb-btn.ss-btn:hover { background: #92400e; }
+
+#status {
+  margin-left: auto; font-size: 11px; font-family: monospace;
+  padding: 3px 8px; border-radius: 4px; flex-shrink: 0;
+}
+#status.ok   { color: var(--ok);   background: #f0faf4; }
+#status.err  { color: var(--danger); background: #fef2f2; }
+#status.idle { color: var(--text2); }
+#status.run  { color: var(--warn); background: #fffbeb; }
+
+/* ── Left pane ─────────────────────────────────────── */
+#left-panel {
+  grid-area: lp;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.pane-hdr {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  background: #f5f7fa;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; color: var(--text2); flex-shrink: 0;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+#yaml-input {
+  flex: 1;
+  font-family: 'Cascadia Code', 'Fira Mono', monospace;
+  font-size: 11.5px; line-height: 1.55;
+  border: none; outline: none; resize: none;
+  padding: 10px 12px;
+  color: var(--text);
+  background: #fafbfc;
+  tab-size: 2;
+  min-height: 0;
+}
+.solver-sep {
+  height: 1px; background: var(--border); flex-shrink: 0;
+}
+.solver-section {
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.solver-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px;
+  background: #f5f7fa;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .8px;
+  cursor: pointer; flex-shrink: 0;
+}
+.solver-hdr:hover { background: #e4e7ec; }
+.solver-toggle { font-size: 10px; color: var(--text2); }
+.solver-body { padding: 8px 10px; }
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.param-field { display: flex; flex-direction: column; gap: 2px; }
+.param-lbl {
+  font-size: 9px; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.param-inp {
+  padding: 4px 6px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); color: var(--text); font-size: 11px;
+  font-family: monospace; width: 100%;
+}
+.param-inp:focus { outline: none; border-color: var(--accent); }
+.solver-btns {
+  display: flex; gap: 6px; margin-bottom: 6px;
+}
+.solver-btns button {
+  flex: 1; padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; font-size: 12px; font-weight: 600;
+  transition: all .15s;
+}
+.btn-run  { background: #166534; border-color: #14532d; color: #fff; }
+.btn-run:hover  { background: #15803d; }
+.btn-stop { background: #991b1b; border-color: #7f1d1d; color: #fff; }
+.btn-stop:hover { background: #b91c1c; }
+.btn-stop:disabled { background: #9ca3af; border-color: #6b7280; cursor: default; }
+.progress-wrap {
+  height: 28px; background: #1e293b; border-radius: 4px;
+  position: relative; overflow: hidden;
+}
+.progress-bar {
+  height: 100%; background: #1d4ed8;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+  width: 0%;
+}
+.progress-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: #e2e8f0; font-family: monospace;
+  pointer-events: none;
+}
+
+/* ── Right pane ────────────────────────────────────── */
+#right-panel {
+  grid-area: rp;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* tab bar */
+.tab-bar {
+  display: flex; align-items: center;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; gap: 0;
+}
+.tab-btn {
+  padding: 10px 16px;
+  font-size: 12px; font-weight: 600;
+  border: none; border-bottom: 2px solid transparent;
+  background: none; color: var(--text2); cursor: pointer;
+  transition: all .12s; white-space: nowrap;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* tab content areas */
+.tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0; }
+.tab-content.active { display: flex; }
+
+/* ── Topology tab ───────────────────────────────────── */
+/* viz top bar */
+#viz-top-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mode-btn {
+  padding: 3px 10px; font-size: 11px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text2); cursor: pointer; transition: all .12s;
+}
+.mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.viz-info {
+  font-size: 10px; color: var(--text2); font-family: monospace; margin-left: auto;
+}
+
+#viz-container {
+  flex: 1; position: relative; overflow: hidden; background: #1a1a2e; min-height: 0;
+}
+#viz-svg { width: 100%; height: 100%; }
+#stats-bar {
+  display: flex; align-items: stretch;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  font-size: 11px; overflow-x: auto; flex-shrink: 0;
+  min-height: 80px; max-height: 130px;
+}
+.stats-block {
+  padding: 8px 14px;
+  border-right: 1px solid var(--border);
+  min-width: 130px; flex-shrink: 0;
+}
+.stats-block .label { color: var(--text2); font-size: 10px; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .4px; }
+.stats-block .val   { font-size: 20px; font-weight: 700; color: var(--accent); font-family: monospace; }
+.stats-block .sub   { color: var(--text2); font-size: 10px; margin-top: 2px; }
+.stats-block.pass .val { color: var(--ok); }
+.stats-block.fail .val { color: var(--danger); }
+#panel-rows { flex: 1; padding: 8px 14px; overflow-x: auto; }
+#panel-rows table { border-collapse: collapse; font-size: 11px; }
+#panel-rows th { color: var(--text2); font-weight: 600; padding: 1px 10px 1px 0; text-transform: uppercase; font-size: 9.5px; letter-spacing: .3px; white-space: nowrap; }
+#panel-rows td { padding: 1px 10px 1px 0; font-family: monospace; white-space: nowrap; }
+
+/* ── Results tab ────────────────────────────────────── */
+#results-tab {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #0f172a;
+}
+.charts-top {
+  display: flex; flex-shrink: 0; height: 220px;
+}
+.charts-bot {
+  display: flex; flex: 1; min-height: 0;
+}
+.chart-wrap {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid #1e293b;
+}
+.chart-wrap:last-child { border-right: none; }
+.chart-lbl {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
+  color: #94a3b8; padding: 4px 8px; background: #0f172a; flex-shrink: 0;
+}
+.chart-wrap canvas {
+  flex: 1; width: 100%; min-height: 0;
+}
+.selected-info {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px;
+  background: #0f172a; border-top: 1px solid #1e293b;
+  font-size: 10px; color: #64748b; font-family: monospace;
+  flex-shrink: 0; min-height: 26px;
+}
+.small-btn {
+  padding: 2px 8px; border: 1px solid #334155; border-radius: 3px;
+  background: #1e293b; color: #94a3b8; cursor: pointer; font-size: 10px;
+}
+.small-btn:hover { background: #334155; color: #e2e8f0; }
+.results-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: #475569; font-size: 13px; font-style: italic;
+}
+
+/* ── Sensors tab ────────────────────────────────────── */
+#sensors-tab {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+.export-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; font-size: 12px; font-weight: 600;
+}
+.export-row-btns { margin-left: auto; display: flex; gap: 6px; }
+#sensors-content {
+  flex: 1; overflow-y: auto; padding: 10px; background: var(--bg);
+}
+.sensors-empty {
+  text-align: center; color: var(--text2); font-size: 12px; font-style: italic; padding: 30px;
+}
+.section-hdr {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--text2);
+  padding: 6px 0 4px; border-bottom: 1px solid var(--border);
+  margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.sensor-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+}
+.sensor-card {
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  width: 160px; cursor: pointer; transition: box-shadow .12s;
+  background: var(--panel);
+}
+.sensor-card:hover { box-shadow: 0 0 0 2px var(--accent); }
+.sc-header {
+  padding: 5px 10px; display: flex; justify-content: space-between; align-items: center;
+}
+.sc-name { font-size: 12px; font-weight: 700; }
+.sc-panel { font-size: 10px; color: var(--text2); }
+.sc-body { padding: 8px 10px; }
+.sc-temp { font-size: 22px; font-weight: 700; font-family: monospace; }
+.sc-unit { font-size: 12px; font-weight: 400; color: var(--text2); }
+.sc-rise { font-size: 11px; color: var(--text2); margin: 2px 0 5px; }
+.sc-bar-wrap { height: 4px; background: #e5e7eb; border-radius: 2px; overflow: hidden; }
+.sc-bar { height: 100%; border-radius: 2px; }
+.node-tbl-wrap {
+  overflow: auto; max-height: 420px;
+  border: 1px solid var(--border); border-radius: 4px;
+}
+.node-tbl { border-collapse: collapse; font-size: 11px; width: 100%; min-width: 520px; }
+.node-tbl th {
+  position: sticky; top: 0; background: #f8fafc;
+  padding: 4px 8px; text-align: left; font-size: 10px;
+  color: var(--text2); font-weight: 600; text-transform: uppercase;
+  letter-spacing: .3px; border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.node-tbl td { padding: 3px 8px; border-bottom: 1px solid #f1f5f9; font-family: monospace; }
+.node-row:hover { background: #f0f9ff; cursor: pointer; }
+.node-row.selected { background: #eff6ff; }
+.dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; margin-right: 4px; vertical-align: middle;
+}
+
+/* ── Tooltip ─────────────────────────────────────────── */
+#tooltip {
+  position: fixed; pointer-events: none; z-index: 999;
+  background: #0f172a; color: #e2e8f0;
+  border: 1px solid #334155; border-radius: 6px;
+  padding: 7px 11px; font-size: 11px; font-family: monospace;
+  line-height: 1.55; display: none;
+}
+</style>
+</head>
+<body>
+<!-- CDN: js-yaml for YAML parsing -->
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+
+<div id="toolbar">
+  <span class="app-title">TnT-3 SOLVER v3</span>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="loadFile()">Load YAML</button>
+  <button class="tb-btn" onclick="loadExample()">Example</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn primary" onclick="runBuild()">Build</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn ss-btn" id="btn-ss-toolbar" onclick="runSteadyState()">&#9889; Steady State</button>
+  <button class="tb-btn run-btn" id="btn-run-toolbar" onclick="runSolverFromToolbar()">&#9654; Transient</button>
+  <button class="tb-btn stop-btn" id="btn-stop-toolbar" onclick="stopSolver()" style="display:none">&#9632; Stop</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="exportCSV()">Export CSV</button>
+  <button class="tb-btn" onclick="saveReport()">Save Report</button>
+  <div id="status" class="idle">Ready</div>
+  <input type="file" id="file-input" accept=".yaml,.yml" style="display:none" onchange="onFileChange(event)">
+</div>
+
+<div id="left-panel">
+  <div class="pane-hdr">YAML Lineup</div>
+  <textarea id="yaml-input" spellcheck="false" placeholder="Paste YAML here or load a file…"></textarea>
+  <div class="solver-sep"></div>
+  <div class="solver-section" id="solver-section">
+    <div class="solver-hdr" onclick="toggleSolverSection()">
+      <span>Solver</span>
+      <span class="solver-toggle" id="solver-toggle">&#9660;</span>
+    </div>
+    <div class="solver-body" id="solver-body">
+      <div class="params-grid">
+        <div class="param-field">
+          <label class="param-lbl">Current [A]</label>
+          <input class="param-inp" id="sp-current" type="number" value="1000" step="100">
+        </div>
+        <div class="param-field">
+          <label class="param-lbl">T_amb [°C]</label>
+          <input class="param-inp" id="sp-tamb" type="number" value="20" step="1">
+        </div>
+        <div class="param-field">
+          <label class="param-lbl">T&#8320; [°C]</label>
+          <input class="param-inp" id="sp-t0" type="number" value="20" step="1">
+        </div>
+        <div class="param-field">
+          <label class="param-lbl">End [h]</label>
+          <input class="param-inp" id="sp-end" type="number" value="8" step="1" min="0.1">
+        </div>
+        <div class="param-field">
+          <label class="param-lbl">Accuracy [K]</label>
+          <input class="param-inp" id="sp-acc" type="number" value="0.1" step="0.01" min="0.001">
+        </div>
+        <div class="param-field">
+          <label class="param-lbl">Air interval [s]</label>
+          <input class="param-inp" id="sp-air" type="number" value="5" step="1" min="1">
+        </div>
+      </div>
+      <div class="solver-btns">
+        <button class="btn-run" id="btn-run" onclick="runSolverFromPanel()">&#9654; Run</button>
+        <button class="btn-stop" id="btn-stop" onclick="stopSolver()" disabled>&#9632; Stop</button>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar" id="progress-bar"></div>
+        <div class="progress-text" id="progress-text">Ready</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="right-panel">
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-topo"    onclick="switchTab('topology')">Topology</button>
+    <button class="tab-btn"        id="tab-results" onclick="switchTab('results')">Results</button>
+    <button class="tab-btn"        id="tab-sensors" onclick="switchTab('sensors')">Sensors &amp; Export</button>
+  </div>
+
+  <!-- Topology tab -->
+  <div class="tab-content active" id="topology-tab">
+    <div id="viz-top-bar">
+      <button class="mode-btn active" id="mode-panel" onclick="setVizMode('panel')">Panel Colors</button>
+      <button class="mode-btn"        id="mode-temp"  onclick="setVizMode('temp')">Temp Colors</button>
+      <span class="viz-info" id="viz-info"></span>
+    </div>
+    <div id="viz-container">
+      <svg id="viz-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="stats-bar">
+      <div class="stats-block" id="sb-nodes">
+        <div class="label">Nodes</div>
+        <div class="val" id="sb-nodes-val">—</div>
+        <div class="sub" id="sb-nodes-sub"></div>
+      </div>
+      <div class="stats-block" id="sb-panels">
+        <div class="label">Panels</div>
+        <div class="val" id="sb-panels-val">—</div>
+        <div class="sub" id="sb-panels-sub"></div>
+      </div>
+      <div class="stats-block" id="sb-validate">
+        <div class="label">Validation</div>
+        <div class="val" id="sb-validate-val">—</div>
+        <div class="sub" id="sb-validate-sub"></div>
+      </div>
+      <div id="panel-rows">
+        <table id="panel-table">
+          <thead><tr>
+            <th>Panel</th><th>Nodes</th><th>MBB</th><th>VBB</th>
+            <th>x range</th><th>y range</th><th>Load [A]</th>
+          </tr></thead>
+          <tbody id="panel-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results tab -->
+  <div class="tab-content" id="results-tab">
+    <div class="charts-top">
+      <div class="chart-wrap">
+        <div class="chart-lbl">Max Temperature Rise Trend</div>
+        <canvas id="trend-canvas"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-lbl" id="node-chart-lbl">Node History</div>
+        <canvas id="node-canvas"></canvas>
+      </div>
+    </div>
+    <div class="charts-bot">
+      <div class="chart-wrap">
+        <div class="chart-lbl">Final Temperature Heatmap</div>
+        <canvas id="heatmap-canvas"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-lbl">Air Temperature Profiles</div>
+        <canvas id="air-canvas"></canvas>
+      </div>
+    </div>
+    <div class="selected-info" id="selected-info">
+      <span id="selected-info-text">No node selected</span>
+      <button class="small-btn" id="clear-sel-btn" onclick="clearSelection()" style="display:none">&#10005; Clear</button>
+    </div>
+    <div class="results-empty" id="results-empty">Run the solver to see results</div>
+  </div>
+
+  <!-- Sensors & Export tab -->
+  <div class="tab-content" id="sensors-tab">
+    <div class="export-row">
+      <span>Sensors &amp; Export</span>
+      <div class="export-row-btns">
+        <button class="tb-btn" id="sort-btn" onclick="toggleSensorSort()">Sort: &#916;T &#8595;</button>
+        <button class="tb-btn" onclick="exportCSV()">Export CSV</button>
+        <button class="tb-btn" onclick="saveReport()">Save Report</button>
+      </div>
+    </div>
+    <div id="sensors-content">
+      <div class="sensors-empty">Run the solver to see sensor results</div>
+    </div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+'use strict';
+const STEFAN_BOLTZMANN = 5.6703e-8;
+
+// ═══════════════════════════════════════════════════════════════════
+// MATERIAL LIBRARY
+// ═══════════════════════════════════════════════════════════════════
+const MATERIAL_PRESETS = {
+  Cu:    { sigma: 58e6, alpha: 3.9e-3, k: 401, density: 8920, Cp: 385 },
+  CuACB: { sigma: 40e6, alpha: 3.9e-3, k: 401, density: 8920, Cp: 385 },
+  Al:    { sigma: 35e6, alpha: 4.0e-3, k: 237, density: 2700, Cp: 900 },
+  Steel: { sigma:  7e6, alpha: 6.5e-3, k:  50, density: 7800, Cp: 490 },
+};
+
+class Material {
+  constructor({ sigma=58e6, alpha=3.9e-3, k=401, density=8920, Cp=385 } = {}) {
+    this.sigma = sigma; this.alpha = alpha; this.k = k;
+    this.density = density; this.Cp = Cp;
+  }
+  conductivity(T) { return this.sigma / (1 + this.alpha * (T - 20)); }
+}
+
+function resolveMaterial(m) {
+  if (m instanceof Material) return m;
+  if (!(m in MATERIAL_PRESETS)) throw new Error(`Unknown material '${m}'`);
+  return new Material(MATERIAL_PRESETS[m]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GEOMETRY
+// ═══════════════════════════════════════════════════════════════════
+class Shape {
+  constructor(width=10, height=100, length=100, n=1, angle_deg=0) {
+    this.w = width; this.h = height; this.l = length; this.n = n;
+    this.angle = angle_deg * Math.PI / 180;  // stored in radians
+  }
+  crossSection()  { return this.n * this.w * 1e-3 * this.h * 1e-3; }
+  convectionArea(){ return this.n * this.l * 1e-3 * (2*this.w*1e-3 + 2*this.h*1e-3); }
+  radiationArea() { return this.l * 1e-3 * (2*this.w*1e-3*this.n + 2*this.h*1e-3); }
+  volume()        { return this.crossSection() * this.l * 1e-3; }
+  electricalResistance(sigma) { return (this.l*1e-3) / (this.crossSection() * sigma); }
+  thermalResistance(k)        { return (this.l*1e-3) / (this.crossSection() * k); }
+  dx() { return this.l * Math.cos(this.angle); }
+  dy() { return this.l * Math.sin(this.angle); }
+}
+
+class PipeShape {
+  constructor(outer_d=10, inner_d=1, length=100, n=1, angle_deg=0) {
+    this.fi_out = outer_d; this.fi_in = inner_d;
+    this.h = outer_d;  // compatibility alias
+    this.l = length; this.n = n;
+    this.angle = angle_deg * Math.PI / 180;
+  }
+  crossSection() {
+    return this.n * (Math.PI*(0.5*this.fi_out*1e-3)**2 - Math.PI*(0.5*this.fi_in*1e-3)**2);
+  }
+  convectionArea() { return this.n * 2*Math.PI * 0.5*this.fi_out*1e-3 * this.l*1e-3; }
+  radiationArea()  { return this.convectionArea(); }
+  volume()         { return this.crossSection() * this.l * 1e-3; }
+  electricalResistance(sigma) { return (this.l*1e-3) / (this.crossSection() * sigma); }
+  thermalResistance(k)        { return (this.l*1e-3) / (this.crossSection() * k); }
+  dx() { return this.l * Math.cos(this.angle); }
+  dy() { return this.l * Math.sin(this.angle); }
+}
+
+function _copyShape(s) {
+  const c = Object.create(Object.getPrototypeOf(s));
+  Object.assign(c, s);
+  return c;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// THERMAL ELEMENT
+// ═══════════════════════════════════════════════════════════════════
+class ThermalElement {
+  constructor({ shape=null, material=null, source=0, dissipates=true,
+                htc=5.0, emissivity=0.35, ac_factor=1.0 } = {}) {
+    this.shape      = shape    || new Shape();
+    this.material   = material || new Material();
+    this.Q_fixed    = source;
+    this.dissipates = dissipates;
+    this.htc        = htc;
+    this.emissivity = emissivity;
+    this.ac_factor  = ac_factor;
+    // graph
+    this.inputs  = [];
+    this.outputs = [];
+    // state
+    this.T        = null;
+    this.current  = null;
+    this.x        = 0.0;
+    this.y        = 0.0;
+    this.panel_id = 0;
+    this.sensor_name = null;
+  }
+  mass()            { return this.shape.volume() * this.material.density; }
+  thermalCapacity() { return this.mass() * this.material.Cp; }
+  electricalResistance(T=20) {
+    return this.ac_factor * this.shape.electricalResistance(this.material.conductivity(T));
+  }
+  thermalResistance() { return this.shape.thermalResistance(this.material.k); }
+  joulePower(I, T=20) {
+    return this.dissipates ? this.Q_fixed + this.electricalResistance(T)*I*I : this.Q_fixed;
+  }
+  qConvection(Te, Ta) { return this.shape.convectionArea() * this.htc * (Te - Ta); }
+  qRadiation(Te, Ta)  {
+    return this.shape.radiationArea() * STEFAN_BOLTZMANN * this.emissivity *
+      ((Te+273.15)**4 - (Ta+273.15)**4);
+  }
+  rotate(angle_deg) { this.shape.angle = angle_deg * Math.PI / 180; return this; }
+
+  deepCopy() {
+    const c = new ThermalElement({
+      shape:      _copyShape(this.shape),
+      material:   Object.assign(Object.create(Object.getPrototypeOf(this.material)), this.material),
+      source:     this.Q_fixed,
+      dissipates: this.dissipates,
+      htc:        this.htc,
+      emissivity: this.emissivity,
+      ac_factor:  this.ac_factor,
+    });
+    c.T        = this.T;
+    c.current  = this.current;
+    c.x        = this.x;
+    c.y        = this.y;
+    c.panel_id = this.panel_id;
+    if (this.sensor_name) c.sensor_name = this.sensor_name;
+    return c;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SEGMENT / SENSOR MARKER
+// ═══════════════════════════════════════════════════════════════════
+class Segment {
+  constructor(element, count=1, angle=null) {
+    this.element = element; this.count = count; this.angle = angle;
+  }
+}
+class SensorMarker {
+  constructor(name) { this.name = name; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FACTORIES
+// ═══════════════════════════════════════════════════════════════════
+function Busbar(width, height, length,
+                { n=1, angle=0, material='Cu', htc=5, emissivity=0.35, ac_factor=1 } = {}) {
+  return new ThermalElement({
+    shape: new Shape(width, height, length, n, angle),
+    material: resolveMaterial(material),
+    htc, emissivity, ac_factor, dissipates: true,
+  });
+}
+function ACBreaker(width, height, length,
+                   { n=1, angle=-90, material='CuACB', htc=3, emissivity=0.35, ac_factor=1 } = {}) {
+  return new ThermalElement({
+    shape: new Shape(width, height, length, n, angle),
+    material: resolveMaterial(material),
+    htc, emissivity, ac_factor, dissipates: true,
+  });
+}
+function Cable(outer_d, inner_d=0, length=100,
+               { n=1, angle=0, material='Cu', htc=5, emissivity=0.9, ac_factor=1 } = {}) {
+  return new ThermalElement({
+    shape: new PipeShape(outer_d, inner_d, length, n, angle),
+    material: resolveMaterial(material),
+    htc, emissivity, ac_factor, dissipates: true,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AIR MODEL — full transient 1-D stratification (Phase 2)
+// Ported from tnt3/air.py
+// ═══════════════════════════════════════════════════════════════════
+const AIR_RHO  = 1.09;      // density [kg/m³]
+const AIR_CP   = 1008;      // specific heat [J/kgK]
+const AIR_BETA = 1 / 323;   // thermal expansion [1/K]
+const AIR_G    = 9.81;      // gravity [m/s²]
+const AIR_DT_REF = 15.0;   // reference dT for v_ref estimate [K]
+const AIR_CD   = 0.6;       // chimney discharge coefficient
+
+// (opening_fraction, U_wall [W/m²K])
+const VENTILATION_PRESETS = {
+  closed:  [0.01, 5.0],
+  louvers: [0.10, 3.0],
+  open:    [1.00, 1.0],
+};
+
+class AirModel {
+  constructor(n_cells, height, T0=20, opts={}) {
+    const {
+      panel_width  = 600,
+      panel_depth  = 600,
+      ventilation  = 'closed',
+    } = opts;
+
+    this.n    = n_cells;
+    this.height = height;         // [mm]
+    this.T0   = T0;
+    this.cell_height = height / n_cells;  // [mm]
+
+    const h_c = this.cell_height / 1000;  // [m]
+    const H_m = height / 1000;           // [m]
+    const w_m = panel_width  / 1000;
+    const d_m = panel_depth  / 1000;
+
+    // resolve ventilation preset
+    let f_open, U_wall;
+    if (typeof ventilation === 'number') {
+      f_open = 1.0;
+      U_wall = ventilation;
+    } else {
+      const key = String(ventilation).toLowerCase();
+      const preset = VENTILATION_PRESETS[key] || VENTILATION_PRESETS.closed;
+      [f_open, U_wall] = preset;
+    }
+
+    // full stack-effect advective conductance (100% opening)
+    const A_cross    = w_m * d_m;
+    const v_ref      = AIR_CD * Math.sqrt(2 * AIR_G * AIR_BETA * AIR_DT_REF * H_m);
+    const G_adv_full = AIR_RHO * A_cross * v_ref * AIR_CP;
+
+    this.G_adv  = f_open * G_adv_full;
+    this._f_open  = f_open;
+    this._A_cross = A_cross;
+    this._H_m     = H_m;
+
+    // wall-loss conductance per cell
+    const perimeter   = 2 * (w_m + d_m);
+    const A_wall_cell = perimeter * h_c;
+    this.G_out  = U_wall * A_wall_cell;
+
+    // thermal capacity per cell
+    const V_cell  = w_m * d_m * h_c;
+    this.C_air  = AIR_RHO * V_cell * AIR_CP;
+
+    this._T = new Float64Array(n_cells).fill(T0);
+    this._Q = new Float64Array(n_cells).fill(0);
+  }
+
+  reset_Q() { this._Q.fill(0); }
+
+  add_heat(y_mm, Q_watts) {
+    this._Q[this._cell_index(y_mm)] += Q_watts;
+  }
+
+  solve() {
+    // steady-state forward substitution
+    const dT = new Float64Array(this.n);
+    const d  = this.G_adv + this.G_out;
+    dT[0] = this._Q[0] / d;
+    for (let i = 1; i < this.n; i++) {
+      dT[i] = (this._Q[i] + this.G_adv * dT[i - 1]) / d;
+    }
+    for (let i = 0; i < this.n; i++) this._T[i] = dT[i] + this.T0;
+  }
+
+  dT_dt(Q_in) {
+    // rate of change per cell [K/s]
+    const result = new Float64Array(this.n);
+    for (let i = 0; i < this.n; i++) {
+      const T_in_i = i === 0 ? this.T0 : this._T[i - 1];
+      result[i] = (
+        Q_in[i]
+        + this.G_adv * (T_in_i - this._T[i])
+        - this.G_out * (this._T[i]  - this.T0)
+      ) / this.C_air;
+    }
+    return result;
+  }
+
+  stability_dt(safety=0.45) {
+    return safety * this.C_air / (this.G_adv + this.G_out);
+  }
+
+  integrate(dt_outer, Q_in) {
+    let t = 0;
+    while (t < dt_outer) {
+      this._update_G_adv();
+      const dt_inner = this.stability_dt();
+      const step = Math.min(dt_inner, dt_outer - t);
+      const dTdt = this.dT_dt(Q_in);
+      for (let i = 0; i < this.n; i++) this._T[i] += dTdt[i] * step;
+      t += step;
+    }
+  }
+
+  _update_G_adv() {
+    const dT_drive = Math.max(this._T[this.n - 1] - this._T[0], 0.1);
+    const v = AIR_CD * Math.sqrt(2 * AIR_G * AIR_BETA * dT_drive * this._H_m);
+    this.G_adv = this._f_open * AIR_RHO * this._A_cross * v * AIR_CP;
+  }
+
+  temperature_at(y_mm) {
+    return this._T[this._cell_index(y_mm)];
+  }
+
+  get temperatures()    { return Array.from(this._T); }
+  get max_temperature() { return Math.max(...this._T); }
+  get cell_centers()    {
+    return Array.from({ length: this.n }, (_, i) => (i + 0.5) * this.cell_height);
+  }
+
+  _cell_index(y_mm) {
+    return Math.min(Math.max(Math.floor(y_mm / this.cell_height), 0), this.n - 1);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PANEL TOPOLOGY HELPERS  (mirrors panel.py)
+// ═══════════════════════════════════════════════════════════════════
+
+function _generateList(spec) {
+  const out = [];
+  for (const entry of spec) {
+    if (entry instanceof SensorMarker) {
+      if (out.length > 0) out[out.length - 1].sensor_name = entry.name;
+      continue;
+    }
+    let element, count, angle;
+    if (entry instanceof Segment) {
+      ({ element, count, angle } = entry);
+    } else {
+      throw new Error('Spec entry must be a Segment or SensorMarker');
+    }
+    for (let i = 0; i < count; i++) {
+      const node = element.deepCopy();
+      if (angle !== null && angle !== undefined) node.rotate(angle);
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+function _chain(nodes) {
+  for (let i = 1; i < nodes.length; i++) {
+    nodes[i-1].outputs.push(nodes[i]);
+    nodes[i].inputs.push(nodes[i-1]);
+  }
+}
+
+function _join(listA, listB, pos) {
+  if (pos < 0) pos = listA.length + pos;
+  listA[pos].outputs.push(listB[0]);
+  listB[0].inputs.push(listA[pos]);
+}
+
+function _setCurrent(I, nodes) {
+  for (const n of nodes) n.current = I;
+}
+
+function _cloneNodes(source) {
+  const indexMap = new Map(source.map((n, i) => [n, i]));
+  const topology = source.map(node => ({
+    in:  node.inputs .filter(p => indexMap.has(p)).map(p => indexMap.get(p)),
+    out: node.outputs.filter(p => indexMap.has(p)).map(p => indexMap.get(p)),
+  }));
+  const clones = source.map(node => {
+    const savedIn = node.inputs, savedOut = node.outputs;
+    node.inputs = []; node.outputs = [];
+    const c = node.deepCopy();
+    node.inputs = savedIn; node.outputs = savedOut;
+    return c;
+  });
+  clones.forEach((clone, i) => {
+    clone.inputs  = topology[i].in .map(j => clones[j]);
+    clone.outputs = topology[i].out.map(j => clones[j]);
+  });
+  return clones;
+}
+
+function _computePositions(nodes) {
+  for (const node of nodes) {
+    if (node.inputs.length === 0) {
+      node.x += node.shape.dx() / 2;
+      node.y += node.shape.dy() / 2;
+    } else {
+      const prev = node.inputs[node.inputs.length - 1];
+      node.x = prev.x + prev.shape.dx() / 2 + node.shape.dx() / 2;
+      node.y = prev.y + prev.shape.dy() / 2 + node.shape.dy() / 2;
+    }
+  }
+  const minY = Math.min(...nodes.map(n => n.y));
+  if (minY < 0) nodes.forEach(n => n.y -= minY);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PANEL BASE CLASS
+// ═══════════════════════════════════════════════════════════════════
+class Panel {
+  constructor(rawNodes, in_node, out_node, air) {
+    this.nodes    = _cloneNodes(rawNodes);
+    this.in_node  = in_node;
+    this.out_node = out_node;
+    this.air      = air;
+  }
+  connect_to_next(nextPanel) {
+    this.nodes[this.out_node].outputs.push(nextPanel.nodes[nextPanel.in_node]);
+    nextPanel.nodes[nextPanel.in_node].inputs.push(this.nodes[this.out_node]);
+  }
+  ambient_temperature(y_mm) { return this.air.temperature_at(y_mm); }
+  _apply_internal_currents() {}
+  _fix_positions() {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DC2BB PANEL
+// ═══════════════════════════════════════════════════════════════════
+class DC2BB extends Panel {
+  constructor({ width=1, height, mbb: mbb_spec, angle_bars: ang_spec,
+                io_bars: io_spec, acb: acb_spec, mbb_height=1500,
+                load=0, T0=20, panel_depth=600, ventilation='closed' }) {
+    const built = DC2BB._build(mbb_spec, ang_spec, io_spec, acb_spec, mbb_height);
+    const { rawNodes, in_node, out_node } = built;
+
+    const air_height = 1.1 * height;
+    const air_cells  = Math.max(1, Math.round(air_height / 100));
+    const air = new AirModel(air_cells, air_height, T0, {
+      panel_width: 600, panel_depth, ventilation
+    });
+
+    super(rawNodes, in_node, out_node, air);
+
+    this.height = height;
+    this.load   = load;
+    this.load_backup = 0;
+
+    this._remapSublists(rawNodes, built);
+  }
+
+  static _build(mbb_spec, ang_spec, io_spec, acb_spec, mbb_height) {
+    const mbb = _generateList(mbb_spec);
+    _chain(mbb);
+    const mid   = Math.floor(mbb.length / 2) - 1;
+    const mbb_l = mbb.slice(0, mid);
+    const mbb_r = mbb.slice(mid);
+
+    const angle_bars = _generateList(ang_spec);
+    _chain(angle_bars);
+
+    const io_bars = _generateList(io_spec);
+    _chain(io_bars);
+
+    const acb = _generateList(acb_spec);
+    _chain(acb);
+
+    _join(angle_bars, acb, -1);
+    _join(acb, io_bars, -1);
+
+    const vbb = [...angle_bars, ...acb, ...io_bars];
+    _join(mbb, vbb, mid);
+
+    mbb[0].y = mbb_height;
+
+    const rawNodes = [...mbb, ...vbb];
+    const in_node  = rawNodes.indexOf(mbb[0]);
+    const out_node = rawNodes.indexOf(mbb[mbb.length - 1]);
+
+    return { rawNodes, in_node, out_node, mbb, mbb_l, mbb_r, vbb, mid };
+  }
+
+  _remapSublists(rawNodes, built) {
+    const indexMap = new Map(rawNodes.map((n, i) => [n, i]));
+    const remap = lst => lst.map(n => this.nodes[indexMap.get(n)]).filter(Boolean);
+    this.mbb   = remap(built.mbb);
+    this.mbb_l = remap(built.mbb_l);
+    this.mbb_r = remap(built.mbb_r);
+    this.vbb   = remap(built.vbb);
+  }
+
+  _apply_internal_currents() { _setCurrent(this.load, this.vbb); }
+  switch()   { [this.load, this.load_backup] = [this.load_backup, this.load]; }
+  reverse()  { this.load *= -1; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MCC MODULE + MCC PANEL
+// ═══════════════════════════════════════════════════════════════════
+class MCCModule {
+  constructor(incoming, device, outgoing, load=0) {
+    this.incoming = incoming; this.device = device; this.outgoing = outgoing; this.load = load;
+  }
+  get nodes() { return [...this.incoming, ...this.device, ...this.outgoing]; }
+}
+
+class MCCPanel extends Panel {
+  constructor({ width=1, height, mbb: mbb_spec, dbb_element, dbb_length,
+                modules: modules_data, mbb_height=1800, T0=20,
+                panel_depth=600, ventilation='closed' }) {
+    const built = MCCPanel._build(mbb_spec, dbb_element, dbb_length, modules_data, mbb_height);
+    const { rawNodes, in_node, out_node } = built;
+
+    const air_height = 1.1 * height;
+    const air_cells  = Math.max(1, Math.round(air_height / 100));
+    const air = new AirModel(air_cells, air_height, T0, {
+      panel_width: 600, panel_depth, ventilation
+    });
+
+    super(rawNodes, in_node, out_node, air);
+    this.height = height;
+    this._remapSublists(rawNodes, built);
+  }
+
+  static _build(mbb_spec, dbb_element, dbb_length, modules_data, mbb_height) {
+    const mbb = _generateList(mbb_spec);
+    _chain(mbb);
+    const mid   = Math.floor(mbb.length / 2) - 1;
+    const mbb_l = mbb.slice(0, mid);
+    const mbb_r = mbb.slice(mid);
+    mbb[0].y = mbb_height;
+
+    const seg_len = dbb_element.shape.l;
+    const n_dbb   = Math.max(2, Math.round(dbb_length / seg_len));
+
+    const dbb = Array.from({ length: n_dbb }, () => {
+      const seg = dbb_element.deepCopy();
+      seg.rotate(90);
+      return seg;
+    });
+    _chain(dbb);
+
+    const k_mbb = Math.min(Math.floor(mbb_height / seg_len), n_dbb - 1);
+    dbb[k_mbb].inputs.unshift(mbb[mid]);
+    mbb[mid].outputs.push(dbb[k_mbb]);
+
+    const rawModules = [];
+    const attachIndices = [];
+    const allModuleNodes = [];
+    let cumY = 0;
+    for (const mod of modules_data) {
+      const mod_height = parseFloat(mod.height || 200);
+      const center_y   = cumY + mod_height / 2;
+      const ai = Math.min(Math.floor(center_y / seg_len), n_dbb - 1);
+      attachIndices.push(ai);
+      cumY += mod_height;
+
+      const incoming = _generateList(mod.incoming_bars || []);
+      const device   = _generateList(mod.device || []);
+      const outgoing = _generateList(mod.outgoing || []);
+      _chain(incoming); _chain(device); _chain(outgoing);
+      if (incoming.length && device.length)   _join(incoming, device, -1);
+      if (device.length   && outgoing.length) _join(device, outgoing, -1);
+      else if (incoming.length && outgoing.length && !device.length) _join(incoming, outgoing, -1);
+
+      const modNodes = [...incoming, ...device, ...outgoing];
+      if (modNodes.length) {
+        dbb[ai].outputs.push(modNodes[0]);
+        modNodes[0].inputs.push(dbb[ai]);
+      }
+      rawModules.push(new MCCModule(incoming, device, outgoing, mod.load || 0));
+      allModuleNodes.push(...modNodes);
+    }
+
+    const rawNodes = [...mbb, ...dbb, ...allModuleNodes];
+    const in_node  = rawNodes.indexOf(mbb[0]);
+    const out_node = rawNodes.indexOf(mbb[mbb.length - 1]);
+
+    return { rawNodes, in_node, out_node, mbb, mbb_l, mbb_r, dbb, rawModules, k_mbb, attachIndices };
+  }
+
+  _remapSublists(rawNodes, built) {
+    const indexMap = new Map(rawNodes.map((n, i) => [n, i]));
+    const remap = lst => lst.map(n => this.nodes[indexMap.get(n)]).filter(Boolean);
+    this.mbb     = remap(built.mbb);
+    this.mbb_l   = remap(built.mbb_l);
+    this.mbb_r   = remap(built.mbb_r);
+    this.dbb     = remap(built.dbb);
+    this.modules = built.rawModules.map(m =>
+      new MCCModule(remap(m.incoming), remap(m.device), remap(m.outgoing), m.load));
+    this._junction_idx  = built.k_mbb;
+    this._attach_indices = built.attachIndices;
+  }
+
+  get load() { return this.modules.reduce((s, m) => s + m.load, 0); }
+
+  _apply_internal_currents() {
+    const k = this._junction_idx, N = this.dbb.length;
+    const attachLoads = new Array(N).fill(0);
+    this.modules.forEach((m, i) => { attachLoads[this._attach_indices[i]] += m.load; });
+
+    const below = new Array(N).fill(0);
+    let acc = 0;
+    for (let j = 0; j < N; j++) { acc += attachLoads[j]; below[j] = acc; }
+    const total = acc;
+
+    const above = new Array(N).fill(0);
+    acc = 0;
+    for (let j = N - 1; j >= 0; j--) { acc += attachLoads[j]; above[j] = acc; }
+
+    this.dbb.forEach((seg, j) => {
+      if      (j < k) _setCurrent(below[j], [seg]);
+      else if (j > k) _setCurrent(above[j], [seg]);
+      else            _setCurrent(total, [seg]);
+    });
+    this.modules.forEach(m => _setCurrent(m.load, m.nodes));
+  }
+
+  _fix_positions() {
+    const junctionX = this.mbb_r[0].x;
+    this.dbb.forEach(node => { node.x = junctionX; });
+    this.modules.forEach(m => m.nodes.forEach(node => { node.x += junctionX; }));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// LINEUP
+// ═══════════════════════════════════════════════════════════════════
+class Lineup {
+  constructor(panels) {
+    this.panels = panels;
+    this._setup();
+  }
+
+  _setup() {
+    this.nodes = [];
+    let prev = null;
+    for (let pid = 0; pid < this.panels.length; pid++) {
+      const panel = this.panels[pid];
+      if (prev !== null) prev.connect_to_next(panel);
+      prev = panel;
+      panel.nodes.forEach(n => { n.panel_id = pid; });
+      this.nodes.push(...panel.nodes);
+    }
+    _computePositions(this.nodes);
+    this.panels.forEach(p => p._fix_positions());
+
+    this.sensors = {};
+    this.nodes.forEach((node, i) => {
+      if (node.sensor_name) this.sensors[node.sensor_name] = i;
+    });
+  }
+
+  solve_currents() {
+    let I = 0;
+    for (const panel of this.panels) {
+      _setCurrent(I, panel.mbb_l);
+      panel._apply_internal_currents();
+      I -= panel.load;
+      _setCurrent(I, panel.mbb_r);
+    }
+  }
+
+  validate() {
+    const issues = [];
+    if (!this.nodes.length) { issues.push('Lineup has no nodes.'); return issues; }
+    this.nodes.forEach((n, i) => {
+      if (n.thermalCapacity() <= 0) issues.push(`Node ${i}: zero thermal capacity.`);
+    });
+    this.solve_currents();
+    if (this.panels.length) {
+      const mbb_r_last = this.panels[this.panels.length - 1].mbb_r;
+      const residual   = mbb_r_last[mbb_r_last.length - 1].current;
+      if (Math.abs(residual) > 1) issues.push(`MBB unbalanced: residual = ${residual.toFixed(1)} A`);
+    }
+    return issues;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// YAML LOADER  (mirrors loader.py)
+// ═══════════════════════════════════════════════════════════════════
+function _buildMaterials(data) {
+  const mats = Object.fromEntries(
+    Object.entries(MATERIAL_PRESETS).map(([k, v]) => [k, new Material(v)])
+  );
+  for (const [name, cfg] of Object.entries(data.materials || {})) {
+    mats[name] = new Material({
+      sigma:   parseFloat(cfg.sigma   ?? 58e6),
+      alpha:   parseFloat(cfg.alpha   ?? 3.9e-3),
+      k:       parseFloat(cfg.k       ?? 401),
+      density: parseFloat(cfg.density ?? 8920),
+      Cp:      parseFloat(cfg.Cp      ?? 385),
+    });
+  }
+  return mats;
+}
+
+function _buildElement(name, cfg, defaults, materials) {
+  const etype = (cfg.type || '').toLowerCase();
+  const htc        = cfg.htc        ?? defaults.htc        ?? 5.0;
+  const emissivity = cfg.emissivity ?? defaults.emissivity ?? 0.35;
+  const ac_factor  = cfg.ac_factor  ?? 1.0;
+  const mat_name   = cfg.material   ?? 'Cu';
+  if (!(mat_name in materials)) throw new Error(`Element '${name}': unknown material '${mat_name}'`);
+  const material = materials[mat_name];
+
+  if (etype === 'busbar' || etype === 'breaker') {
+    const width  = cfg.width  ?? _require(name, 'width');
+    const height = cfg.height ?? _require(name, 'height');
+    const length = cfg.length ?? _require(name, 'length');
+    const n      = cfg.n      ?? 1;
+    const angle  = cfg.angle  ?? (etype === 'busbar' ? 0 : -90);
+    const fn = etype === 'busbar' ? Busbar : ACBreaker;
+    return fn(width, height, length, { n, angle, material, htc, emissivity, ac_factor });
+  }
+  if (etype === 'cable') {
+    const outer  = cfg.outer_diameter ?? _require(name, 'outer_diameter');
+    const inner  = cfg.inner_diameter ?? 0;
+    const length = cfg.length         ?? _require(name, 'length');
+    const n      = cfg.n     ?? 1;
+    const angle  = cfg.angle ?? 0;
+    return Cable(outer, inner, length, { n, angle, material, htc, emissivity, ac_factor });
+  }
+  throw new Error(`Element '${name}': unknown type '${etype}'`);
+}
+
+function _require(name, key) {
+  throw new Error(`Element '${name}': missing required field '${key}'`);
+}
+
+function _buildSpec(entries, elements) {
+  return (entries || []).map(entry => {
+    if ('sensor' in entry && !('element' in entry)) return new SensorMarker(String(entry.sensor));
+    const name = entry.element;
+    if (!(name in elements)) throw new Error(`Segment references undefined element '${name}'`);
+    return new Segment(elements[name], entry.count ?? 1, entry.angle ?? null);
+  });
+}
+
+function _buildDC2BB(cfg, elements) {
+  return new DC2BB({
+    height:     cfg.height                    ?? _require('panel', 'height'),
+    mbb_height: cfg.mbb_height                ?? 1500,
+    load:       cfg.load                      ?? 0,
+    T0:         cfg.T0                        ?? 20,
+    panel_depth: parseFloat(cfg.panel_depth   ?? 600),
+    ventilation: cfg.ventilation              ?? 'closed',
+    mbb:        _buildSpec(cfg.main_busbar,    elements),
+    angle_bars: _buildSpec(cfg.angle_bars,     elements),
+    io_bars:    _buildSpec(cfg.io_bars,        elements),
+    acb:        _buildSpec(cfg.breaker,        elements),
+  });
+}
+
+function _buildMCC(cfg, elements) {
+  const dbb_name = cfg.dbb_element;
+  if (!(dbb_name in elements)) throw new Error(`MCC panel: dbb_element '${dbb_name}' not found`);
+  return new MCCPanel({
+    height:      cfg.height     ?? _require('panel', 'height'),
+    mbb_height:  cfg.mbb_height ?? 1800,
+    dbb_length:  cfg.dbb_length ?? 1900,
+    T0:          cfg.T0         ?? 20,
+    panel_depth: parseFloat(cfg.panel_depth ?? 600),
+    ventilation: cfg.ventilation ?? 'closed',
+    mbb:         _buildSpec(cfg.main_busbar, elements),
+    dbb_element: elements[dbb_name],
+    modules:     (cfg.modules || []).map((m, idx) => ({
+      load:          m.load    ?? 0,
+      height:        m.height  ?? 200,
+      incoming_bars: _buildSpec(m.incoming_bars, elements),
+      device:        _buildSpec(m.device,        elements),
+      outgoing:      _buildSpec(m.outgoing,      elements),
+    })),
+  });
+}
+
+function loadLineup(yamlText) {
+  const data = jsyaml.load(yamlText);
+  if (!data) throw new Error('Empty YAML');
+
+  const defaults  = data.defaults  || {};
+  const materials = _buildMaterials(data);
+
+  const elements = {};
+  for (const [name, cfg] of Object.entries(data.elements || {})) {
+    elements[name] = _buildElement(name, cfg, defaults, materials);
+  }
+
+  const panels = (data.panels || []).map(p => {
+    const ptype = (p.type || 'DC2BB').toUpperCase();
+    if (ptype === 'DC2BB') return _buildDC2BB(p, elements);
+    if (ptype === 'MCC')   return _buildMCC(p, elements);
+    throw new Error(`Unknown panel type '${ptype}'`);
+  });
+
+  const lineup = new Lineup(panels);
+
+  const solver_cfg = {};
+  for (const k of ['global_current','T_ambient','T0','accuracy','dt_init','air_interval','end_time']) {
+    if (data.solver?.[k] !== undefined) solver_cfg[k] = data.solver[k];
+  }
+
+  return { lineup, solver_cfg };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VALIDATION REFERENCE  (from Python run on example_lineup.yaml)
+// ═══════════════════════════════════════════════════════════════════
+const REFERENCE = {
+  total_nodes: 203,
+  panel_nodes: [51, 41, 51, 30, 30],
+  node_0:  { x: 50.0,  y: 1250.0 },
+  node_11: { x: 300.0, y: 1275.0 },
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 2 — _Network class
+// ═══════════════════════════════════════════════════════════════════
+class _Network {
+  constructor(nodes) {
+    this.nodes = nodes;
+    const n = nodes.length;
+    this.n = n;
+
+    this.C         = nodes.map(e => e.thermalCapacity());
+    this.Rth       = nodes.map(e => e.thermalResistance());
+    this.A_conv    = nodes.map(e => e.shape.convectionArea());
+    this.A_rad     = nodes.map(e => e.shape.radiationArea());
+    this.HTC       = nodes.map(e => e.htc);
+    this.eps       = nodes.map(e => e.emissivity);
+    this.fixed_Q   = nodes.map(e => e.Q_fixed);
+    this.dissipates = nodes.map(e => e.dissipates);
+
+    // electrical resistance at 20°C and alpha per node
+    this.R_base = nodes.map(e =>
+      e.ac_factor * e.shape.electricalResistance(e.material.conductivity(20))
+    );
+    this.alpha = nodes.map(e => e.material.alpha);
+
+    // build conduction edge list [i, j, Rij]
+    const idx = new Map(nodes.map((n, i) => [n, i]));
+    this.cond_edges = [];
+    for (let i = 0; i < n; i++) {
+      for (const nb of nodes[i].outputs) {
+        const j = idx.get(nb);
+        if (j === undefined) continue;
+        const Rij = 0.5 * this.Rth[i] + 0.5 * this.Rth[j];
+        this.cond_edges.push([i, j, Rij]);
+      }
+    }
+
+    // sum of conduction conductances per node (for stability)
+    this._cond_lambda = new Float64Array(n);
+    for (const [i, j, Rij] of this.cond_edges) {
+      const g = 1.0 / Rij;
+      this._cond_lambda[i] += g;
+      this._cond_lambda[j] += g;
+    }
+
+    // convection conductance per node
+    this._conv_lambda = new Float64Array(n);
+    for (let i = 0; i < n; i++) this._conv_lambda[i] = this.A_conv[i] * this.HTC[i];
+
+    this.I = new Float64Array(n);
+  }
+
+  update_currents(global_current, t) {
+    const g = typeof global_current === 'function' ? global_current(t) : global_current;
+    for (let i = 0; i < this.n; i++) {
+      const node = this.nodes[i];
+      if (node.current === null) {
+        this.I[i] = g;
+      } else if (typeof node.current === 'function') {
+        this.I[i] = node.current(t);
+      } else {
+        this.I[i] = node.current;
+      }
+    }
+  }
+
+  dT_dt(T, T_amb) {
+    const n = this.n;
+    const dTdt = new Float64Array(n);
+    const SB = STEFAN_BOLTZMANN;
+
+    for (let i = 0; i < n; i++) {
+      const R = this.R_base[i] / (1 + this.alpha[i] * (T[i] - 20));
+      const Q_int = this.dissipates[i]
+        ? this.fixed_Q[i] + R * this.I[i] * this.I[i]
+        : this.fixed_Q[i];
+      const Q_conv = this.A_conv[i] * this.HTC[i] * (T[i] - T_amb[i]);
+      const Tk  = T[i]     + 273.15;
+      const Tak = T_amb[i] + 273.15;
+      const Q_rad = this.A_rad[i] * SB * this.eps[i] * (Tk*Tk*Tk*Tk - Tak*Tak*Tak*Tak);
+      dTdt[i] = (Q_int - Q_conv - Q_rad) / this.C[i];
+    }
+
+    // conduction
+    for (const [i, j, Rij] of this.cond_edges) {
+      const flux = (T[i] - T[j]) / Rij;
+      dTdt[i] -= flux / this.C[i];
+      dTdt[j] += flux / this.C[j];
+    }
+
+    return dTdt;
+  }
+
+  convection_loss(T, T_amb) {
+    const out = new Float64Array(this.n);
+    for (let i = 0; i < this.n; i++) {
+      out[i] = this.A_conv[i] * this.HTC[i] * (T[i] - T_amb[i]);
+    }
+    return out;
+  }
+
+  power_vector(T) {
+    const out = new Float64Array(this.n);
+    for (let i = 0; i < this.n; i++) {
+      const R = this.R_base[i] / (1 + this.alpha[i] * (T[i] - 20));
+      out[i] = this.dissipates[i]
+        ? this.fixed_Q[i] + R * this.I[i] * this.I[i]
+        : this.fixed_Q[i];
+    }
+    return out;
+  }
+
+  stability_dt(T, safety=0.45) {
+    const SB = STEFAN_BOLTZMANN;
+    let minRatio = Infinity;
+    for (let i = 0; i < this.n; i++) {
+      const Tk = T[i] + 273.15;
+      const lambda_rad = 4 * SB * this.eps[i] * this.A_rad[i] * Tk * Tk * Tk;
+      const lambda_total = this._conv_lambda[i] + lambda_rad + this._cond_lambda[i];
+      if (lambda_total > 0) {
+        const ratio = this.C[i] / lambda_total;
+        if (ratio < minRatio) minRatio = ratio;
+      }
+    }
+    return safety * (isFinite(minRatio) ? minRatio : 1.0);
+  }
+
+  adaptive_dt(T, dTdt, accuracy, dt_current, dt_min=1e-4) {
+    let max_rate = 0;
+    for (let i = 0; i < this.n; i++) {
+      const v = Math.abs(dTdt[i]);
+      if (v > max_rate) max_rate = v;
+    }
+    let dt_accuracy;
+    if (max_rate < 1e-12) {
+      dt_accuracy = dt_current * 2.0;
+    } else {
+      const dt_ideal = accuracy / max_rate;
+      const factor = Math.min(Math.max(dt_ideal / dt_current, 0.5), 2.0);
+      dt_accuracy = dt_current * factor;
+    }
+    const dt_stab = this.stability_dt(T);
+    return Math.max(Math.min(dt_accuracy, dt_stab), dt_min);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 2 — ThermalSolver (chunked, runs in main thread via rAF)
+// ═══════════════════════════════════════════════════════════════════
+class ThermalSolver {
+  constructor(lineup, opts={}) {
+    const {
+      global_current = 0,
+      T_ambient      = 20,
+      T0             = 20,
+      accuracy       = 0.1,
+      dt_init        = 1,
+      air_interval   = 5,
+    } = opts;
+
+    this.lineup          = lineup;
+    this.global_current  = global_current;
+    this.T_ambient       = T_ambient;
+    this.accuracy        = accuracy;
+    this.air_interval    = air_interval;
+
+    this._net  = new _Network(lineup.nodes);
+    const n    = lineup.nodes.length;
+    this._T    = new Float64Array(n).fill(T0);
+
+    this.t          = 0;
+    this.dt         = dt_init;
+    this._last_air_t = 0;
+    this.iterations  = 0;
+
+    // trend data
+    this._times   = [0];
+    this._maxDTs  = [0];
+
+    // air snapshots: one list per panel, each entry is [..._T]
+    this._airSnapTimes = [0];
+    this._airSnaps = lineup.panels.map(p => [Array.from(p.air._T)]);
+
+    // per-node history (sampled at air intervals)
+    this._nodeHistTimes = [0];
+    this._nodeHistSnaps = [new Float32Array(n).fill(T0)];
+
+    this._initAir();
+  }
+
+  _initAir() {
+    this.lineup.solve_currents();
+    this._net.update_currents(this.global_current, 0);
+    const Qvec = this._net.power_vector(this._T);
+    for (const panel of this.lineup.panels) panel.air.reset_Q();
+    this.lineup.nodes.forEach((node, i) => {
+      this.lineup.panels[node.panel_id].air.add_heat(node.y, Qvec[i]);
+    });
+    for (const panel of this.lineup.panels) panel.air.solve();
+  }
+
+  _ambient_vector() {
+    const out = new Float64Array(this.lineup.nodes.length);
+    this.lineup.nodes.forEach((node, i) => {
+      out[i] = this.lineup.panels[node.panel_id].air.temperature_at(node.y);
+    });
+    return out;
+  }
+
+  _update_air() {
+    this.lineup.solve_currents();
+    this._net.update_currents(this.global_current, this.t);
+    const T_amb = this._ambient_vector();
+    const Q_conv = this._net.convection_loss(this._T, T_amb);
+
+    for (const panel of this.lineup.panels) panel.air.reset_Q();
+    this.lineup.nodes.forEach((node, i) => {
+      this.lineup.panels[node.panel_id].air.add_heat(node.y, Q_conv[i]);
+    });
+    for (const panel of this.lineup.panels) {
+      panel.air.integrate(this.air_interval, Float64Array.from(panel.air._Q));
+    }
+
+    this._airSnapTimes.push(this.t);
+    this.lineup.panels.forEach((p, pid) => {
+      this._airSnaps[pid].push(Array.from(p.air._T));
+    });
+    this._last_air_t = this.t;
+
+    this._nodeHistTimes.push(this.t);
+    this._nodeHistSnaps.push(new Float32Array(this._T));
+  }
+
+  // Run up to n_steps solver steps, stopping at endTime [s].
+  // Returns { done, t, iterations, maxDT }
+  runChunk(n_steps, endTime) {
+    const net = this._net;
+    let T = this._T;
+
+    for (let step = 0; step < n_steps; step++) {
+      if (this.t >= endTime) break;
+
+      const T_amb = this._ambient_vector();
+      net.update_currents(this.global_current, this.t);
+      const dTdt = net.dT_dt(T, T_amb);
+
+      // Euler step
+      const Tnew = new Float64Array(T.length);
+      for (let i = 0; i < T.length; i++) Tnew[i] = T[i] + dTdt[i] * this.dt;
+      T = Tnew;
+      this.t    += this.dt;
+      this.iterations++;
+
+      // check finite
+      for (let i = 0; i < T.length; i++) {
+        if (!isFinite(T[i])) {
+          this._T = T;
+          return { done: false, t: this.t, iterations: this.iterations, maxDT: NaN, diverged: true };
+        }
+      }
+
+      // record trend
+      let maxDT = 0;
+      for (let i = 0; i < T.length; i++) {
+        const dT = T[i] - this.T_ambient;
+        if (dT > maxDT) maxDT = dT;
+      }
+      this._times.push(this.t);
+      this._maxDTs.push(maxDT);
+
+      // adaptive timestep
+      const remaining = endTime - this.t;
+      this.dt = net.adaptive_dt(T, dTdt, this.accuracy, this.dt);
+      if (this.dt > remaining && remaining > 0) this.dt = remaining;
+
+      // air update
+      if (this.t - this._last_air_t >= this.air_interval) {
+        this._T = T;
+        this._update_air();
+      }
+    }
+
+    this._T = T;
+    const maxDT = this._maxDTs.length ? this._maxDTs[this._maxDTs.length - 1] : 0;
+    return { done: this.t >= endTime, t: this.t, iterations: this.iterations, maxDT };
+  }
+
+  get finalTemps() { return Array.from(this._T); }
+
+  get trendData() {
+    return { times: this._times, maxDTs: this._maxDTs };
+  }
+
+  get airData() {
+    return {
+      times:       this._airSnapTimes,
+      snaps:       this._airSnaps,
+      cellCenters: this.lineup.panels.map(p => p.air.cell_centers),
+    };
+  }
+
+  getNodeTimeSeries(idx) {
+    return {
+      times: this._nodeHistTimes,
+      temps: this._nodeHistSnaps.map(s => s[idx]),
+    };
+  }
+
+  get nodeCount() { return this._T.length; }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 3 — SteadyStateSolver (Gauss-Seidel)
+// ═══════════════════════════════════════════════════════════════════
+class SteadyStateSolver {
+  constructor(lineup, opts = {}) {
+    const { global_current = 0, T_ambient = 20, T0 = 20,
+            max_iter = 600, tol = 0.01 } = opts;
+    this.lineup         = lineup;
+    this.global_current = global_current;
+    this.T_ambient      = T_ambient;
+    this._net           = new _Network(lineup.nodes);
+    this._T             = new Float64Array(lineup.nodes.length).fill(T0);
+    this.max_iter       = max_iter;
+    this.tol            = tol;
+    this.iterations     = 0;
+    this.converged      = false;
+  }
+
+  solve() {
+    const net = this._net;
+    const n   = net.n;
+    const T   = this._T;
+    const SB  = STEFAN_BOLTZMANN;
+
+    this.lineup.solve_currents();
+    net.update_currents(this.global_current, 0);
+
+    // Build per-node adjacency list: [[j, conductance], ...]
+    const adj = Array.from({ length: n }, () => []);
+    for (const [i, j, Rij] of net.cond_edges) {
+      const g = 1 / Rij;
+      adj[i].push([j, g]);
+      adj[j].push([i, g]);
+    }
+
+    this._airSolve(T);
+
+    for (let iter = 0; iter < this.max_iter; iter++) {
+      const T_amb = this._ambientVector();
+      let maxDelta = 0;
+
+      for (let i = 0; i < n; i++) {
+        const T_a = T_amb[i];
+        const Tk  = T[i] + 273.15;
+        const Tak = T_a + 273.15;
+
+        // Linearised radiation conductance at current T[i]
+        const h_rad = 4 * SB * net.eps[i] * net.A_rad[i] * Tk * Tk * Tk;
+        // Current (nonlinear) radiation flux
+        const Q_rad_now = SB * net.eps[i] * net.A_rad[i] *
+                          (Tk * Tk * Tk * Tk - Tak * Tak * Tak * Tak);
+
+        let G_cond = 0, T_cond_sum = 0;
+        for (const [j, g] of adj[i]) { G_cond += g; T_cond_sum += g * T[j]; }
+
+        const G_conv  = net.A_conv[i] * net.HTC[i];
+        const G_total = G_conv + h_rad + G_cond;
+
+        const R_el  = net.R_base[i] / (1 + net.alpha[i] * (T[i] - 20));
+        const Q_gen = net.dissipates[i]
+          ? net.fixed_Q[i] + R_el * net.I[i] * net.I[i]
+          : net.fixed_Q[i];
+
+        // Gauss-Seidel: T_new = (Q_gen + G_conv·T_a + h_rad·T_i − Q_rad_now + ΣG_j·T_j) / G_total
+        const T_new = G_total > 0
+          ? (Q_gen + G_conv * T_a + h_rad * T[i] - Q_rad_now + T_cond_sum) / G_total
+          : T_a;
+
+        const delta = Math.abs(T_new - T[i]);
+        if (delta > maxDelta) maxDelta = delta;
+        T[i] = T_new;
+      }
+
+      this.iterations++;
+      if (iter % 20 === 0) this._airSolve(T);
+      if (maxDelta < this.tol) { this.converged = true; break; }
+    }
+
+    this._airSolve(T);
+    return Array.from(T);
+  }
+
+  _airSolve(T) {
+    const Qvec = this._net.power_vector(T);
+    for (const panel of this.lineup.panels) panel.air.reset_Q();
+    this.lineup.nodes.forEach((node, i) => {
+      this.lineup.panels[node.panel_id].air.add_heat(node.y, Qvec[i]);
+    });
+    for (const panel of this.lineup.panels) panel.air.solve();
+  }
+
+  _ambientVector() {
+    const out = new Float64Array(this.lineup.nodes.length);
+    this.lineup.nodes.forEach((node, i) => {
+      out[i] = this.lineup.panels[node.panel_id].air.temperature_at(node.y);
+    });
+    return out;
+  }
+
+  get finalTemps() { return Array.from(this._T); }
+
+  get airData() {
+    return {
+      times:       [0, 1],
+      snaps:       this.lineup.panels.map(p => [Array.from(p.air._T), Array.from(p.air._T)]),
+      cellCenters: this.lineup.panels.map(p => p.air.cell_centers),
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PART 3 — CONSTANTS, CHARTS, UI
+// ═══════════════════════════════════════════════════════════════════
+
+const PANEL_COLORS = ['#60a5fa','#34d399','#f87171','#fbbf24','#a78bfa',
+                      '#fb7185','#38bdf8','#4ade80','#facc15','#c084fc'];
+
+function jetColor(t) {
+  // Classic MATLAB jet colormap: blue -> cyan -> yellow -> red
+  t = Math.max(0, Math.min(1, t));
+  let r, g, b;
+  if (t < 0.125) {
+    r = 0; g = 0; b = 0.5 + 4 * t;
+  } else if (t < 0.375) {
+    r = 0; g = 4 * (t - 0.125); b = 1;
+  } else if (t < 0.625) {
+    r = 4 * (t - 0.375); g = 1; b = 1 - 4 * (t - 0.375);
+  } else if (t < 0.875) {
+    r = 1; g = 1 - 4 * (t - 0.625); b = 0;
+  } else {
+    r = 1 - 4 * (t - 0.875); g = 0; b = 0;
+  }
+  return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+}
+
+// ─── Trend chart ────────────────────────────────────────────────────
+function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
+  const W = canvas.width  = canvas.offsetWidth  * (window.devicePixelRatio || 1);
+  const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
+
+  const ml = 52, mr = 14, mt = 14, mb = 36;
+  const pw = cW - ml - mr, ph = cH - mt - mb;
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, cW, cH);
+
+  if (times_s.length < 2) {
+    ctx.fillStyle = '#475569';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet', cW/2, cH/2);
+    return;
+  }
+
+  const t_h = times_s.map(t => t / 3600);
+  const minT = 0, maxT = Math.max(...t_h);
+  const minDT = 0, maxDT = Math.max(...maxDTs, 1) * 1.05;
+
+  const tx = t => ml + (t - minT) / (maxT - minT || 1) * pw;
+  const ty = d => mt + ph - (d - minDT) / (maxDT - minDT || 1) * ph;
+
+  // gridlines
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 0.5;
+  const nGridY = 5;
+  for (let i = 0; i <= nGridY; i++) {
+    const d = minDT + i * (maxDT - minDT) / nGridY;
+    const y = ty(d);
+    ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(d.toFixed(0), ml - 4, y + 3);
+  }
+  const nGridX = Math.min(6, times_s.length);
+  for (let i = 0; i <= nGridX; i++) {
+    const t = minT + i * (maxT - minT) / nGridX;
+    const x = tx(t);
+    ctx.beginPath(); ctx.moveTo(x, mt); ctx.lineTo(x, mt + ph); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(t.toFixed(2), x, mt + ph + 14);
+  }
+
+  // axes
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph); ctx.stroke();
+
+  // axis labels
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Time [h]', ml + pw / 2, cH - 4);
+  ctx.save(); ctx.translate(10, mt + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center';
+  ctx.fillText('Max DT [K]', 0, 0);
+  ctx.restore();
+
+  // data line
+  ctx.strokeStyle = '#f97316';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#f97316';
+  ctx.shadowBlur = 3;
+  ctx.beginPath();
+  for (let i = 0; i < t_h.length; i++) {
+    const x = tx(t_h[i]), y = ty(maxDTs[i]);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+// ─── Node history chart (new) ────────────────────────────────────────
+function drawNodeHistoryChart(canvas, times_s, temps, nodeLabel, T_ambient) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = canvas.offsetWidth  * dpr;
+  canvas.height = canvas.offsetHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
+  const ml = 48, mr = 14, mt = 22, mb = 32;
+  const pw = cW - ml - mr, ph = cH - mt - mb;
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, cW, cH);
+
+  if (!times_s || times_s.length < 2) {
+    ctx.fillStyle = '#334155'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(nodeLabel || 'Click a node in the heatmap', cW/2, cH/2);
+    return;
+  }
+
+  const t_h   = times_s.map(t => t / 3600);
+  const maxTh = Math.max(...t_h) || 1;
+  const minV  = Math.min(T_ambient, ...temps) * 0.98;
+  const maxV  = Math.max(...temps) * 1.02 + 1;
+
+  const tx = t => ml + t / maxTh * pw;
+  const ty = v => mt + ph - (v - minV) / (maxV - minV) * ph;
+
+  // gridlines
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + i * (maxV - minV) / 4;
+    const y = ty(v);
+    ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(0), ml - 4, y + 3);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const t = i * maxTh / 5;
+    const x = tx(t);
+    ctx.beginPath(); ctx.moveTo(x, mt); ctx.lineTo(x, mt + ph); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(t.toFixed(2), x, mt + ph + 14);
+  }
+
+  // T_ambient dashed line
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(ml, ty(T_ambient)); ctx.lineTo(ml + pw, ty(T_ambient)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // axes
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph); ctx.stroke();
+
+  // title
+  ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(nodeLabel, ml + 2, mt - 5);
+
+  // axis labels
+  ctx.textAlign = 'center';
+  ctx.fillText('Time [h]', ml + pw / 2, cH - 4);
+  ctx.save(); ctx.translate(10, mt + ph / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = 'center'; ctx.fillText('T [°C]', 0, 0); ctx.restore();
+
+  // data line
+  ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 3;
+  ctx.beginPath();
+  for (let i = 0; i < t_h.length; i++) {
+    const x = tx(t_h[i]), y = ty(temps[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke(); ctx.shadowBlur = 0;
+
+  // final temp label
+  const lastT = temps[temps.length - 1];
+  const finalDT = lastT - T_ambient;
+  ctx.fillStyle = '#22d3ee'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(`${lastT.toFixed(1)}°C  (+${finalDT.toFixed(1)} K)`, ml + pw - 2, ty(lastT) - 5);
+}
+
+// ─── Heatmap chart (with node-position storage for click detection) ──
+function drawHeatmapChart(canvas, nodeX, nodeY, dTs, panelIds) {
+  const W = canvas.width  = canvas.offsetWidth  * (window.devicePixelRatio || 1);
+  const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
+
+  const ml = 36, mr = 54, mt = 14, mb = 28;
+  const pw = cW - ml - mr, ph = cH - mt - mb;
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, cW, cH);
+
+  if (!nodeX || nodeX.length === 0) {
+    ctx.fillStyle = '#475569';
+    ctx.font = '12px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No data', cW/2, cH/2); return;
+  }
+
+  const minX = Math.min(...nodeX), maxX = Math.max(...nodeX);
+  const minY = Math.min(...nodeY), maxY = Math.max(...nodeY);
+  const minDT = Math.min(...dTs), maxDT = Math.max(...dTs, minDT + 0.01);
+
+  const sx = x => ml + (x - minX) / (maxX - minX || 1) * pw;
+  const sy = y => mt + ph - (y - minY) / (maxY - minY || 1) * ph;
+
+  // nodes
+  for (let i = 0; i < nodeX.length; i++) {
+    const t = (dTs[i] - minDT) / (maxDT - minDT);
+    ctx.fillStyle = jetColor(t);
+    const r = (_selectedNode === i) ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(sx(nodeX[i]), sy(nodeY[i]), r, 0, 2 * Math.PI);
+    ctx.fill();
+    if (_selectedNode === i) {
+      ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(sx(nodeX[i]), sy(nodeY[i]), r, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+  }
+
+  // colorbar
+  const cbX = cW - mr + 8, cbW = 12, cbH = ph;
+  for (let j = 0; j < cbH; j++) {
+    ctx.fillStyle = jetColor(1 - j / cbH);
+    ctx.fillRect(cbX, mt + j, cbW, 1);
+  }
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(cbX, mt, cbW, cbH);
+  ctx.fillStyle = '#94a3b8'; ctx.font = '8px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(maxDT.toFixed(1) + 'K', cbX + cbW + 2, mt + 8);
+  ctx.fillText(minDT.toFixed(1) + 'K', cbX + cbW + 2, mt + cbH);
+
+  // axes labels
+  ctx.fillStyle = '#64748b'; ctx.font = '8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('x [mm]', ml + pw / 2, mt + ph + 18);
+
+  // store CSS-pixel positions for click detection
+  _heatmapNodes = nodeX.map((x, i) => ({
+    cx: ml + (x - minX) / (maxX - minX || 1) * pw,
+    cy: mt + ph - (nodeY[i] - minY) / (maxY - minY || 1) * ph,
+    idx: i,
+  }));
+}
+
+// ─── Air chart ───────────────────────────────────────────────────────
+function drawAirChart(canvas, airData, T_ambient) {
+  const W = canvas.width  = canvas.offsetWidth  * (window.devicePixelRatio || 1);
+  const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+  const cW = canvas.offsetWidth, cH = canvas.offsetHeight;
+
+  const ml = 48, mr = 14, mt = 10, mb = 28;
+  const pw = cW - ml - mr, ph = cH - mt - mb;
+
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, cW, cH);
+
+  if (!airData || !airData.snaps || airData.snaps.length === 0) {
+    ctx.fillStyle = '#475569';
+    ctx.font = '11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('No air data', cW/2, cH/2); return;
+  }
+
+  // get final snapshot per panel
+  const nPanels = airData.snaps.length;
+  const allDTs = [];
+  const allYs  = [];
+  for (let pid = 0; pid < nPanels; pid++) {
+    const snaps = airData.snaps[pid];
+    const final = snaps[snaps.length - 1];
+    const cells = airData.cellCenters[pid];
+    for (let c = 0; c < final.length; c++) {
+      allDTs.push(final[c] - T_ambient);
+      allYs.push(cells[c]);
+    }
+  }
+
+  const minDT = 0, maxDT = Math.max(...allDTs, 1);
+  const minY  = 0, maxY  = Math.max(...allYs, 100);
+
+  const sx = d => ml + (d - minDT) / (maxDT - minDT || 1) * pw;
+  const sy = y => mt + ph - (y - minY) / (maxY - minY || 1) * ph;
+
+  // gridlines
+  ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 0.5;
+  const nGridX = 4;
+  for (let i = 0; i <= nGridX; i++) {
+    const d = minDT + i * (maxDT - minDT) / nGridX;
+    const x = sx(d);
+    ctx.beginPath(); ctx.moveTo(x, mt); ctx.lineTo(x, mt + ph); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '8px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(d.toFixed(1), x, mt + ph + 14);
+  }
+
+  // panel colours cycling
+  const pColors = ['#f97316','#60a5fa','#34d399','#fbbf24','#a78bfa',
+                   '#fb7185','#38bdf8','#4ade80','#facc15','#c084fc'];
+
+  for (let pid = 0; pid < nPanels; pid++) {
+    const snaps = airData.snaps[pid];
+    const final = snaps[snaps.length - 1];
+    const cells = airData.cellCenters[pid];
+    const col = pColors[pid % pColors.length];
+
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.shadowColor = col; ctx.shadowBlur = 2;
+    ctx.beginPath();
+    for (let c = 0; c < final.length; c++) {
+      const x = sx(final[c] - T_ambient);
+      const y = sy(cells[c]);
+      if (c === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // dots
+    for (let c = 0; c < final.length; c++) {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(sx(final[c] - T_ambient), sy(cells[c]), 2, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    // label
+    if (final.length > 0) {
+      const lastC = final.length - 1;
+      ctx.fillStyle = col; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+      ctx.fillText(`P${pid+1}`, sx(final[lastC] - T_ambient) + 4, sy(cells[lastC]));
+    }
+  }
+
+  // axes
+  ctx.strokeStyle = '#475569'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ph); ctx.lineTo(ml + pw, mt + ph); ctx.stroke();
+
+  ctx.fillStyle = '#94a3b8'; ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Air DT [K]', ml + pw / 2, cH - 4);
+  ctx.save(); ctx.translate(10, mt + ph / 2);
+  ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center';
+  ctx.fillText('Height [mm]', 0, 0); ctx.restore();
+
+  // y-axis tick labels
+  const nGridY = 4;
+  for (let i = 0; i <= nGridY; i++) {
+    const y_mm = minY + i * (maxY - minY) / nGridY;
+    ctx.fillStyle = '#64748b'; ctx.font = '8px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(Math.round(y_mm), ml - 3, sy(y_mm) + 3);
+  }
+}
+
+// ─── Topology / renderGraph ──────────────────────────────────────────
+function renderGraph(lineup, colorTemps = null) {
+  const svg = document.getElementById('viz-svg');
+  const W = svg.clientWidth || 900;
+  const H = svg.clientHeight || 500;
+  const margin = 30;
+
+  const nodes = lineup.nodes;
+  if (!nodes.length) { svg.innerHTML = ''; return; }
+
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+  const [minX, maxX] = [Math.min(...xs), Math.max(...xs)];
+  const [minY, maxY] = [Math.min(...ys), Math.max(...ys)];
+  const rangeX = maxX - minX || 1, rangeY = maxY - minY || 1;
+  const scale = Math.min((W - 2*margin) / rangeX, (H - 2*margin) / rangeY);
+
+  const sx = x => margin + (x - minX) * scale;
+  const sy = y => H - margin - (y - minY) * scale;
+
+  let edgeSvg = '';
+  const drawn = new Set();
+  nodes.forEach(node => {
+    for (const nb of node.outputs) {
+      const key = `${nodes.indexOf(node)}-${nodes.indexOf(nb)}`;
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      edgeSvg += `<line x1="${sx(node.x).toFixed(1)}" y1="${sy(node.y).toFixed(1)}" `
+               + `x2="${sx(nb.x).toFixed(1)}" y2="${sy(nb.y).toFixed(1)}" `
+               + `stroke="#334155" stroke-width="1" stroke-opacity=".5"/>`;
+    }
+  });
+
+  let nodeSvg = '';
+  nodes.forEach((node, i) => {
+    const cx = sx(node.x).toFixed(1), cy = sy(node.y).toFixed(1);
+    let col;
+    if (colorTemps && _topoColorMode === 'temp') {
+      const dT = colorTemps[i] - (_solverTAmb || 20);
+      col = jetColor(Math.min(1, Math.max(0, dT / 60)));
+    } else {
+      col = PANEL_COLORS[node.panel_id % PANEL_COLORS.length];
+    }
+    const r = node.sensor_name ? 5 : 3;
+    const isSelected = (_selectedNode === i);
+    nodeSvg += `<circle cx="${cx}" cy="${cy}" r="${isSelected ? r + 2 : r}" fill="${col}" `
+             + `stroke="${isSelected ? '#fde68a' : (node.sensor_name ? '#fcd34d' : col)}" `
+             + `stroke-width="${isSelected ? 2.5 : (node.sensor_name ? 1.5 : 0)}" `
+             + `data-idx="${i}" class="node-dot"/>`;
+    if (node.sensor_name) {
+      nodeSvg += `<text x="${(parseFloat(cx)+7).toFixed(1)}" y="${(parseFloat(cy)+3).toFixed(1)}" `
+               + `font-size="8" fill="#fcd34d">${node.sensor_name}</text>`;
+    }
+  });
+
+  let legendSvg = '';
+  lineup.panels.forEach((_, pid) => {
+    const col = PANEL_COLORS[pid % PANEL_COLORS.length];
+    legendSvg += `<circle cx="14" cy="${12 + pid*16}" r="4" fill="${col}"/>`;
+    legendSvg += `<text x="22" y="${16 + pid*16}" font-size="9" fill="#94a3b8">P${pid+1} (${lineup.panels[pid].nodes.length} nodes)</text>`;
+  });
+
+  svg.innerHTML = `
+    <g id="edges">${edgeSvg}</g>
+    <g id="nodes">${nodeSvg}</g>
+    <g id="legend" transform="translate(8,8)">${legendSvg}</g>
+  `;
+
+  svg.querySelectorAll('.node-dot').forEach(dot => {
+    dot.addEventListener('mouseenter', e => {
+      const idx = parseInt(dot.getAttribute('data-idx'));
+      const n = nodes[idx];
+      const tt = document.getElementById('tooltip');
+      tt.style.display = 'block';
+      const Tstr = (colorTemps && colorTemps[idx] !== undefined) ? `  T=${colorTemps[idx].toFixed(1)}°C` : '';
+      tt.innerHTML = `<b>#${idx}</b>  panel=${n.panel_id}<br>`
+                   + `x=${n.x.toFixed(1)} mm  y=${n.y.toFixed(1)} mm<br>`
+                   + `I=${n.current !== null ? n.current.toFixed(1) : '—'} A${Tstr}`
+                   + (n.sensor_name ? `<br>sensor: <b>${n.sensor_name}</b>` : '');
+    });
+    dot.addEventListener('mousemove', e => {
+      const tt = document.getElementById('tooltip');
+      tt.style.left = (e.clientX + 14) + 'px';
+      tt.style.top  = (e.clientY + 10) + 'px';
+    });
+    dot.addEventListener('mouseleave', () => {
+      document.getElementById('tooltip').style.display = 'none';
+    });
+    dot.addEventListener('click', () => {
+      const idx = parseInt(dot.getAttribute('data-idx'));
+      if (_finalTemps) { setSelectedNode(idx); switchTab('results'); }
+    });
+  });
+}
+
+function setVizMode(mode) {
+  _topoColorMode = mode;
+  document.getElementById('mode-panel').classList.toggle('active', mode === 'panel');
+  document.getElementById('mode-temp').classList.toggle('active',  mode === 'temp');
+  if (_lineup) renderGraph(_lineup, _finalTemps);
+}
+
+// ─── updateStats ─────────────────────────────────────────────────────
+function updateStats(lineup) {
+  const N = lineup.nodes.length;
+  const P = lineup.panels.length;
+
+  document.getElementById('sb-nodes-val').textContent = N;
+  document.getElementById('sb-nodes-sub').textContent = `${P} panel${P !== 1 ? 's' : ''}`;
+
+  document.getElementById('sb-panels-val').textContent = P;
+  const perPanel = lineup.panels.map(p => p.nodes.length).join(' + ');
+  document.getElementById('sb-panels-sub').textContent = perPanel;
+
+  const sbV = document.getElementById('sb-validate');
+  const refN = REFERENCE.total_nodes;
+  const n0 = lineup.nodes[0], n11 = lineup.nodes.length > 11 ? lineup.nodes[11] : null;
+  const posOk = n0 && Math.abs(n0.x - REFERENCE.node_0.x) < 0.01 &&
+                      Math.abs(n0.y - REFERENCE.node_0.y) < 0.01 &&
+                n11 && Math.abs(n11.x - REFERENCE.node_11.x) < 0.01 &&
+                       Math.abs(n11.y - REFERENCE.node_11.y) < 0.01;
+  const cntOk = N === refN;
+  if (cntOk && posOk) {
+    sbV.className = 'stats-block pass';
+    document.getElementById('sb-validate-val').textContent = 'PASS';
+    document.getElementById('sb-validate-sub').textContent = `matches Python ref (${refN} nodes)`;
+  } else {
+    sbV.className = 'stats-block fail';
+    document.getElementById('sb-validate-val').textContent = 'FAIL';
+    const msg = !cntOk ? `nodes: ${N} vs ${refN}` : `positions off`;
+    document.getElementById('sb-validate-sub').textContent = msg;
+  }
+
+  const tbody = document.getElementById('panel-tbody');
+  tbody.innerHTML = lineup.panels.map((p, pid) => {
+    const xs = p.nodes.map(n => n.x), ys = p.nodes.map(n => n.y);
+    const col = PANEL_COLORS[pid % PANEL_COLORS.length];
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:4px"></span>P${pid+1}</td>
+      <td>${p.nodes.length}</td>
+      <td>${p.mbb?.length ?? '—'}</td>
+      <td>${p.vbb?.length ?? (p.dbb?.length ?? '—')}</td>
+      <td>${Math.round(Math.min(...xs))}..${Math.round(Math.max(...xs))}</td>
+      <td>${Math.round(Math.min(...ys))}..${Math.round(Math.max(...ys))}</td>
+      <td>${p.load?.toFixed ? p.load.toFixed(0) : p.load ?? 0}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Sensor table ─────────────────────────────────────────────────────
+function renderSensorTable() {
+  const container = document.getElementById('sensors-content');
+  if (!_lineup || !_finalTemps) {
+    container.innerHTML = '<div class="sensors-empty">Run the solver to see sensor results</div>';
+    return;
+  }
+  const T_amb = parseFloat(document.getElementById('sp-tamb').value) || 20;
+  const sensorEntries = Object.entries(_lineup.sensors || {});
+  let html = '';
+
+  if (sensorEntries.length > 0) {
+    html += '<div class="section-hdr">Named Sensors</div><div class="sensor-grid">';
+    for (const [name, idx] of sensorEntries) {
+      const T = _finalTemps[idx], dT = T - T_amb;
+      const col = dT < 30 ? '#27ae60' : dT < 50 ? '#d97706' : '#dc2626';
+      const pid = _lineup.nodes[idx]?.panel_id ?? 0;
+      html += `<div class="sensor-card" onclick="setSelectedNode(${idx});switchTab('results')">
+        <div class="sc-header" style="background:${col}18;border-bottom:1px solid ${col}30">
+          <span class="sc-name">${name}</span><span class="sc-panel">P${pid+1}</span>
+        </div>
+        <div class="sc-body">
+          <div class="sc-temp" style="color:${col}">${T.toFixed(1)}<span class="sc-unit">°C</span></div>
+          <div class="sc-rise">+${dT.toFixed(1)} K rise</div>
+          <div class="sc-bar-wrap"><div class="sc-bar" style="width:${Math.min(100,dT/60*100).toFixed(1)}%;background:${col}"></div></div>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  html += '<div class="section-hdr">All Nodes <span style="font-weight:400;font-size:10px;color:var(--text2)">— click row to see temperature history</span></div>';
+  html += renderNodeTableHTML(T_amb);
+  container.innerHTML = html;
+}
+
+function renderNodeTableHTML(T_amb) {
+  const nodes = _lineup.nodes;
+  const rows = nodes.map((node, i) => ({
+    idx: i, panel: node.panel_id,
+    x: node.x, y: node.y,
+    T: _finalTemps[i], dT: _finalTemps[i] - T_amb,
+    sensor: node.sensor_name || '',
+  }));
+  rows.sort((a, b) => _nodeSortAsc ? a.dT - b.dT : b.dT - a.dT);
+
+  let html = '<div class="node-tbl-wrap"><table class="node-tbl"><thead><tr>'
+    + '<th>#</th><th>Panel</th><th>x</th><th>y</th><th>T [°C]</th><th>ΔT [K]</th><th>Sensor</th>'
+    + '</tr></thead><tbody>';
+  for (const r of rows) {
+    const pc  = PANEL_COLORS[r.panel % PANEL_COLORS.length];
+    const dtc = r.dT < 30 ? '#27ae60' : r.dT < 50 ? '#d97706' : '#dc2626';
+    const sel = r.idx === _selectedNode ? ' selected' : '';
+    html += `<tr class="node-row${sel}" onclick="setSelectedNode(${r.idx});switchTab('results')">
+      <td>${r.idx}</td>
+      <td><span class="dot" style="background:${pc}"></span>P${r.panel+1}</td>
+      <td>${r.x.toFixed(0)}</td><td>${r.y.toFixed(0)}</td>
+      <td>${r.T.toFixed(1)}</td>
+      <td style="color:${dtc};font-weight:600">${r.dT.toFixed(1)}</td>
+      <td>${r.sensor}</td>
+    </tr>`;
+  }
+  return html + '</tbody></table></div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GLOBAL STATE
+// ═══════════════════════════════════════════════════════════════════
+let _lineup        = null;
+let _solver        = null;
+let _finalTemps    = null;
+let _airDataCache  = null;
+let _selectedNode  = null;
+let _topoColorMode = 'panel';
+let _heatmapNodes  = null;
+let _rafHandle     = null;
+let _endTime       = 0;
+let _solverRunning = false;
+let _nodeSortAsc   = false;
+let _solverTAmb    = 20;
+let _currentTab    = 'topology';
+
+// ─── Selected-node functions ──────────────────────────────────────────
+function setSelectedNode(idx) {
+  _selectedNode = idx;
+  if (!_lineup) return;
+  const node = _lineup.nodes[idx];
+  const T_amb = _solverTAmb;
+  const T   = _finalTemps ? _finalTemps[idx] : null;
+  const dT  = T !== null ? (T - T_amb).toFixed(1) : '—';
+  const Tstr = T !== null ? T.toFixed(1) + '°C' : '—';
+  document.getElementById('selected-info-text').textContent =
+    `Node #${idx}  |  Panel ${node.panel_id + 1}  |  x=${node.x.toFixed(0)} mm  y=${node.y.toFixed(0)} mm  |  T=${Tstr}  |  ΔT=${dT} K` +
+    (node.sensor_name ? `  |  sensor: ${node.sensor_name}` : '');
+  document.getElementById('clear-sel-btn').style.display = '';
+
+  // update node history chart
+  const canvas = document.getElementById('node-canvas');
+  const lbl = `Node #${idx}${node.sensor_name ? ' — ' + node.sensor_name : ''}  (Panel ${node.panel_id+1}, x=${node.x.toFixed(0)} y=${node.y.toFixed(0)} mm)`;
+  document.getElementById('node-chart-lbl').textContent = lbl;
+  if (_solver && _solver._nodeHistTimes.length > 1) {
+    const { times, temps } = _solver.getNodeTimeSeries(idx);
+    drawNodeHistoryChart(canvas, times, temps, lbl, T_amb);
+  } else if (_finalTemps) {
+    drawNodeHistoryChart(canvas, null, null, lbl, T_amb);
+  }
+  // re-render heatmap to highlight selected node
+  if (_finalTemps && _lineup) {
+    const nodeX = _lineup.nodes.map(n => n.x);
+    const nodeY = _lineup.nodes.map(n => n.y);
+    const dTs   = _finalTemps.map(t => t - T_amb);
+    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, _lineup.nodes.map(n => n.panel_id));
+  }
+}
+
+function clearSelectedNode() {
+  _selectedNode = null;
+  document.getElementById('selected-info-text').textContent =
+    'No node selected — click a node in the heatmap or Sensors tab to inspect its history';
+  document.getElementById('clear-sel-btn').style.display = 'none';
+  document.getElementById('node-chart-lbl').textContent = 'Node History — click a node below';
+  const canvas = document.getElementById('node-canvas');
+  drawNodeHistoryChart(canvas, null, null, 'Click a node in the heatmap', _solverTAmb);
+}
+
+// The HTML calls clearSelection() so alias it
+function clearSelection() { clearSelectedNode(); }
+
+// ─── Solver parameter helpers ─────────────────────────────────────────
+function solverParamsFromUI() {
+  const get = id => parseFloat(document.getElementById(id).value);
+  return {
+    global_current: get('sp-current'),
+    T_ambient:      get('sp-tamb'),
+    T0:             get('sp-t0'),
+    end_time:       get('sp-end') * 3600,
+    accuracy:       get('sp-acc'),
+    air_interval:   get('sp-air'),
+  };
+}
+
+function setStatus(msg, cls='idle') {
+  const el = document.getElementById('status');
+  el.textContent = msg; el.className = cls;
+}
+
+function _setSolverRunning(running) {
+  _solverRunning = running;
+  document.getElementById('btn-run').disabled = running;
+  document.getElementById('btn-stop').disabled = !running;
+  const tb_run  = document.getElementById('btn-run-toolbar');
+  const tb_stop = document.getElementById('btn-stop-toolbar');
+  tb_run.style.display  = running ? 'none' : '';
+  tb_stop.style.display = running ? '' : 'none';
+  const btnSS = document.getElementById('btn-ss-toolbar');
+  if (btnSS) btnSS.disabled = running;
+}
+
+function _setProgress(frac, text) {
+  document.getElementById('progress-bar').style.width = (frac * 100).toFixed(1) + '%';
+  document.getElementById('progress-text').textContent = text;
+}
+
+// ─── Build ────────────────────────────────────────────────────────────
+function runBuild() {
+  const yaml = document.getElementById('yaml-input').value.trim();
+  if (!yaml) { setStatus('Paste YAML first', 'err'); return; }
+  try {
+    const { lineup } = loadLineup(yaml);
+    _lineup = lineup;
+    lineup.solve_currents();
+    updateStats(lineup);
+    renderGraph(lineup, _finalTemps);
+    switchTab('topology');
+    setStatus(`Built: ${lineup.nodes.length} nodes, ${lineup.panels.length} panels`, 'ok');
+  } catch(e) {
+    setStatus(e.message, 'err'); console.error(e);
+  }
+}
+
+// ─── Steady-state solver ──────────────────────────────────────────────
+function runSteadyState() {
+  if (_solverRunning) return;
+  const yaml = document.getElementById('yaml-input').value.trim();
+  if (!yaml) { setStatus('Load YAML first', 'err'); return; }
+  const params = solverParamsFromUI();
+  _solverTAmb = params.T_ambient;
+  try {
+    const { lineup } = loadLineup(yaml);
+    _lineup = lineup;
+    lineup.solve_currents();
+    updateStats(lineup);
+    renderGraph(lineup, null);
+
+    setStatus('Running steady-state…', 'run');
+    const ss = new SteadyStateSolver(lineup, {
+      global_current: params.global_current,
+      T_ambient:      params.T_ambient,
+      T0:             params.T0,
+      max_iter:       600, tol: 0.01,
+    });
+    const t0 = performance.now();
+    const finalTemps = ss.solve();
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(2);
+
+    _finalTemps   = finalTemps;
+    _airDataCache = ss.airData;
+    _solver       = null;
+
+    const nodeX  = lineup.nodes.map(n => n.x);
+    const nodeY  = lineup.nodes.map(n => n.y);
+    const dTs    = finalTemps.map(t => t - params.T_ambient);
+
+    renderGraph(lineup, finalTemps);
+    drawTrendChart(document.getElementById('trend-canvas'), [], [], params.T_ambient);
+    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, lineup.nodes.map(n => n.panel_id));
+    drawAirChart(document.getElementById('air-canvas'), _airDataCache, params.T_ambient);
+
+    renderSensorTable();
+    document.getElementById('results-empty').style.display = 'none';
+    document.getElementById('btn-csv') && (document.getElementById('btn-csv').disabled = false);
+    document.getElementById('btn-report') && (document.getElementById('btn-report').disabled = false);
+
+    const maxDT = Math.max(...dTs);
+    setStatus(`SS: ${ss.converged ? '✓ converged' : '⚠ max-iter'} in ${ss.iterations} iter (${elapsed} s)  |  maxΔT=${maxDT.toFixed(1)} K`, 'ok');
+    switchTab('results');
+  } catch(e) {
+    setStatus(e.message, 'err'); console.error(e);
+  }
+}
+
+// ─── Transient solver ────────────────────────────────────────────────
+function runSolverFromPanel() { _startSolver(); }
+function runSolverFromToolbar() {
+  const body = document.getElementById('solver-body');
+  if (body.style.display === 'none') toggleSolverSection();
+  _startSolver();
+}
+
+function _startSolver() {
+  if (_solverRunning) return;
+
+  const yaml = document.getElementById('yaml-input').value.trim();
+  if (!yaml) { setStatus('Load YAML first', 'err'); return; }
+
+  const params = solverParamsFromUI();
+  _solverTAmb = params.T_ambient;
+  _endTime = params.end_time;
+
+  try {
+    const { lineup, solver_cfg } = loadLineup(yaml);
+
+    const global_current = params.global_current;
+    const T_ambient      = params.T_ambient;
+    const T0             = params.T0;
+    const accuracy       = params.accuracy;
+    const air_interval   = params.air_interval;
+
+    _lineup = lineup;
+    _solver = new ThermalSolver(lineup, {
+      global_current, T_ambient, T0, accuracy, air_interval, dt_init: 1,
+    });
+
+    lineup.solve_currents();
+    updateStats(lineup);
+    renderGraph(lineup, null);
+
+    _setSolverRunning(true);
+    _setProgress(0, 'Starting...');
+    setStatus('Running solver...', 'run');
+    switchTab('results');
+    document.getElementById('results-empty').style.display = 'none';
+
+    _rafHandle = requestAnimationFrame(_solverStep);
+  } catch (e) {
+    setStatus(e.message, 'err');
+    console.error(e);
+  }
+}
+
+function _solverStep() {
+  if (!_solverRunning || !_solver) return;
+
+  const result = _solver.runChunk(200, _endTime);
+
+  // live update trend chart
+  const trendCanvas = document.getElementById('trend-canvas');
+  const td = _solver.trendData;
+  drawTrendChart(trendCanvas, td.times, td.maxDTs, _solver.T_ambient);
+
+  // progress
+  const frac = Math.min(_solver.t / _endTime, 1);
+  _setProgress(frac,
+    `t=${(_solver.t/3600).toFixed(3)} h  |  maxDT=${result.maxDT.toFixed(1)} K  |  iter=${result.iterations}`
+  );
+
+  if (result.diverged) {
+    setStatus('Solver diverged (NaN) — check YAML and params', 'err');
+    _setSolverRunning(false);
+    return;
+  }
+
+  if (result.done) {
+    _finalizeSolver();
+    return;
+  }
+
+  _rafHandle = requestAnimationFrame(_solverStep);
+}
+
+function _finalizeSolver() {
+  _setSolverRunning(false);
+  _setProgress(1, `Done — t=${(_solver.t/3600).toFixed(2)} h  |  iter=${_solver.iterations}`);
+  setStatus(`Solved ${(_solver.t/3600).toFixed(2)} h in ${_solver.iterations} steps`, 'ok');
+
+  const nodes   = _lineup.nodes;
+  const finalT  = _solver.finalTemps;
+  const nodeX   = nodes.map(n => n.x);
+  const nodeY   = nodes.map(n => n.y);
+  const dTs     = finalT.map(t => t - _solver.T_ambient);
+  const panelIds = nodes.map(n => n.panel_id);
+
+  const td = _solver.trendData;
+  drawTrendChart(document.getElementById('trend-canvas'), td.times, td.maxDTs, _solver.T_ambient);
+  drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, panelIds);
+  drawAirChart(document.getElementById('air-canvas'), _solver.airData, _solver.T_ambient);
+
+  _finalTemps   = _solver.finalTemps;
+  _airDataCache = _solver.airData;
+  renderGraph(_lineup, _finalTemps);
+  renderSensorTable();
+  document.getElementById('btn-csv') && (document.getElementById('btn-csv').disabled = false);
+  document.getElementById('btn-report') && (document.getElementById('btn-report').disabled = false);
+
+  switchTab('results');
+}
+
+function stopSolver() {
+  _finalTemps = _solver?.finalTemps ?? _finalTemps;
+  if (_rafHandle) { cancelAnimationFrame(_rafHandle); _rafHandle = null; }
+  _setSolverRunning(false);
+  setStatus('Stopped', 'idle');
+  _setProgress(
+    _solver ? Math.min(_solver.t / _endTime, 1) : 0,
+    _solver ? `Stopped at t=${(_solver.t/3600).toFixed(3)} h` : 'Stopped'
+  );
+
+  if (_solver) {
+    const td = _solver.trendData;
+    drawTrendChart(document.getElementById('trend-canvas'), td.times, td.maxDTs, _solver.T_ambient);
+    if (_lineup) {
+      const nodes  = _lineup.nodes;
+      const finalT = _solver.finalTemps;
+      const nodeX  = nodes.map(n => n.x);
+      const nodeY  = nodes.map(n => n.y);
+      const dTs    = finalT.map(t => t - _solver.T_ambient);
+      drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, nodes.map(n => n.panel_id));
+      drawAirChart(document.getElementById('air-canvas'), _solver.airData, _solver.T_ambient);
+      renderGraph(_lineup, _finalTemps);
+      renderSensorTable();
+    }
+  }
+}
+
+// ─── Export functions ─────────────────────────────────────────────────
+function exportCSV() {
+  if (!_lineup || !_finalTemps) { setStatus('Run solver first', 'err'); return; }
+  const T_amb = _solverTAmb;
+  const lines = ['node_id,panel_id,x_mm,y_mm,T_final_C,dT_rise_K,sensor_name'];
+  _lineup.nodes.forEach((node, i) => {
+    lines.push([i, node.panel_id,
+      node.x.toFixed(1), node.y.toFixed(1),
+      _finalTemps[i].toFixed(2),
+      (_finalTemps[i] - T_amb).toFixed(2),
+      node.sensor_name || ''].join(','));
+  });
+  _download(lines.join('\n'), 'tnt3_results.csv', 'text/csv');
+}
+
+function saveReport() {
+  if (!_lineup || !_finalTemps) { setStatus('Run solver first', 'err'); return; }
+  const T_amb  = _solverTAmb;
+  const maxT   = Math.max(..._finalTemps);
+  const maxDT  = maxT - T_amb;
+  const dtCol  = maxDT > 50 ? '#dc2626' : maxDT > 30 ? '#d97706' : '#27ae60';
+
+  const trendImg  = document.getElementById('trend-canvas').toDataURL('image/png');
+  const heatImg   = document.getElementById('heatmap-canvas').toDataURL('image/png');
+  const airImg    = document.getElementById('air-canvas').toDataURL('image/png');
+  const nodeImg   = document.getElementById('node-canvas').toDataURL('image/png');
+
+  const sensorRows = Object.entries(_lineup.sensors || {}).map(([name, idx]) => {
+    const T = _finalTemps[idx], dT = T - T_amb;
+    const c = dT > 50 ? '#dc2626' : dT > 30 ? '#d97706' : '#27ae60';
+    return `<tr><td>${name}</td><td>P${_lineup.nodes[idx].panel_id+1}</td>`
+         + `<td style="color:${c};font-weight:600">${T.toFixed(1)}</td>`
+         + `<td style="color:${c};font-weight:600">${dT.toFixed(1)}</td></tr>`;
+  }).join('');
+
+  const allNodeRows = _lineup.nodes.map((n, i) => {
+    const T = _finalTemps[i], dT = T - T_amb;
+    const c = dT > 50 ? '#dc2626' : dT > 30 ? '#d97706' : '#27ae60';
+    return `<tr><td>${i}</td><td>P${n.panel_id+1}</td>`
+         + `<td>${n.x.toFixed(0)}</td><td>${n.y.toFixed(0)}</td>`
+         + `<td>${T.toFixed(1)}</td><td style="color:${c};font-weight:600">${dT.toFixed(1)}</td>`
+         + `<td>${n.sensor_name||''}</td></tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>TnT-3 Report — ${new Date().toLocaleDateString()}</title>
+<style>
+  body{font-family:sans-serif;margin:40px;color:#111;max-width:1200px}
+  h1{color:#0078d4;margin-bottom:4px}h2{color:#334155;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:24px 0 8px}
+  table{border-collapse:collapse;width:100%;margin:8px 0;font-size:12px}
+  th,td{border:1px solid #d1d5db;padding:5px 9px;text-align:left}
+  th{background:#f8fafc;font-weight:600;font-size:11px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
+  .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px}
+  .card-val{font-size:22px;font-weight:700;color:#0078d4}
+  .card-lbl{font-size:11px;color:#6b7280;margin-top:2px}
+  .img-row{display:flex;gap:16px;margin:12px 0}
+  .img-row>div{flex:1}img{width:100%;border:1px solid #e2e8f0;border-radius:4px}
+  p.meta{color:#6b7280;font-size:12px;margin:0 0 16px}
+</style>
+</head><body>
+<h1>TnT-3 Thermal Analysis Report</h1>
+<p class="meta">Generated: ${new Date().toLocaleString()} &nbsp;|&nbsp; Nodes: ${_lineup.nodes.length} &nbsp;|&nbsp; Panels: ${_lineup.panels.length}</p>
+<h2>Summary</h2>
+<div class="grid">
+  <div class="card"><div class="card-val">${_lineup.nodes.length}</div><div class="card-lbl">Total Nodes</div></div>
+  <div class="card"><div class="card-val">${_lineup.panels.length}</div><div class="card-lbl">Panels</div></div>
+  <div class="card"><div class="card-val">${maxT.toFixed(1)}°C</div><div class="card-lbl">Max Temperature</div></div>
+  <div class="card"><div class="card-val" style="color:${dtCol}">${maxDT.toFixed(1)} K</div><div class="card-lbl">Max Rise</div></div>
+</div>
+${sensorRows ? `<h2>Named Sensors</h2><table><thead><tr><th>Sensor</th><th>Panel</th><th>T [°C]</th><th>ΔT [K]</th></tr></thead><tbody>${sensorRows}</tbody></table>` : ''}
+<h2>Charts</h2>
+<div class="img-row">
+  <div><p style="font-size:11px;color:#64748b">Temperature Rise Trend</p><img src="${trendImg}"></div>
+  <div><p style="font-size:11px;color:#64748b">Spatial Heatmap</p><img src="${heatImg}"></div>
+</div>
+<div class="img-row">
+  <div><p style="font-size:11px;color:#64748b">Air Profiles</p><img src="${airImg}"></div>
+  <div><p style="font-size:11px;color:#64748b">Selected Node History</p><img src="${nodeImg}"></div>
+</div>
+<h2>All Node Temperatures</h2>
+<table><thead><tr><th>#</th><th>Panel</th><th>x [mm]</th><th>y [mm]</th><th>T [°C]</th><th>ΔT [K]</th><th>Sensor</th></tr></thead>
+<tbody>${allNodeRows}</tbody></table>
+</body></html>`;
+
+  _download(html, `tnt3_report_${new Date().toISOString().slice(0,10)}.html`, 'text/html');
+}
+
+function _download(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────
+function switchTab(name) {
+  _currentTab = name;
+  // tab-topo, tab-results, tab-sensors are the button IDs
+  document.getElementById('tab-topo').classList.toggle('active',    name === 'topology');
+  document.getElementById('tab-results').classList.toggle('active', name === 'results');
+  document.getElementById('tab-sensors').classList.toggle('active', name === 'sensors');
+  // content pane IDs: topology-tab, results-tab, sensors-tab
+  document.getElementById('topology-tab').classList.toggle('active', name === 'topology');
+  document.getElementById('results-tab').classList.toggle('active',  name === 'results');
+  document.getElementById('sensors-tab').classList.toggle('active',  name === 'sensors');
+
+  if (name === 'results' && _finalTemps && _lineup) {
+    requestAnimationFrame(() => {
+      const td = _solver ? _solver.trendData : { times:[], maxDTs:[] };
+      drawTrendChart(document.getElementById('trend-canvas'), td.times, td.maxDTs, _solverTAmb);
+      const nodeX = _lineup.nodes.map(n => n.x);
+      const nodeY = _lineup.nodes.map(n => n.y);
+      const dTs   = _finalTemps.map(t => t - _solverTAmb);
+      drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, _lineup.nodes.map(n => n.panel_id));
+      drawAirChart(document.getElementById('air-canvas'), _airDataCache, _solverTAmb);
+      if (_selectedNode !== null) setSelectedNode(_selectedNode);
+    });
+  }
+}
+
+function toggleSolverSection() {
+  const body    = document.getElementById('solver-body');
+  const toggle  = document.getElementById('solver-toggle');
+  const visible = body.style.display !== 'none';
+  body.style.display  = visible ? 'none' : '';
+  toggle.innerHTML    = visible ? '&#9658;' : '&#9660;';
+}
+
+function toggleSensorSort() {
+  _nodeSortAsc = !_nodeSortAsc;
+  document.getElementById('sort-btn').textContent = `Sort: ΔT ${_nodeSortAsc ? '↑' : '↓'}`;
+  if (_finalTemps) renderSensorTable();
+}
+
+function loadFile()  { document.getElementById('file-input').click(); }
+function onFileChange(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('yaml-input').value = ev.target.result;
+    setStatus(`Loaded: ${file.name}`, 'ok');
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+function loadExample() {
+  document.getElementById('yaml-input').value = EXAMPLE_YAML.trim();
+  setStatus('Example loaded', 'ok');
+}
+
+// ─── Heatmap click+hover listeners ────────────────────────────────────
+function _setupHeatmapInteraction() {
+  const canvas = document.getElementById('heatmap-canvas');
+  canvas.style.cursor = 'crosshair';
+
+  canvas.addEventListener('mousemove', e => {
+    if (!_heatmapNodes) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    let near = false;
+    for (const nd of _heatmapNodes) {
+      if (Math.hypot(nd.cx - cx, nd.cy - cy) < 10) { near = true; break; }
+    }
+    canvas.style.cursor = near ? 'pointer' : 'crosshair';
+    // tooltip
+    if (near && _lineup && _finalTemps) {
+      const tt = document.getElementById('tooltip');
+      let best = null, bestD = 12;
+      for (const nd of _heatmapNodes) {
+        const d = Math.hypot(nd.cx - cx, nd.cy - cy);
+        if (d < bestD) { best = nd; bestD = d; }
+      }
+      if (best) {
+        const node = _lineup.nodes[best.idx];
+        const T = _finalTemps[best.idx], dT = T - _solverTAmb;
+        tt.style.display = 'block';
+        tt.style.left = (e.clientX + 14) + 'px';
+        tt.style.top  = (e.clientY + 10) + 'px';
+        tt.innerHTML = `<b>#${best.idx}</b>  P${node.panel_id+1}<br>`
+                     + `x=${node.x.toFixed(0)} mm  y=${node.y.toFixed(0)} mm<br>`
+                     + `T=${T.toFixed(1)}°C  ΔT=${dT.toFixed(1)} K`
+                     + (node.sensor_name ? `<br>sensor: <b>${node.sensor_name}</b>` : '');
+      }
+    } else {
+      document.getElementById('tooltip').style.display = 'none';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    document.getElementById('tooltip').style.display = 'none';
+    canvas.style.cursor = 'crosshair';
+  });
+
+  canvas.addEventListener('click', e => {
+    if (!_heatmapNodes || !_finalTemps) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    let best = null, bestD = 15;
+    for (const nd of _heatmapNodes) {
+      const d = Math.hypot(nd.cx - cx, nd.cy - cy);
+      if (d < bestD) { best = nd; bestD = d; }
+    }
+    if (best !== null) setSelectedNode(best.idx);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// EXAMPLE YAML  (mirrors example_lineup.yaml)
+// ═══════════════════════════════════════════════════════════════════
+const EXAMPLE_YAML = `defaults:
+  htc: 3.0
+  emissivity: 0.35
+
+elements:
+  VBB:
+    type: busbar
+    material: Cu
+    width: 10
+    height: 40
+    length: 50
+    n: 2
+    angle: -90
+
+  MBB:
+    type: busbar
+    material: Cu
+    width: 10
+    height: 30
+    length: 50
+    n: 4
+    angle: 0
+
+  FISHP:
+    type: busbar
+    material: Cu
+    width: 10
+    height: 100
+    length: 100
+    n: 2
+    angle: 0
+
+  ACB:
+    type: breaker
+    material: CuACB
+    width: 20
+    height: 100
+    length: 50
+    n: 1
+    angle: -90
+
+panels:
+  - type: DC2BB
+    height: 2100
+    mbb_height: 1250
+    load: 2500
+    main_busbar:
+      - {element: FISHP, count: 1}
+      - {element: MBB,   count: 10}
+    angle_bars:
+      - {element: VBB, count: 2, angle: 90}
+      - {element: VBB, count: 2, angle: 0}
+      - {element: VBB, count: 6}
+    io_bars:
+      - {element: VBB, count: 3,  angle: 180}
+      - {element: VBB, count: 22, angle: 90}
+      - {element: VBB, count: 1,  angle: 0}
+    breaker:
+      - {element: ACB, count: 4}
+
+  - type: DC2BB
+    height: 2100
+    load: -1600
+    main_busbar:
+      - {element: FISHP, count: 1}
+      - {element: MBB,   count: 10}
+    angle_bars:
+      - {element: VBB, count: 8, angle: -90}
+      - {element: VBB, count: 3, angle: 0}
+    io_bars:
+      - {element: VBB, count: 1,  angle: 180}
+      - {element: VBB, count: 14, angle: 90}
+    breaker:
+      - {element: ACB, count: 4, angle: 90}
+
+  - type: DC2BB
+    height: 2100
+    load: 3200
+    main_busbar:
+      - {element: FISHP, count: 1}
+      - {element: MBB,   count: 10}
+    angle_bars:
+      - {element: VBB, count: 2, angle: 90}
+      - {element: VBB, count: 2, angle: 0}
+      - {element: VBB, count: 6}
+    io_bars:
+      - {element: VBB, count: 3,  angle: 180}
+      - {element: VBB, count: 22, angle: 90}
+      - {element: VBB, count: 1,  angle: 0}
+    breaker:
+      - {element: ACB, count: 4}
+
+  - type: DC2BB
+    height: 2100
+    load: -1700
+    main_busbar:
+      - {element: FISHP, count: 1}
+      - {element: MBB,   count: 10}
+    angle_bars:
+      - {element: VBB, count: 2, angle: 90}
+      - {element: VBB, count: 2, angle: 0}
+      - {element: VBB, count: 6}
+    io_bars:
+      - {element: VBB, count: 1}
+      - {element: VBB, count: 1, angle: -45}
+      - {element: VBB, count: 2}
+      - {element: VBB, count: 1, angle: 0}
+    breaker:
+      - {element: ACB, count: 4}
+
+  - type: DC2BB
+    height: 2100
+    load: -1600
+    main_busbar:
+      - {element: FISHP, count: 1}
+      - {element: MBB,   count: 10}
+    angle_bars:
+      - {element: VBB, count: 2, angle: 90}
+      - {element: VBB, count: 2, angle: 0}
+      - {element: VBB, count: 6}
+    io_bars:
+      - {element: VBB, count: 1}
+      - {element: VBB, count: 1, angle: -45}
+      - {element: VBB, count: 2}
+      - {element: VBB, count: 1, angle: 0}
+    breaker:
+      - {element: ACB, count: 4}
+
+solver:
+  global_current: 1000
+  T_ambient: 20
+  T0: 20
+  accuracy: 0.1
+  dt_init: 1.0
+  air_interval: 5.0
+  end_time: 28800
+`;
+
+// ─── Init ─────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  loadExample();
+  _setupHeatmapInteraction();
+  // draw empty node chart placeholder
+  drawNodeHistoryChart(document.getElementById('node-canvas'), null, null, 'Click a node in the heatmap', 20);
+});
+</script>
+</body>
+</html>

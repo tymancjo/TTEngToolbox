@@ -1,0 +1,2950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TnT-3 Lineup Editor</title>
+<style>
+:root {
+  --bg:       #f0f2f5;
+  --panel:    #ffffff;
+  --panel2:   #f5f7fa;
+  --border:   #d1d5db;
+  --accent:   #0078d4;
+  --accent2:  #106ebe;
+  --danger:   #dc2626;
+  --success:  #27ae60;
+  --text:     #111827;
+  --text2:    #6b7280;
+  --text3:    #9ca3af;
+  --input:    #f5f7fa;
+  --hover:    #e4e7ec;
+  --sel:      #dce8f5;
+  --radius:   6px;
+
+  /* segment group colours */
+  --col-mbb:    #d97706;  /* amber */
+  --col-angle:  #2563eb;  /* blue */
+  --col-io:     #059669;  /* green */
+  --col-brk:    #7c3aed;  /* purple */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: grid;
+  grid-template-rows: 46px 1fr 210px;
+  grid-template-columns: 250px 1fr 310px;
+  grid-template-areas:
+    "tb tb tb"
+    "lp cv rp"
+    "pv pv pv";
+  overflow: hidden;
+}
+
+/* ── Toolbar ─────────────────────────────────────── */
+#toolbar {
+  grid-area: tb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.app-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--accent);
+  margin-right: 8px;
+  white-space: nowrap;
+}
+.tb-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+.tb-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tb-btn:hover { background: var(--hover); color: var(--text); border-color: var(--accent); }
+.tb-btn.active { background: var(--accent); border-color: var(--accent2); color: #fff; }
+.tb-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.tb-status {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text3);
+  font-family: monospace;
+  white-space: nowrap;
+}
+.tb-status.error { color: var(--danger); }
+.tb-status.ok { color: var(--success); }
+
+/* ── Left panel ──────────────────────────────────── */
+#left-panel {
+  grid-area: lp;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.nav-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.nav-tab {
+  padding: 7px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input);
+  color: var(--text2);
+  cursor: pointer;
+  transition: all .15s;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.nav-tab:hover { background: var(--hover); color: var(--text); }
+.nav-tab.active { background: var(--accent); border-color: var(--accent2); color: #fff; }
+
+.panel-hdr {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3);
+  padding: 10px 12px 6px;
+  flex-shrink: 0;
+}
+
+#item-list { flex: 1; overflow-y: auto; }
+.item-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background .12s, border-color .12s;
+  position: relative;
+}
+.item-row:hover { background: var(--hover); }
+.item-row.active { background: var(--sel); border-left-color: var(--accent); }
+.item-name { flex: 1; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #fff;
+}
+.item-badge.busbar  { background: var(--col-angle); }
+.item-badge.breaker { background: var(--col-brk); }
+.item-badge.cable   { background: var(--col-io); }
+.item-load {
+  font-size: 10px;
+  font-family: monospace;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text2);
+  background: var(--panel2);
+}
+.item-load.pos { color: var(--success); }
+.item-load.neg { color: var(--accent); }
+.item-del {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 14px; line-height: 1;
+  padding: 0 2px; opacity: 0; transition: opacity .12s;
+}
+.item-row:hover .item-del { opacity: 1; }
+.item-del:hover { color: var(--danger); }
+.item-move {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 11px; line-height: 1;
+  padding: 0 1px; opacity: 0; transition: opacity .12s;
+}
+.item-row:hover .item-move { opacity: 1; }
+.item-move:hover:not(:disabled) { color: var(--accent); }
+.item-move:disabled { opacity: 0.2 !important; cursor: default; }
+.mod-move {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 11px; line-height: 1;
+  padding: 0 2px; border-radius: 3px;
+}
+.mod-move:hover:not(:disabled) { color: var(--accent); background: var(--hover); }
+.mod-move:disabled { opacity: 0.3; cursor: default; }
+
+#add-btn {
+  margin: 8px 10px;
+  padding: 7px; flex-shrink: 0;
+  background: none; border: 1px dashed var(--border);
+  border-radius: var(--radius); color: var(--text3);
+  cursor: pointer; font-size: 12px; text-align: center;
+  transition: all .15s;
+}
+#add-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.left-hint {
+  padding: 18px 14px;
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.6;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ── Centre panel ────────────────────────────────── */
+#centre-panel {
+  grid-area: cv;
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 16px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.card-hdr {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3);
+  margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-hint {
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+/* Property fields */
+.prop-block { padding: 0; }
+.prop-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+.prop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.prop-grid.cols1 { grid-template-columns: 1fr; }
+.prop-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+.prop-grid.cols4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.prop-field { display: flex; flex-direction: column; gap: 3px; }
+.prop-lbl { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; }
+.prop-lbl .u { text-transform: none; letter-spacing: 0; color: var(--text2); font-weight: 600; }
+.prop-inp, .prop-sel {
+  background: var(--input); border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text);
+  padding: 6px 8px; font-size: 12px; width: 100%;
+  font-family: inherit;
+}
+.prop-inp:focus, .prop-sel:focus { outline: none; border-color: var(--accent); }
+.prop-inp.error { border-color: var(--danger); background: #fee; }
+.prop-err {
+  font-size: 10px; color: var(--danger); margin-top: 2px;
+}
+.prop-help {
+  font-size: 10px; color: var(--text3); margin-top: 2px;
+  line-height: 1.4;
+}
+
+.toggle-btn {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all .15s;
+  width: 100%;
+}
+.toggle-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.empty-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text3);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.empty-state .icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 10px;
+  color: var(--text3);
+}
+
+/* element shape preview inside form */
+.shape-preview {
+  padding: 14px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  min-height: 130px;
+}
+.shape-preview svg { max-width: 100%; }
+
+/* segment group cards */
+.seg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.seg-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--col-angle);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.seg-card.mbb   { border-left-color: var(--col-mbb); }
+.seg-card.angle { border-left-color: var(--col-angle); }
+.seg-card.io    { border-left-color: var(--col-io); }
+.seg-card.brk   { border-left-color: var(--col-brk); }
+.seg-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.seg-title {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .8px;
+  color: var(--text);
+}
+.seg-count {
+  font-size: 10px;
+  color: var(--text3);
+  font-family: monospace;
+}
+.seg-table { width: 100%; }
+.seg-row {
+  display: grid;
+  grid-template-columns: 1.5fr 60px 70px 16px 16px 22px;
+  gap: 4px;
+  margin-bottom: 4px;
+  align-items: center;
+}
+.seg-row .prop-sel, .seg-row .prop-inp {
+  padding: 4px 5px;
+  font-size: 11px;
+}
+.seg-row .row-del {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 14px; line-height: 1; padding: 2px;
+  border-radius: 3px;
+}
+.seg-row .row-del:hover { color: var(--danger); background: var(--hover); }
+.seg-row .row-move {
+  background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 10px; line-height: 1; padding: 2px;
+  border-radius: 3px;
+}
+.seg-row .row-move:hover { background: var(--hover); color: var(--text); }
+.seg-row .row-move:disabled { opacity: 0.2; cursor: default; }
+.seg-add {
+  margin-top: 6px;
+  padding: 4px 6px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 11px;
+  width: 100%;
+  transition: all .15s;
+}
+.seg-add:hover { border-color: var(--accent); color: var(--text); }
+.seg-btn-row { display: flex; gap: 4px; margin-top: 6px; }
+.seg-btn-row .seg-add { margin-top: 0; }
+.seg-add-sensor { border-color: #fcc138; color: #92620a; }
+.seg-add-sensor:hover { border-color: #fcc138; background: #fef3c7; color: #78350f; }
+.seg-row-sensor {
+  display: grid;
+  grid-template-columns: 18px 1fr 16px 16px 22px;
+  gap: 4px;
+  margin-bottom: 4px;
+  align-items: center;
+  background: #fefce8;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.sensor-dot { color: #fcc138; font-size: 14px; text-align: center; line-height: 1; }
+.sensor-name-inp { font-family: monospace; font-size: 11px; font-weight: 600; color: #92620a; }
+.seg-row-hdr {
+  display: grid;
+  grid-template-columns: 1.5fr 60px 70px 16px 16px 22px;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+}
+
+/* ── MCC module cards ────────────────────────────── */
+.mcc-modules { display: flex; flex-direction: column; gap: 8px; }
+.mcc-mod-card {
+  border: 1px solid var(--border);
+  border-left: 4px solid #0ea5e9;
+  border-radius: var(--radius);
+  background: var(--panel2);
+  padding: 10px;
+}
+.mcc-mod-hdr {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; margin-bottom: 8px;
+}
+.mcc-mod-hdr .mod-num { color: var(--text); flex-shrink: 0; }
+.mcc-mod-hdr .mod-load-lbl { color: var(--text3); font-weight: 400; }
+.mcc-mod-hdr .mod-load-inp { width: 70px; }
+.mcc-mod-hdr .mod-del { margin-left: auto; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 16px; padding: 0 4px; border-radius: 3px; }
+.mcc-mod-hdr .mod-del:hover { color: var(--danger); background: var(--hover); }
+.mcc-seg-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.mcc-seg-mini {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+}
+.mcc-seg-mini-hdr {
+  font-size: 9px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .7px;
+  margin-bottom: 5px;
+}
+.mcc-seg-mini .seg-row { grid-template-columns: 1.4fr 50px 18px; }
+.mcc-add-mod {
+  margin-top: 8px; padding: 6px;
+  background: none; border: 1px dashed var(--border);
+  border-radius: 4px; color: var(--text3); cursor: pointer;
+  font-size: 11px; width: 100%;
+}
+.mcc-add-mod:hover { border-color: #0ea5e9; color: var(--text); }
+.panel-type-sel {
+  font-size: 11px; padding: 3px 6px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--input); color: var(--text); cursor: pointer;
+}
+
+/* ── Right panel ─────────────────────────────────── */
+#right-panel {
+  grid-area: rp;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#right-top {
+  flex: 1.6;
+  overflow: auto;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+#right-bottom {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+}
+.right-hdr {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3);
+  margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.right-hdr .meta {
+  font-size: 10px; font-weight: 400;
+  text-transform: none; letter-spacing: 0;
+  color: var(--text2);
+  font-family: monospace;
+}
+#schematic-svg {
+  flex: 1;
+  width: 100%;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.summary-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.stat-box {
+  padding: 10px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.stat-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: monospace;
+}
+.stat-lbl {
+  font-size: 9px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  margin-top: 2px;
+}
+
+/* ── Bottom panel (YAML) ─────────────────────────── */
+#yaml-panel {
+  grid-area: pv;
+  display: flex; flex-direction: column;
+  background: var(--panel); border-top: 1px solid var(--border);
+}
+#yaml-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+#yaml-hdr .pv-title {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text3); flex: 1;
+}
+.pv-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  transition: all .15s;
+}
+.pv-btn:hover { border-color: var(--accent); color: var(--text); }
+.pv-btn.primary { background: var(--accent); border-color: var(--accent2); color: #fff; }
+.pv-btn.primary:hover { opacity: .85; }
+#yaml-out {
+  flex: 1;
+  font-family: 'Consolas','Courier New',monospace;
+  font-size: 11px;
+  color: #0369a1;
+  background: var(--panel2);
+  border: none;
+  resize: none;
+  padding: 8px 12px;
+  overflow: auto;
+  white-space: pre;
+  outline: none;
+  border-top: 1px solid var(--border);
+}
+#yaml-out.invalid { background: #fff5f5; color: var(--danger); }
+
+/* ── Scrollbars ──────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ── Modals ──────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; min-width: 400px; max-width: 90vw;
+  max-height: 80vh; display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+.modal-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-weight: 600; font-size: 13px;
+}
+.modal-hdr button.close {
+  background: none; border: none; color: var(--text2); cursor: pointer;
+  font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px;
+}
+.modal-hdr button.close:hover { background: var(--panel2); color: var(--text); }
+.modal-body { flex: 1; overflow-y: auto; padding: 14px; }
+.modal-footer {
+  padding: 8px 14px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* ── Toast ──────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 220px; right: 20px;
+  background: var(--text); color: #fff;
+  padding: 8px 16px; border-radius: var(--radius);
+  font-size: 12px;
+  opacity: 0; transform: translateY(8px);
+  transition: all .2s;
+  pointer-events: none;
+  z-index: 2000;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+
+[title] { position: relative; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <div class="app-title">TnT-3 Lineup Editor</div>
+  <button class="tb-btn" id="btn-new" title="Start a fresh empty lineup">New</button>
+  <button class="tb-btn" id="btn-example" title="Load the bundled starter example">Example</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-lineup" title="See all panels side by side">Lineup View</button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-load" title="Load a YAML lineup file from disk">Load YAML…</button>
+  <button class="tb-btn" id="btn-download" title="Download the current YAML as lineup.yaml">Download</button>
+  <input type="file" id="file-input" accept=".yaml,.yml,text/yaml" style="display:none">
+  <div class="tb-status" id="status-bar">Ready</div>
+</div>
+
+<div id="left-panel">
+  <div class="nav-tabs">
+    <button class="nav-tab" data-section="defaults">Defaults</button>
+    <button class="nav-tab" data-section="materials">Materials</button>
+    <button class="nav-tab active" data-section="elements">Elements</button>
+    <button class="nav-tab" data-section="panels">Panels</button>
+    <button class="nav-tab" data-section="solver">Solver</button>
+  </div>
+  <div class="panel-hdr" id="left-hdr">Element Library</div>
+  <div id="item-list"></div>
+  <button id="add-btn">+ Add Element</button>
+</div>
+
+<div id="centre-panel"></div>
+
+<div id="right-panel">
+  <div id="right-top">
+    <div class="right-hdr">
+      <span>Panel Schematic</span>
+      <span class="meta" id="schem-meta"></span>
+      <button class="pv-btn" onclick="renderRight()" title="Refresh schematic" style="padding:1px 7px;font-size:13px;line-height:1.4">⟳</button>
+    </div>
+    <svg id="schematic-svg" viewBox="0 0 240 380" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+  <div id="right-bottom">
+    <div class="right-hdr"><span id="rb-title">Lineup Summary</span></div>
+    <div id="rb-content"></div>
+  </div>
+</div>
+
+<div id="yaml-panel">
+  <div id="yaml-hdr">
+    <span class="pv-title">YAML Output</span>
+    <button class="pv-btn" id="btn-copy">Copy</button>
+    <button class="pv-btn primary" id="btn-dl-yaml">Download</button>
+  </div>
+  <textarea id="yaml-out" readonly spellcheck="false"></textarea>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ─────────────────────────────────────────────────────
+   Materials (built-in)
+   ───────────────────────────────────────────────────── */
+const MATERIALS = {
+  Cu:    { name: 'Copper',        sigma: 58e6, alpha: 3.9e-3, note: 'Standard busbar copper' },
+  CuACB: { name: 'Copper (ACB)',  sigma: 40e6, alpha: 3.9e-3, note: 'ACB contacts with elevated resistance' },
+  Al:    { name: 'Aluminium',     sigma: 35e6, alpha: 4.0e-3, note: 'Aluminium busbar' },
+  Steel: { name: 'Steel',         sigma: 7e6,  alpha: 5.0e-3, note: 'Steel enclosure / supports' },
+};
+
+const TYPE_DEFAULT_ANGLE = { busbar: 0, breaker: -90, cable: -90 };
+const MBB_HEIGHT_DEFAULT = 1500;
+
+/* ─────────────────────────────────────────────────────
+   State
+   ───────────────────────────────────────────────────── */
+const state = {
+  defaults: { htc: 3.0, emissivity: 0.35 },
+  materials: {},
+  elements: {},
+  panels: [],
+  solver: {
+    global_current: 1000,
+    T_ambient: 20,
+    T0: 20,
+    accuracy: 0.1,
+    dt_init: 1.0,
+    air_interval: 5.0,
+    end_time: 28800
+  }
+};
+
+const ui = {
+  section: 'elements',
+  selectedElement: null,
+  selectedMaterial: null,
+  selectedPanel: 0,
+  errors: [],
+  showOverrides: false
+};
+
+/* ─────────────────────────────────────────────────────
+   Starter example
+   ───────────────────────────────────────────────────── */
+function loadExample() {
+  state.defaults = { htc: 3.0, emissivity: 0.35 };
+  state.materials = {};
+  state.elements = {
+    VBB:   { type: 'busbar', material: 'Cu', width: 10, height: 40,  length: 50,  n: 2, angle: -90 },
+    MBB:   { type: 'busbar', material: 'Cu', width: 10, height: 30,  length: 50,  n: 4, angle: 0 },
+    FISHP: { type: 'busbar', material: 'Cu', width: 10, height: 100, length: 100, n: 2, angle: 0 },
+    ACB:   { type: 'breaker', material: 'CuACB', width: 20, height: 100, length: 50, n: 1, angle: -90 }
+  };
+  const segs = {
+    main_busbar: [ { element: 'FISHP', count: 1 }, { element: 'MBB', count: 10 } ],
+    angle_bars:  [ { element: 'VBB', count: 2, angle: 90 }, { element: 'VBB', count: 2, angle: 0 }, { element: 'VBB', count: 6 } ],
+    io_bars:     [ { element: 'VBB', count: 3, angle: 180 }, { element: 'VBB', count: 22, angle: 90 }, { element: 'VBB', count: 1, angle: 0 } ],
+    breaker:     [ { element: 'ACB', count: 4 } ]
+  };
+  state.panels = [
+    { type: 'DC2BB', height: 2100, mbb_height: 1250, load: 2500, T0: null,
+      ventilation: 'closed', panel_depth: 600,
+      main_busbar: deepCopy(segs.main_busbar), angle_bars: deepCopy(segs.angle_bars),
+      io_bars: deepCopy(segs.io_bars), breaker: deepCopy(segs.breaker) },
+    { type: 'DC2BB', height: 2100, mbb_height: 1250, load: -2500, T0: null,
+      ventilation: 'closed', panel_depth: 600,
+      main_busbar: deepCopy(segs.main_busbar), angle_bars: deepCopy(segs.angle_bars),
+      io_bars: deepCopy(segs.io_bars), breaker: deepCopy(segs.breaker) }
+  ];
+  state.solver = {
+    global_current: 1000, T_ambient: 20, T0: 20,
+    accuracy: 0.1, dt_init: 1.0, air_interval: 5.0, end_time: 28800
+  };
+  ui.selectedElement = 'VBB';
+  ui.selectedPanel = 0;
+}
+
+function clearLineup() {
+  state.defaults = { htc: 3.0, emissivity: 0.35 };
+  state.materials = {};
+  state.elements = {};
+  state.panels = [];
+  state.solver = {
+    global_current: 1000, T_ambient: 20, T0: 20,
+    accuracy: 0.1, dt_init: 1.0, air_interval: 5.0, end_time: 28800
+  };
+  ui.selectedElement = null;
+  ui.selectedPanel = 0;
+}
+
+function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* ─────────────────────────────────────────────────────
+   Validation
+   ───────────────────────────────────────────────────── */
+const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+function validate() {
+  const errs = [];
+  // custom materials
+  Object.entries(state.materials).forEach(([name, m]) => {
+    if (!NAME_RE.test(name)) errs.push(`Material name "${name}" must be alphanumeric/underscore and start with a letter`);
+    if (MATERIALS[name]) errs.push(`Material "${name}" shadows a built-in material name`);
+    if (!(m.sigma > 0)) errs.push(`Material "${name}": sigma must be > 0`);
+    if (!(m.alpha > 0)) errs.push(`Material "${name}": alpha must be > 0`);
+    if (!(m.k > 0))     errs.push(`Material "${name}": k must be > 0`);
+    if (!(m.density > 0)) errs.push(`Material "${name}": density must be > 0`);
+    if (!(m.Cp > 0))    errs.push(`Material "${name}": Cp must be > 0`);
+  });
+  // elements
+  const elemNames = Object.keys(state.elements);
+  elemNames.forEach(name => {
+    if (!NAME_RE.test(name)) errs.push(`Element name "${name}" must be alphanumeric/underscore and start with a letter`);
+    const e = state.elements[name];
+    if (!e.material || (!MATERIALS[e.material] && !state.materials[e.material]))
+      errs.push(`Element "${name}": invalid material "${e.material || '?'}"`);
+    if (!(e.length > 0)) errs.push(`Element "${name}": length must be > 0`);
+    if (!(e.n >= 1) || !Number.isInteger(e.n)) errs.push(`Element "${name}": n must be a positive integer`);
+    if (e.type === 'busbar' || e.type === 'breaker') {
+      if (!(e.width > 0))  errs.push(`Element "${name}": width must be > 0`);
+      if (!(e.height > 0)) errs.push(`Element "${name}": height must be > 0`);
+    } else if (e.type === 'cable') {
+      if (!(e.outer_diameter > 0)) errs.push(`Element "${name}": outer_diameter must be > 0`);
+      if (e.inner_diameter != null && e.inner_diameter >= e.outer_diameter)
+        errs.push(`Element "${name}": inner_diameter must be < outer_diameter`);
+    }
+  });
+  // panels
+  state.panels.forEach((p, idx) => {
+    if (!(p.height > 0))     errs.push(`Panel ${idx + 1}: height must be > 0`);
+    if (!(p.mbb_height > 0)) errs.push(`Panel ${idx + 1}: mbb_height must be > 0`);
+    if (p.mbb_height > p.height) errs.push(`Panel ${idx + 1}: mbb_height (${p.mbb_height}) exceeds panel height (${p.height})`);
+    const validVent = ['closed', 'louvers', 'open'];
+    if (p.ventilation && !validVent.includes(p.ventilation) && isNaN(parseFloat(p.ventilation)))
+      errs.push(`Panel ${idx + 1}: ventilation must be 'closed', 'louvers', 'open', or a numeric W/m²K value`);
+    const grps = p.type === 'MCC'
+      ? ['main_busbar']
+      : ['main_busbar', 'angle_bars', 'io_bars', 'breaker'];
+    grps.forEach(grp => {
+      (p[grp] || []).forEach((row, rIdx) => {
+        if (row.sensor !== undefined) return;  // sensor markers are always valid
+        if (!row.element || !elemNames.includes(row.element))
+          errs.push(`Panel ${idx + 1} ${grp}[${rIdx}]: element "${row.element || '?'}" not defined`);
+        if (!(row.count >= 1) || !Number.isInteger(row.count))
+          errs.push(`Panel ${idx + 1} ${grp}[${rIdx}]: count must be a positive integer`);
+      });
+    });
+    if (p.type === 'MCC') {
+      if (!(p.dbb_length > 0)) errs.push(`Panel ${idx + 1} (MCC): dbb_length must be > 0`);
+      if (!p.dbb_element || !elemNames.includes(p.dbb_element))
+        errs.push(`Panel ${idx + 1} (MCC): dbb_element "${p.dbb_element || '?'}" not defined`);
+      if (!p.modules || p.modules.length === 0)
+        errs.push(`Panel ${idx + 1} (MCC): at least one module is required`);
+      (p.modules || []).forEach((m, mIdx) => {
+        if (typeof m.load !== 'number' || !isFinite(m.load))
+          errs.push(`Panel ${idx + 1} module ${mIdx + 1}: load must be a number`);
+        if (!m.device || m.device.length === 0)
+          errs.push(`Panel ${idx + 1} module ${mIdx + 1}: device segment is required`);
+        ['incoming_bars', 'device', 'outgoing'].forEach(grp => {
+          (m[grp] || []).forEach((row, rIdx) => {
+            if (!row.element || !elemNames.includes(row.element))
+              errs.push(`Panel ${idx + 1} module ${mIdx + 1} ${grp}[${rIdx}]: element "${row.element || '?'}" not defined`);
+          });
+        });
+      });
+    } else {
+      if (typeof p.load !== 'number' || !isFinite(p.load)) errs.push(`Panel ${idx + 1}: load must be a number`);
+    }
+  });
+  // solver basics
+  if (!(state.solver.accuracy > 0))   errs.push('Solver: accuracy must be > 0');
+  if (!(state.solver.dt_init > 0))    errs.push('Solver: dt_init must be > 0');
+  if (!(state.solver.end_time > 0))   errs.push('Solver: end_time must be > 0');
+  if (!(state.solver.air_interval > 0)) errs.push('Solver: air_interval must be > 0');
+  ui.errors = errs;
+  return errs.length === 0;
+}
+
+/* ─────────────────────────────────────────────────────
+   YAML generation
+   ───────────────────────────────────────────────────── */
+function fmtNum(v) {
+  if (v === null || v === undefined) return '';
+  if (Number.isInteger(v)) return String(v);
+  // strip trailing zeros, keep up to 6 digits
+  return parseFloat(v.toFixed(6)).toString();
+}
+
+function fmtMatNum(v) {
+  // For large values (e.g. sigma=58e6), emit compact scientific notation
+  if (!isFinite(v)) return '0';
+  const abs = Math.abs(v);
+  if (abs >= 10000) {
+    const e = Math.floor(Math.log10(abs));
+    const eRound = Math.floor(e / 3) * 3;
+    const m = parseFloat((v / Math.pow(10, eRound)).toPrecision(4));
+    return `${m}e${eRound}`;
+  }
+  return fmtNum(v);
+}
+
+function generateYAML() {
+  const lines = [];
+  // defaults
+  lines.push('defaults:');
+  lines.push(`  htc: ${fmtNum(state.defaults.htc)}`);
+  lines.push(`  emissivity: ${fmtNum(state.defaults.emissivity)}`);
+  lines.push('');
+
+  // custom materials (omitted if none)
+  const customMatNames = Object.keys(state.materials);
+  if (customMatNames.length > 0) {
+    lines.push('materials:');
+    customMatNames.forEach(name => {
+      const m = state.materials[name];
+      lines.push(`  ${name}:`);
+      lines.push(`    sigma: ${fmtMatNum(m.sigma)}`);
+      lines.push(`    alpha: ${fmtMatNum(m.alpha)}`);
+      lines.push(`    k: ${fmtMatNum(m.k)}`);
+      lines.push(`    density: ${fmtMatNum(m.density)}`);
+      lines.push(`    Cp: ${fmtMatNum(m.Cp)}`);
+    });
+    lines.push('');
+  }
+
+  // elements
+  lines.push('elements:');
+  const elemNames = Object.keys(state.elements);
+  if (elemNames.length === 0) {
+    lines.push('  {}');
+  } else {
+    elemNames.forEach(name => {
+      const e = state.elements[name];
+      lines.push(`  ${name}:`);
+      lines.push(`    type: ${e.type}`);
+      lines.push(`    material: ${e.material}`);
+      if (e.type === 'cable') {
+        lines.push(`    outer_diameter: ${fmtNum(e.outer_diameter)}`);
+        if (e.inner_diameter != null && e.inner_diameter > 0)
+          lines.push(`    inner_diameter: ${fmtNum(e.inner_diameter)}`);
+      } else {
+        lines.push(`    width: ${fmtNum(e.width)}`);
+        lines.push(`    height: ${fmtNum(e.height)}`);
+      }
+      lines.push(`    length: ${fmtNum(e.length)}`);
+      if (e.n > 1) lines.push(`    n: ${fmtNum(e.n)}`);
+      const defAng = TYPE_DEFAULT_ANGLE[e.type] ?? 0;
+      if (e.angle != null && e.angle !== defAng) lines.push(`    angle: ${fmtNum(e.angle)}`);
+      if (e.htc != null)         lines.push(`    htc: ${fmtNum(e.htc)}`);
+      if (e.emissivity != null)  lines.push(`    emissivity: ${fmtNum(e.emissivity)}`);
+      if (e.ac_factor != null)   lines.push(`    ac_factor: ${fmtNum(e.ac_factor)}`);
+    });
+  }
+  lines.push('');
+
+  // panels
+  lines.push('panels:');
+  if (state.panels.length === 0) {
+    lines.push('  []');
+  } else {
+    function emitSegRows(rows, indent) {
+      rows.forEach(r => {
+        if (r.sensor !== undefined) {
+          lines.push(`${indent}- {sensor: ${JSON.stringify(r.sensor)}}`);
+          return;
+        }
+        const parts = [`element: ${r.element}`, `count: ${fmtNum(r.count)}`];
+        if (r.angle != null) parts.push(`angle: ${fmtNum(r.angle)}`);
+        lines.push(`${indent}- {${parts.join(', ')}}`);
+      });
+    }
+    state.panels.forEach(p => {
+      lines.push(`  - type: ${p.type}`);
+      lines.push(`    height: ${fmtNum(p.height)}`);
+      if (p.mbb_height !== MBB_HEIGHT_DEFAULT)
+        lines.push(`    mbb_height: ${fmtNum(p.mbb_height)}`);
+      if (p.T0 != null) lines.push(`    T0: ${fmtNum(p.T0)}`);
+      if (p.ventilation && p.ventilation !== 'closed')
+        lines.push(`    ventilation: ${p.ventilation}`);
+      if (p.panel_depth && p.panel_depth !== 600)
+        lines.push(`    panel_depth: ${fmtNum(p.panel_depth)}`);
+      if (p.type === 'MCC') {
+        lines.push(`    dbb_length: ${fmtNum(p.dbb_length ?? 1900)}`);
+        lines.push(`    dbb_element: ${p.dbb_element || ''}`);
+        const mbRows = p.main_busbar || [];
+        if (mbRows.length > 0) {
+          lines.push(`    main_busbar:`);
+          emitSegRows(mbRows, '      ');
+        }
+        lines.push(`    modules:`);
+        (p.modules || []).forEach(m => {
+          lines.push(`      - load: ${fmtNum(m.load)}`);
+          lines.push(`        height: ${fmtNum(m.height ?? 200)}`);
+          ['incoming_bars', 'device', 'outgoing'].forEach(grp => {
+            const rows = m[grp] || [];
+            if (rows.length === 0) return;
+            lines.push(`        ${grp}:`);
+            emitSegRows(rows, '          ');
+          });
+        });
+      } else {
+        lines.push(`    load: ${fmtNum(p.load)}`);
+        ['main_busbar', 'angle_bars', 'io_bars', 'breaker'].forEach(grp => {
+          const rows = p[grp] || [];
+          if (rows.length === 0) return;
+          lines.push(`    ${grp}:`);
+          emitSegRows(rows, '      ');
+        });
+      }
+    });
+  }
+  lines.push('');
+
+  // solver
+  lines.push('solver:');
+  lines.push(`  global_current: ${fmtNum(state.solver.global_current)}`);
+  lines.push(`  T_ambient: ${fmtNum(state.solver.T_ambient)}`);
+  lines.push(`  T0: ${fmtNum(state.solver.T0)}`);
+  lines.push(`  accuracy: ${fmtNum(state.solver.accuracy)}`);
+  lines.push(`  dt_init: ${fmtNum(state.solver.dt_init)}`);
+  lines.push(`  air_interval: ${fmtNum(state.solver.air_interval)}`);
+  lines.push(`  end_time: ${fmtNum(state.solver.end_time)}`);
+
+  return lines.join('\n');
+}
+
+/* ─────────────────────────────────────────────────────
+   YAML parsing (subset specific to this schema)
+   ───────────────────────────────────────────────────── */
+function parseScalar(raw) {
+  raw = raw.trim();
+  if (raw === '' || raw === '~' || raw === 'null') return null;
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (/^-?\d+$/.test(raw)) return parseInt(raw, 10);
+  if (/^-?\d*\.\d+(?:[eE][+-]?\d+)?$/.test(raw)) return parseFloat(raw);
+  if (/^-?\d+[eE][+-]?\d+$/.test(raw)) return parseFloat(raw);
+  if ((raw.startsWith('"') && raw.endsWith('"')) ||
+      (raw.startsWith("'") && raw.endsWith("'"))) return raw.slice(1, -1);
+  return raw;
+}
+
+function parseInlineObj(s) {
+  // expects "{key: val, key: val, ...}"
+  s = s.trim();
+  if (!s.startsWith('{') || !s.endsWith('}')) return null;
+  s = s.slice(1, -1).trim();
+  if (!s) return {};
+  const obj = {};
+  // split top-level commas (no nesting expected here)
+  s.split(',').forEach(part => {
+    const [k, ...rest] = part.split(':');
+    if (!k) return;
+    obj[k.trim()] = parseScalar(rest.join(':'));
+  });
+  return obj;
+}
+
+function indentOf(line) {
+  const m = line.match(/^( *)/);
+  return m ? m[1].length : 0;
+}
+
+function parseYAML(text) {
+  // returns a plain JS object; supports our schema only
+  const lines = text.split('\n').map(l => l.replace(/\t/g, '  ')).filter(l => {
+    const t = l.trim();
+    return t !== '' && !t.startsWith('#');
+  });
+
+  const root = {};
+  let i = 0;
+
+  function parseBlock(parentObj, parentIndent) {
+    while (i < lines.length) {
+      const line = lines[i];
+      const ind = indentOf(line);
+      if (ind <= parentIndent) return;
+      const body = line.slice(ind);
+
+      // list item under a mapping key
+      if (body.startsWith('- ')) {
+        // happens when parentObj is actually an array container — handled in array path
+        return;
+      }
+      // key: value or key:
+      const m = body.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+      if (!m) { i++; continue; }
+      const key = m[1];
+      const rest = m[2];
+
+      if (rest === '' || rest === undefined) {
+        // could be a nested mapping or a list
+        i++;
+        // peek next non-empty
+        if (i < lines.length) {
+          const nextInd = indentOf(lines[i]);
+          const nextBody = lines[i].slice(nextInd);
+          if (nextInd > ind && nextBody.startsWith('- ')) {
+            // list
+            const arr = [];
+            while (i < lines.length) {
+              const l2 = lines[i];
+              const l2ind = indentOf(l2);
+              const l2body = l2.slice(l2ind);
+              if (l2ind <= ind) break;
+              if (!l2body.startsWith('- ')) break;
+              const afterDash = l2body.slice(2);
+              if (afterDash.startsWith('{')) {
+                // inline-flow object
+                arr.push(parseInlineObj(afterDash));
+                i++;
+              } else {
+                // block-style mapping element
+                const item = {};
+                // first "key: val" right after the dash
+                const im = afterDash.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+                if (im) {
+                  const k2 = im[1];
+                  const r2 = im[2];
+                  if (r2 === '') {
+                    i++;
+                    // could be sub-block
+                    item[k2] = {};
+                    parseBlock(item[k2], l2ind);
+                  } else {
+                    item[k2] = parseScalar(r2);
+                    i++;
+                  }
+                } else {
+                  i++;
+                }
+                // continue collecting properties indented deeper than dash item
+                const itemIndent = l2ind + 2;
+                while (i < lines.length) {
+                  const l3 = lines[i];
+                  const l3ind = indentOf(l3);
+                  const l3body = l3.slice(l3ind);
+                  if (l3ind < itemIndent) break;
+                  if (l3body.startsWith('- ')) break;
+                  const km = l3body.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+                  if (!km) { i++; continue; }
+                  const k3 = km[1];
+                  const r3 = km[2];
+                  if (r3 === '') {
+                    i++;
+                    // nested list — handles both inline {…} and block-style mapping items (MCC modules)
+                    const subArr = [];
+                    while (i < lines.length) {
+                      const l4 = lines[i];
+                      const l4ind = indentOf(l4);
+                      const l4body = l4.slice(l4ind);
+                      if (l4ind <= l3ind) break;
+                      if (!l4body.startsWith('- ')) break;
+                      const after4 = l4body.slice(2);
+                      if (after4.startsWith('{')) {
+                        subArr.push(parseInlineObj(after4)); i++;
+                      } else {
+                        // block-style mapping item (e.g. MCC module)
+                        const bItem = {};
+                        const bm = after4.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+                        if (bm) { bItem[bm[1]] = bm[2] === '' ? null : parseScalar(bm[2]); }
+                        i++;
+                        const bIndent = l4ind + 2;
+                        while (i < lines.length) {
+                          const l5 = lines[i]; const l5ind = indentOf(l5); const l5body = l5.slice(l5ind);
+                          if (l5ind < bIndent) break;
+                          if (l5body.startsWith('- ')) break;
+                          const km5 = l5body.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+                          if (!km5) { i++; continue; }
+                          if (km5[2] === '') {
+                            i++;
+                            // sub-sub-array of inline objects (e.g. incoming_bars, device, outgoing)
+                            const ssa = [];
+                            while (i < lines.length) {
+                              const l6 = lines[i]; const l6ind = indentOf(l6); const l6body = l6.slice(l6ind);
+                              if (l6ind <= l5ind) break;
+                              if (!l6body.startsWith('- ')) break;
+                              const a6 = l6body.slice(2);
+                              if (a6.startsWith('{')) ssa.push(parseInlineObj(a6));
+                              i++;
+                            }
+                            bItem[km5[1]] = ssa;
+                          } else {
+                            bItem[km5[1]] = parseScalar(km5[2]); i++;
+                          }
+                        }
+                        subArr.push(bItem);
+                      }
+                    }
+                    item[k3] = subArr;
+                  } else {
+                    item[k3] = parseScalar(r3);
+                    i++;
+                  }
+                }
+                arr.push(item);
+              }
+            }
+            parentObj[key] = arr;
+          } else if (nextInd > ind) {
+            // nested mapping
+            parentObj[key] = {};
+            parseBlock(parentObj[key], ind);
+          } else {
+            parentObj[key] = null;
+          }
+        } else {
+          parentObj[key] = null;
+        }
+      } else if (rest.startsWith('{')) {
+        parentObj[key] = parseInlineObj(rest);
+        i++;
+      } else if (rest === '[]') {
+        parentObj[key] = [];
+        i++;
+      } else if (rest === '{}') {
+        parentObj[key] = {};
+        i++;
+      } else {
+        parentObj[key] = parseScalar(rest);
+        i++;
+      }
+    }
+  }
+
+  parseBlock(root, -1);
+  return root;
+}
+
+function loadFromYAMLText(text) {
+  try {
+    const parsed = parseYAML(text);
+    // Merge into state
+    if (parsed.defaults) {
+      state.defaults.htc = parsed.defaults.htc ?? state.defaults.htc;
+      state.defaults.emissivity = parsed.defaults.emissivity ?? state.defaults.emissivity;
+    }
+    if (parsed.materials && typeof parsed.materials === 'object') {
+      state.materials = {};
+      Object.entries(parsed.materials).forEach(([name, src]) => {
+        if (!src || typeof src !== 'object') return;
+        state.materials[name] = {
+          sigma:   src.sigma   != null ? Number(src.sigma)   : 58e6,
+          alpha:   src.alpha   != null ? Number(src.alpha)   : 3.9e-3,
+          k:       src.k       != null ? Number(src.k)       : 401,
+          density: src.density != null ? Number(src.density) : 8920,
+          Cp:      src.Cp      != null ? Number(src.Cp)      : 385,
+        };
+      });
+    }
+    if (parsed.elements && typeof parsed.elements === 'object') {
+      state.elements = {};
+      Object.keys(parsed.elements).forEach(name => {
+        const src = parsed.elements[name] || {};
+        const e = {
+          type: src.type || 'busbar',
+          material: src.material || 'Cu',
+          length: src.length ?? 0,
+          n: src.n != null ? src.n : 1
+        };
+        if (e.type === 'cable') {
+          e.outer_diameter = src.outer_diameter ?? 0;
+          e.inner_diameter = src.inner_diameter ?? 0;
+        } else {
+          e.width = src.width ?? 0;
+          e.height = src.height ?? 0;
+        }
+        e.angle = (src.angle != null) ? src.angle : TYPE_DEFAULT_ANGLE[e.type];
+        if (src.htc != null) e.htc = src.htc;
+        if (src.emissivity != null) e.emissivity = src.emissivity;
+        if (src.ac_factor != null) e.ac_factor = src.ac_factor;
+        state.elements[name] = e;
+      });
+    }
+    if (Array.isArray(parsed.panels)) {
+      state.panels = parsed.panels.map(p => {
+        const ptype = (p.type || 'DC2BB').toUpperCase();
+        if (ptype === 'MCC') {
+          return {
+            type: 'MCC',
+            height: p.height ?? 2100,
+            mbb_height: p.mbb_height ?? 2000,
+            dbb_length: p.dbb_length ?? 1900,
+            T0: p.T0 != null ? p.T0 : null,
+            ventilation: p.ventilation ?? 'closed',
+            panel_depth: p.panel_depth ?? 600,
+            dbb_element: p.dbb_element || '',
+            main_busbar: Array.isArray(p.main_busbar) ? p.main_busbar : [],
+            modules: Array.isArray(p.modules) ? p.modules.map(m => ({
+              load:   m.load   ?? 0,
+              height: m.height ?? 200,
+              incoming_bars: Array.isArray(m.incoming_bars) ? m.incoming_bars : [],
+              device:        Array.isArray(m.device)        ? m.device        : [],
+              outgoing:      Array.isArray(m.outgoing)      ? m.outgoing      : []
+            })) : []
+          };
+        }
+        return {
+          type: 'DC2BB',
+          height: p.height ?? 2100,
+          mbb_height: p.mbb_height ?? MBB_HEIGHT_DEFAULT,
+          load: p.load ?? 0,
+          T0: p.T0 != null ? p.T0 : null,
+          ventilation: p.ventilation ?? 'closed',
+          panel_depth: p.panel_depth ?? 600,
+          main_busbar: Array.isArray(p.main_busbar) ? p.main_busbar : [],
+          angle_bars:  Array.isArray(p.angle_bars)  ? p.angle_bars  : [],
+          io_bars:     Array.isArray(p.io_bars)     ? p.io_bars     : [],
+          breaker:     Array.isArray(p.breaker)     ? p.breaker     : []
+        };
+      });
+    }
+    if (parsed.solver && typeof parsed.solver === 'object') {
+      Object.keys(state.solver).forEach(k => {
+        if (parsed.solver[k] != null) state.solver[k] = parsed.solver[k];
+      });
+    }
+    const eNames = Object.keys(state.elements);
+    ui.selectedElement = eNames[0] || null;
+    ui.selectedMaterial = Object.keys(state.materials)[0] || null;
+    ui.selectedPanel = state.panels.length > 0 ? 0 : 0;
+    return true;
+  } catch (err) {
+    console.error('YAML parse error', err);
+    return false;
+  }
+}
+
+/* ─────────────────────────────────────────────────────
+   Rendering — Left panel
+   ───────────────────────────────────────────────────── */
+function renderLeft() {
+  // tabs
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.section === ui.section);
+  });
+
+  const hdr = document.getElementById('left-hdr');
+  const list = document.getElementById('item-list');
+  const addBtn = document.getElementById('add-btn');
+  list.innerHTML = '';
+
+  if (ui.section === 'elements') {
+    hdr.textContent = 'Element Library';
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Add Element';
+    const names = Object.keys(state.elements);
+    if (names.length === 0) {
+      list.innerHTML = `<div class="left-hint">No elements yet.<br>Click "+ Add Element" below.</div>`;
+    } else {
+      names.forEach(name => {
+        const e = state.elements[name];
+        const row = document.createElement('div');
+        row.className = 'item-row' + (name === ui.selectedElement ? ' active' : '');
+        row.innerHTML = `
+          <span class="item-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="item-badge ${e.type}">${e.type}</span>
+          <button class="item-del" title="Delete element">×</button>
+        `;
+        row.addEventListener('click', (ev) => {
+          if (ev.target.closest('.item-del')) return;
+          ui.selectedElement = name;
+          render();
+        });
+        row.querySelector('.item-del').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (confirm(`Delete element "${name}"?`)) {
+            delete state.elements[name];
+            if (ui.selectedElement === name) {
+              const remaining = Object.keys(state.elements);
+              ui.selectedElement = remaining[0] || null;
+            }
+            render();
+          }
+        });
+        list.appendChild(row);
+      });
+    }
+  } else if (ui.section === 'panels') {
+    hdr.textContent = 'Lineup Panels';
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Add Panel';
+    if (state.panels.length === 0) {
+      list.innerHTML = `<div class="left-hint">No panels yet.<br>Click "+ Add Panel" below.</div>`;
+    } else {
+      state.panels.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'item-row' + (idx === ui.selectedPanel ? ' active' : '');
+        let subLabel;
+        if (p.type === 'MCC') {
+          const n = (p.modules || []).length;
+          subLabel = `<span class="item-type-badge" style="font-size:9px;color:#0ea5e9;font-family:monospace">MCC·${n}mod</span>`;
+        } else {
+          const loadCls = p.load > 0 ? 'pos' : (p.load < 0 ? 'neg' : '');
+          const loadSign = p.load > 0 ? '+' : '';
+          subLabel = `<span class="item-load ${loadCls}">${loadSign}${p.load} A</span>`;
+        }
+        row.innerHTML = `
+          <span class="item-name">Panel ${idx + 1}</span>
+          ${subLabel}
+          <button class="item-move" title="Move up" onclick="movePanelUp(${idx})" ${idx === 0 ? 'disabled' : ''}>▲</button>
+          <button class="item-move" title="Move down" onclick="movePanelDown(${idx})" ${idx === state.panels.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="item-del" title="Delete panel">×</button>
+        `;
+        row.addEventListener('click', (ev) => {
+          if (ev.target.closest('.item-del, .item-move')) return;
+          ui.selectedPanel = idx;
+          render();
+        });
+        row.querySelector('.item-del').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (confirm(`Delete Panel ${idx + 1}?`)) {
+            state.panels.splice(idx, 1);
+            if (ui.selectedPanel >= state.panels.length)
+              ui.selectedPanel = Math.max(0, state.panels.length - 1);
+            render();
+          }
+        });
+        list.appendChild(row);
+      });
+    }
+  } else if (ui.section === 'materials') {
+    hdr.textContent = 'Custom Materials';
+    addBtn.style.display = '';
+    addBtn.textContent = '+ Add Material';
+    const names = Object.keys(state.materials);
+    if (names.length === 0) {
+      list.innerHTML = `<div class="left-hint">No custom materials.<br>Built-in: ${Object.keys(MATERIALS).join(', ')}.<br>Click "+ Add Material" below.</div>`;
+    } else {
+      names.forEach(name => {
+        const row = document.createElement('div');
+        row.className = 'item-row' + (name === ui.selectedMaterial ? ' active' : '');
+        row.innerHTML = `
+          <span class="item-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="item-badge" style="background:#fef3c7;color:#92620a">custom</span>
+          <button class="item-del" title="Delete material">×</button>
+        `;
+        row.addEventListener('click', (ev) => {
+          if (ev.target.closest('.item-del')) return;
+          ui.selectedMaterial = name;
+          render();
+        });
+        row.querySelector('.item-del').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (confirm(`Delete material "${name}"?`)) {
+            delete state.materials[name];
+            if (ui.selectedMaterial === name) {
+              const remaining = Object.keys(state.materials);
+              ui.selectedMaterial = remaining[0] || null;
+            }
+            render();
+          }
+        });
+        list.appendChild(row);
+      });
+    }
+  } else {
+    // defaults or solver
+    hdr.textContent = ui.section === 'defaults' ? 'Global Defaults' : 'Solver Settings';
+    addBtn.style.display = 'none';
+    list.innerHTML = `<div class="left-hint">Edit settings on the right →</div>`;
+  }
+}
+
+/* ─────────────────────────────────────────────────────
+   Rendering — Centre panel
+   ───────────────────────────────────────────────────── */
+function renderCentre() {
+  const c = document.getElementById('centre-panel');
+  if (ui.section === 'defaults')       c.innerHTML = renderDefaults();
+  else if (ui.section === 'materials') c.innerHTML = renderMaterialEditor();
+  else if (ui.section === 'elements')  c.innerHTML = renderElementEditor();
+  else if (ui.section === 'panels')    c.innerHTML = renderPanelEditor();
+  else if (ui.section === 'solver')    c.innerHTML = renderSolver();
+  attachCentreHandlers();
+}
+
+function renderMaterialEditor() {
+  const name = ui.selectedMaterial;
+  if (!name || !state.materials[name]) {
+    return `
+      <div class="empty-state">
+        <span class="icon">⟵</span>
+        Select a material on the left, or click<br><b>"+ Add Material"</b> to define one.
+        <div style="margin-top:12px;font-size:11px;color:var(--text3)">
+          Built-in materials (always available):<br>
+          ${Object.entries(MATERIALS).map(([k, m]) => `<b>${escapeHtml(k)}</b> — ${escapeHtml(m.name)}`).join(' &nbsp;·&nbsp; ')}
+        </div>
+      </div>
+    `;
+  }
+  const m = state.materials[name];
+  return `
+    <div class="card">
+      <div class="card-hdr">Material — ${escapeHtml(name)}</div>
+      <div class="prop-field" style="margin-bottom:12px">
+        <label class="prop-lbl">Key <span class="u">(identifier used in YAML and element definitions)</span></label>
+        <input class="prop-inp" type="text" id="mat-name" value="${escapeHtml(name)}" style="font-family:monospace;font-weight:600">
+      </div>
+      <div class="prop-grid cols2">
+        <div class="prop-field">
+          <label class="prop-lbl">σ (sigma) <span class="u">[S/m]</span></label>
+          <input class="prop-inp" type="number" step="1000000" min="0" data-matbind="${escapeHtml(name)}.sigma" value="${m.sigma}">
+          <div class="prop-help">Electrical conductivity at 20°C. Cu≈58e6, Al≈35e6.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">α (alpha) <span class="u">[1/K]</span></label>
+          <input class="prop-inp" type="number" step="0.0001" min="0" data-matbind="${escapeHtml(name)}.alpha" value="${m.alpha}">
+          <div class="prop-help">Temperature coefficient of resistance. Cu≈0.0039.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">k <span class="u">[W/mK]</span></label>
+          <input class="prop-inp" type="number" step="1" min="0" data-matbind="${escapeHtml(name)}.k" value="${m.k}">
+          <div class="prop-help">Thermal conductivity. Cu≈401, Al≈237.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Density <span class="u">[kg/m³]</span></label>
+          <input class="prop-inp" type="number" step="10" min="0" data-matbind="${escapeHtml(name)}.density" value="${m.density}">
+          <div class="prop-help">Mass density. Cu≈8920, Al≈2700.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Cp <span class="u">[J/kgK]</span></label>
+          <input class="prop-inp" type="number" step="1" min="0" data-matbind="${escapeHtml(name)}.Cp" value="${m.Cp}">
+          <div class="prop-help">Specific heat capacity. Cu≈385, Al≈900.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDefaults() {
+  return `
+    <div class="card">
+      <div class="card-hdr">Global Defaults</div>
+      <div class="card-hint">These are applied to all elements unless overridden per-element.</div>
+      <div class="prop-grid">
+        <div class="prop-field">
+          <label class="prop-lbl">HTC <span class="u">[W/m²K]</span></label>
+          <input class="prop-inp" type="number" step="0.1" min="0" data-bind="defaults.htc" value="${state.defaults.htc}">
+          <div class="prop-help">Convective heat-transfer coefficient.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Emissivity <span class="u">[0…1]</span></label>
+          <input class="prop-inp" type="number" step="0.01" min="0" max="1" data-bind="defaults.emissivity" value="${state.defaults.emissivity}">
+          <div class="prop-help">Surface emissivity for radiation.</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderElementEditor() {
+  const name = ui.selectedElement;
+  if (!name || !state.elements[name]) {
+    return `
+      <div class="empty-state">
+        <span class="icon">⟵</span>
+        Select an element on the left, or click<br><b>"+ Add Element"</b> to create one.
+      </div>
+    `;
+  }
+  const e = state.elements[name];
+  const isCable = e.type === 'cable';
+  const dimsHTML = isCable ? `
+    <div class="prop-field">
+      <label class="prop-lbl">Outer Diameter <span class="u">[mm]</span></label>
+      <input class="prop-inp" type="number" step="0.5" min="0" data-bind="elements.${name}.outer_diameter" value="${e.outer_diameter ?? 0}">
+    </div>
+    <div class="prop-field">
+      <label class="prop-lbl">Inner Diameter <span class="u">[mm]</span></label>
+      <input class="prop-inp" type="number" step="0.5" min="0" data-bind="elements.${name}.inner_diameter" value="${e.inner_diameter ?? 0}">
+      <div class="prop-help">Set 0 for solid cable.</div>
+    </div>
+  ` : `
+    <div class="prop-field">
+      <label class="prop-lbl">Width <span class="u">[mm]</span></label>
+      <input class="prop-inp" type="number" step="1" min="0" data-bind="elements.${name}.width" value="${e.width ?? 0}">
+    </div>
+    <div class="prop-field">
+      <label class="prop-lbl">Height <span class="u">[mm]</span></label>
+      <input class="prop-inp" type="number" step="1" min="0" data-bind="elements.${name}.height" value="${e.height ?? 0}">
+    </div>
+  `;
+
+  const hasOverride = e.htc != null || e.emissivity != null || e.ac_factor != null || ui.showOverrides;
+
+  return `
+    <div class="card">
+      <div class="card-hdr">Element — ${escapeHtml(name)}</div>
+      <div class="prop-grid">
+        <div class="prop-field">
+          <label class="prop-lbl">Name</label>
+          <input class="prop-inp" type="text" id="elem-name" value="${escapeHtml(name)}" data-rename="${escapeHtml(name)}">
+          <div class="prop-help">Alphanumeric + underscore, must start with a letter.</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Type</label>
+          <select class="prop-sel" data-bind="elements.${name}.type">
+            <option value="busbar"  ${e.type==='busbar'?'selected':''}>Busbar</option>
+            <option value="breaker" ${e.type==='breaker'?'selected':''}>Breaker</option>
+            <option value="cable"   ${e.type==='cable'?'selected':''}>Cable</option>
+          </select>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Material</label>
+          <select class="prop-sel" data-bind="elements.${name}.material">
+            <optgroup label="Built-in">
+              ${Object.keys(MATERIALS).map(m => `<option value="${m}" ${e.material===m?'selected':''}>${m} — ${MATERIALS[m].name}</option>`).join('')}
+            </optgroup>
+            ${Object.keys(state.materials).length > 0 ? `<optgroup label="Custom">${Object.keys(state.materials).map(m => `<option value="${escapeHtml(m)}" ${e.material===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}</optgroup>` : ''}
+          </select>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Angle <span class="u">[°]</span></label>
+          <input class="prop-inp" type="number" step="1" data-bind="elements.${name}.angle" value="${e.angle ?? TYPE_DEFAULT_ANGLE[e.type]}">
+          <div class="prop-help">Default ${TYPE_DEFAULT_ANGLE[e.type]}° for ${e.type}.</div>
+        </div>
+        ${dimsHTML}
+        <div class="prop-field">
+          <label class="prop-lbl">Length <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="1" min="0" data-bind="elements.${name}.length" value="${e.length ?? 0}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">N <span class="u">(parallel)</span></label>
+          <input class="prop-inp" type="number" step="1" min="1" data-bind="elements.${name}.n" value="${e.n ?? 1}">
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        ${hasOverride ? `
+          <div class="prop-title">Optional overrides</div>
+          <div class="prop-grid cols3">
+            <div class="prop-field">
+              <label class="prop-lbl">HTC <span class="u">[W/m²K]</span></label>
+              <input class="prop-inp" type="number" step="0.1" min="0" data-bind="elements.${name}.htc" data-nullable value="${e.htc ?? ''}" placeholder="(default)">
+            </div>
+            <div class="prop-field">
+              <label class="prop-lbl">Emissivity</label>
+              <input class="prop-inp" type="number" step="0.01" min="0" max="1" data-bind="elements.${name}.emissivity" data-nullable value="${e.emissivity ?? ''}" placeholder="(default)">
+            </div>
+            <div class="prop-field">
+              <label class="prop-lbl">AC Factor</label>
+              <input class="prop-inp" type="number" step="0.01" min="0" data-bind="elements.${name}.ac_factor" data-nullable value="${e.ac_factor ?? ''}" placeholder="1.0">
+            </div>
+          </div>
+          <button class="toggle-btn" id="hide-overrides" style="margin-top:8px">− Hide optional overrides</button>
+        ` : `
+          <button class="toggle-btn" id="show-overrides">+ Add optional overrides (HTC, emissivity, AC factor)</button>
+        `}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">Shape preview</div>
+      <div class="shape-preview">${elementShapeSVG(e)}</div>
+    </div>
+  `;
+}
+
+function elementShapeSVG(e) {
+  if (e.type === 'cable') {
+    const r = 60;
+    const innerR = e.outer_diameter > 0 ? r * (e.inner_diameter / e.outer_diameter) : 0;
+    return `
+      <svg width="220" height="130" viewBox="0 0 220 130">
+        <circle cx="110" cy="65" r="${r}" fill="#fef3c7" stroke="${getComputedStyleVar('--col-io')}" stroke-width="2"/>
+        ${innerR > 0 ? `<circle cx="110" cy="65" r="${innerR}" fill="#fff" stroke="${getComputedStyleVar('--col-io')}" stroke-width="1.5" stroke-dasharray="3,2"/>` : ''}
+        <text x="110" y="125" text-anchor="middle" font-size="11" fill="#374151">⌀ ${fmtNum(e.outer_diameter)} mm${innerR > 0 ? ` (inner ${fmtNum(e.inner_diameter)})` : ''}</text>
+        <text x="110" y="12" text-anchor="middle" font-size="10" fill="#6b7280">Length: ${fmtNum(e.length)} mm × n=${e.n}</text>
+      </svg>
+    `;
+  }
+  // busbar / breaker
+  const maxDim = Math.max(e.width || 1, e.height || 1);
+  const scale = 80 / maxDim;
+  const w = Math.max(8, (e.width || 1) * scale);
+  const h = Math.max(8, (e.height || 1) * scale);
+  const cx = 110, cy = 60;
+  const fillCol = e.type === 'breaker' ? '#ede9fe' : '#dbeafe';
+  const strokeCol = e.type === 'breaker' ? getComputedStyleVar('--col-brk') : getComputedStyleVar('--col-angle');
+  const hatch = e.type === 'breaker' ? `
+    <defs>
+      <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="${strokeCol}" stroke-width="1.2" opacity=".55"/>
+      </pattern>
+    </defs>
+    <rect x="${cx - w/2}" y="${cy - h/2}" width="${w}" height="${h}" fill="url(#hatch)"/>
+  ` : '';
+  return `
+    <svg width="220" height="130" viewBox="0 0 220 130">
+      <rect x="${cx - w/2}" y="${cy - h/2}" width="${w}" height="${h}" fill="${fillCol}" stroke="${strokeCol}" stroke-width="2"/>
+      ${hatch}
+      <text x="${cx}" y="${cy + h/2 + 16}" text-anchor="middle" font-size="11" fill="#374151">W=${fmtNum(e.width)} mm × H=${fmtNum(e.height)} mm</text>
+      <text x="${cx}" y="12" text-anchor="middle" font-size="10" fill="#6b7280">Length: ${fmtNum(e.length)} mm × n=${e.n}</text>
+      <text x="6" y="${cy + 3}" font-size="9" fill="#9ca3af">W</text>
+      <text x="${cx + w/2 + 6}" y="${cy + 3}" font-size="9" fill="#9ca3af">H</text>
+    </svg>
+  `;
+}
+
+function getComputedStyleVar(varName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || '#0078d4';
+}
+
+/* Panel editor */
+function renderPanelEditor() {
+  if (state.panels.length === 0) {
+    return `
+      <div class="empty-state">
+        <span class="icon">⟵</span>
+        No panels defined.<br>Click <b>"+ Add Panel"</b> to add one.
+      </div>
+    `;
+  }
+  const idx = ui.selectedPanel;
+  const p = state.panels[idx];
+  if (!p) {
+    return `<div class="empty-state">Select a panel on the left.</div>`;
+  }
+  if (p.type === 'MCC') return renderMCCEditor(p, idx);
+  return `
+    <div class="card">
+      <div class="card-hdr" style="display:flex;align-items:center;gap:8px">
+        <span>Panel ${idx + 1}</span>
+        <select class="panel-type-sel" onchange="switchPanelType(${idx}, this.value)">
+          <option value="DC2BB" selected>DC2BB</option>
+          <option value="MCC">MCC</option>
+        </select>
+      </div>
+      <div class="prop-grid cols4">
+        <div class="prop-field">
+          <label class="prop-lbl">Height <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="10" min="0" data-bind="panels.${idx}.height" value="${p.height}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">MBB Height <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="10" min="0" data-bind="panels.${idx}.mbb_height" value="${p.mbb_height}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Load <span class="u">[A]</span></label>
+          <input class="prop-inp" type="number" step="50" data-bind="panels.${idx}.load" value="${p.load}" title="+ outgoing / − incoming">
+          <div class="prop-help">+ outgoing, − incoming</div>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">T₀ <span class="u">[°C, optional]</span></label>
+          <input class="prop-inp" type="number" step="1" data-bind="panels.${idx}.T0" data-nullable value="${p.T0 ?? ''}" placeholder="(global)">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Ventilation</label>
+          <select class="prop-sel" data-bind="panels.${idx}.ventilation">
+            <option value="closed"  ${(p.ventilation??'closed')==='closed'  ?'selected':''}>closed  (IP54, sealed)</option>
+            <option value="louvers" ${(p.ventilation??'closed')==='louvers' ?'selected':''}>louvers (IP31, vents)</option>
+            <option value="open"    ${(p.ventilation??'closed')==='open'    ?'selected':''}>open    (IP20, mesh)</option>
+          </select>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Depth <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="50" min="100" data-bind="panels.${idx}.panel_depth" value="${p.panel_depth ?? 600}" title="Enclosure front-to-back depth">
+        </div>
+      </div>
+    </div>
+
+    <div class="seg-grid">
+      ${renderSegCard('mbb',   'Main Busbar', 'main_busbar', p, idx)}
+      ${renderSegCard('angle', 'Angle Bars',  'angle_bars',  p, idx)}
+      ${renderSegCard('io',    'I/O Bars',    'io_bars',     p, idx)}
+      ${renderSegCard('brk',   'Breaker',     'breaker',     p, idx)}
+    </div>
+  `;
+}
+
+function renderSegCard(cls, title, key, p, pIdx) {
+  const rows = p[key] || [];
+  const totalCount = rows.reduce((a, r) => a + (r.sensor !== undefined ? 0 : (r.count || 0)), 0);
+  const elemOptions = Object.keys(state.elements);
+  const rowCount = rows.length;
+  const rowsHTML = rows.map((r, rIdx) => {
+    const upDis = rIdx === 0 ? 'disabled' : '';
+    const dnDis = rIdx === rowCount - 1 ? 'disabled' : '';
+    if (r.sensor !== undefined) {
+      return `
+    <div class="seg-row seg-row-sensor">
+      <span class="sensor-dot">&#9679;</span>
+      <input class="prop-inp sensor-name-inp" type="text"
+             data-sensname="${pIdx}.${key}.${rIdx}"
+             value="${escapeHtml(r.sensor)}" placeholder="sensor name">
+      <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},-1)" ${upDis} title="Move up">▲</button>
+      <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-del" data-segdel="${pIdx}.${key}.${rIdx}" title="Remove sensor">×</button>
+    </div>`;
+    }
+    return `
+    <div class="seg-row">
+      <select class="prop-sel" data-segsel="${pIdx}.${key}.${rIdx}">
+        ${elemOptions.length === 0 ? '<option value="">(none)</option>' :
+          elemOptions.map(n => `<option value="${escapeHtml(n)}" ${n===r.element?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+      </select>
+      <input class="prop-inp" type="number" step="1" min="1" data-seginp="${pIdx}.${key}.${rIdx}.count" value="${r.count ?? 1}">
+      <input class="prop-inp" type="number" step="1" data-seginp="${pIdx}.${key}.${rIdx}.angle" data-nullable value="${r.angle ?? ''}" placeholder="default">
+      <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},-1)" ${upDis} title="Move up">▲</button>
+      <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-del" data-segdel="${pIdx}.${key}.${rIdx}" title="Remove row">×</button>
+    </div>`;
+  }).join('');
+  return `
+    <div class="seg-card ${cls}">
+      <div class="seg-hdr">
+        <span class="seg-title">${title}</span>
+        <span class="seg-count">${totalCount} element${totalCount===1?'':'s'} total</span>
+      </div>
+      <div class="seg-row-hdr"><span>Element</span><span>Count</span><span>Angle°</span><span></span><span></span><span></span></div>
+      <div class="seg-table">${rowsHTML}</div>
+      <div class="seg-btn-row">
+        <button class="seg-add" data-segadd="${pIdx}.${key}">+ Add row</button>
+        <button class="seg-add seg-add-sensor" data-segaddsensor="${pIdx}.${key}">&#9679; Add sensor</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────
+   MCC panel editor
+   ───────────────────────────────────────────────────── */
+function switchPanelType(idx, newType) {
+  const p = state.panels[idx];
+  if (!p || p.type === newType) return;
+  if (!confirm(`Convert Panel ${idx + 1} to ${newType}? Panel-specific settings will be reset.`)) {
+    render(); return;
+  }
+  if (newType === 'MCC') {
+    const mbb = p.main_busbar || [];
+    state.panels[idx] = {
+      type: 'MCC',
+      height: p.height, mbb_height: p.mbb_height,
+      dbb_length: 1900, T0: p.T0,
+      ventilation: p.ventilation ?? 'closed',
+      panel_depth: p.panel_depth ?? 600,
+      dbb_element: '', main_busbar: mbb, modules: []
+    };
+  } else {
+    state.panels[idx] = {
+      type: 'DC2BB', height: p.height, mbb_height: p.mbb_height,
+      load: 0, T0: p.T0,
+      ventilation: p.ventilation ?? 'closed',
+      panel_depth: p.panel_depth ?? 600,
+      main_busbar: p.main_busbar || [], angle_bars: [], io_bars: [], breaker: []
+    };
+  }
+  render();
+}
+
+function renderMCCEditor(p, idx) {
+  const elemNames = Object.keys(state.elements);
+  const dbbOpts = elemNames.length === 0
+    ? '<option value="">(define elements first)</option>'
+    : elemNames.map(n => `<option value="${escapeHtml(n)}" ${n===p.dbb_element?'selected':''}>${escapeHtml(n)}</option>`).join('');
+
+  const modulesHTML = (p.modules || []).map((m, mIdx) =>
+    renderMCCModuleCard(m, idx, mIdx, elemNames)
+  ).join('');
+
+  const mbbArr = p.main_busbar || [];
+  const mbbRows = mbbArr.map((r, rIdx) => {
+    const upDis = rIdx === 0 ? 'disabled' : '';
+    const dnDis = rIdx === mbbArr.length - 1 ? 'disabled' : '';
+    if (r.sensor !== undefined) {
+      return `
+    <div class="seg-row seg-row-sensor">
+      <span class="sensor-dot">&#9679;</span>
+      <input class="prop-inp sensor-name-inp" type="text"
+             data-sensname="${idx}.main_busbar.${rIdx}"
+             value="${escapeHtml(r.sensor)}" placeholder="sensor name">
+      <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},-1)" ${upDis} title="Move up">▲</button>
+      <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-del" data-segdel="${idx}.main_busbar.${rIdx}">×</button>
+    </div>`;
+    }
+    return `
+    <div class="seg-row">
+      <select class="prop-sel" data-segsel="${idx}.main_busbar.${rIdx}">
+        ${elemNames.map(n => `<option value="${escapeHtml(n)}" ${n===r.element?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+      </select>
+      <input class="prop-inp" type="number" step="1" min="1" data-seginp="${idx}.main_busbar.${rIdx}.count" value="${r.count ?? 1}">
+      <input class="prop-inp" type="number" step="1" data-seginp="${idx}.main_busbar.${rIdx}.angle" data-nullable value="${r.angle ?? ''}" placeholder="default">
+      <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},-1)" ${upDis} title="Move up">▲</button>
+      <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-del" data-segdel="${idx}.main_busbar.${rIdx}">×</button>
+    </div>`; }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-hdr" style="display:flex;align-items:center;gap:8px">
+        <span>Panel ${idx + 1}</span>
+        <select class="panel-type-sel" onchange="switchPanelType(${idx}, this.value)">
+          <option value="DC2BB">DC2BB</option>
+          <option value="MCC" selected>MCC</option>
+        </select>
+      </div>
+      <div class="prop-grid cols4">
+        <div class="prop-field">
+          <label class="prop-lbl">Height <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="10" min="0" data-bind="panels.${idx}.height" value="${p.height}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">MBB Height <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="10" min="0" data-bind="panels.${idx}.mbb_height" value="${p.mbb_height}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">DBB Length <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="50" min="0" data-bind="panels.${idx}.dbb_length" value="${p.dbb_length ?? 1900}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">T₀ <span class="u">[°C, optional]</span></label>
+          <input class="prop-inp" type="number" step="1" data-bind="panels.${idx}.T0" data-nullable value="${p.T0 ?? ''}" placeholder="(global)">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Ventilation</label>
+          <select class="prop-sel" data-bind="panels.${idx}.ventilation">
+            <option value="closed"  ${(p.ventilation??'closed')==='closed'  ?'selected':''}>closed  (IP54, sealed)</option>
+            <option value="louvers" ${(p.ventilation??'closed')==='louvers' ?'selected':''}>louvers (IP31, vents)</option>
+            <option value="open"    ${(p.ventilation??'closed')==='open'    ?'selected':''}>open    (IP20, mesh)</option>
+          </select>
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Depth <span class="u">[mm]</span></label>
+          <input class="prop-inp" type="number" step="50" min="100" data-bind="panels.${idx}.panel_depth" value="${p.panel_depth ?? 600}" title="Enclosure front-to-back depth">
+        </div>
+      </div>
+      <div class="prop-field" style="margin-top:6px">
+        <label class="prop-lbl">DBB Element <span class="u">(template for distribution bar)</span></label>
+        <select class="prop-sel" style="width:100%;padding:5px 6px" data-bind="panels.${idx}.dbb_element">${dbbOpts}</select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">Main Busbar</div>
+      <div class="seg-row-hdr"><span>Element</span><span>Count</span><span>Angle°</span><span></span><span></span><span></span></div>
+      <div>${mbbRows}</div>
+      <button class="seg-add" data-segadd="${idx}.main_busbar">+ Add row</button>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">Modules — ${(p.modules||[]).length} total
+        <span style="font-size:10px;color:var(--text3);font-weight:400;float:right">
+          Total load: ${(p.modules||[]).reduce((s,m)=>s+Math.abs(m.load||0),0)} A
+        </span>
+      </div>
+      <div class="mcc-modules">${modulesHTML}</div>
+      <button class="mcc-add-mod" onclick="addMCCModule(${idx})">+ Add Module</button>
+    </div>
+  `;
+}
+
+function renderMCCModuleCard(m, pIdx, mIdx, elemNames) {
+  const optsFor = (sel) => elemNames.length === 0
+    ? '<option value="">(no elements)</option>'
+    : elemNames.map(n => `<option value="${escapeHtml(n)}" ${n===sel?'selected':''}>${escapeHtml(n)}</option>`).join('');
+
+  function segRows(grpKey, rows) {
+    return (rows || []).map((r, rIdx) => `
+      <div class="seg-row">
+        <select data-msegsel="${pIdx}.${mIdx}.${grpKey}.${rIdx}">${optsFor(r.element)}</select>
+        <input type="number" step="1" min="1" class="prop-inp" data-mseginp="${pIdx}.${mIdx}.${grpKey}.${rIdx}.count" value="${r.count ?? 1}">
+        <button class="row-del" data-msegdel="${pIdx}.${mIdx}.${grpKey}.${rIdx}">×</button>
+      </div>`).join('');
+  }
+
+  return `
+    <div class="mcc-mod-card">
+      <div class="mcc-mod-hdr">
+        <span class="mod-num">Module ${mIdx + 1}</span>
+        <span class="mod-load-lbl">Load</span>
+        <input class="prop-inp mod-load-inp" type="number" step="1"
+          data-bind="panels.${pIdx}.modules.${mIdx}.load" value="${m.load ?? 0}"
+          title="Module feeder current [A]">
+        <span style="font-size:9px;color:var(--text3)">A</span>
+        <span class="mod-load-lbl" style="margin-left:6px">H</span>
+        <input class="prop-inp" style="width:56px" type="number" step="25" min="25"
+          data-bind="panels.${pIdx}.modules.${mIdx}.height" value="${m.height ?? 200}"
+          title="Module vertical height [mm], 25 mm steps">
+        <span style="font-size:9px;color:var(--text3)">mm</span>
+        <button class="mod-move" title="Move up" onclick="moveMCCModuleUp(${pIdx},${mIdx})" ${mIdx === 0 ? 'disabled' : ''}>▲</button>
+        <button class="mod-move" title="Move down" onclick="moveMCCModuleDown(${pIdx},${mIdx})" ${mIdx === state.panels[pIdx].modules.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="mod-del" onclick="deleteMCCModule(${pIdx}, ${mIdx})">×</button>
+      </div>
+      <div class="mcc-seg-grid">
+        <div class="mcc-seg-mini">
+          <div class="mcc-seg-mini-hdr">Incoming Bars</div>
+          ${segRows('incoming_bars', m.incoming_bars)}
+          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.incoming_bars">+ row</button>
+        </div>
+        <div class="mcc-seg-mini">
+          <div class="mcc-seg-mini-hdr">Device</div>
+          ${segRows('device', m.device)}
+          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.device">+ row</button>
+        </div>
+        <div class="mcc-seg-mini">
+          <div class="mcc-seg-mini-hdr">Outgoing</div>
+          ${segRows('outgoing', m.outgoing)}
+          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.outgoing">+ row</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function moveMCCModuleUp(pIdx, mIdx) {
+  const mods = state.panels[pIdx]?.modules;
+  if (!mods || mIdx <= 0) return;
+  [mods[mIdx - 1], mods[mIdx]] = [mods[mIdx], mods[mIdx - 1]];
+  render();
+}
+
+function moveMCCModuleDown(pIdx, mIdx) {
+  const mods = state.panels[pIdx]?.modules;
+  if (!mods || mIdx >= mods.length - 1) return;
+  [mods[mIdx], mods[mIdx + 1]] = [mods[mIdx + 1], mods[mIdx]];
+  render();
+}
+
+function addMCCModule(pIdx) {
+  const p = state.panels[pIdx];
+  if (!p) return;
+  const firstElem = Object.keys(state.elements)[0] || '';
+  p.modules.push({
+    load: 0,
+    height: 200,
+    incoming_bars: [{ element: firstElem, count: 1 }],
+    device:        [{ element: firstElem, count: 1 }],
+    outgoing:      []
+  });
+  render();
+}
+
+function deleteMCCModule(pIdx, mIdx) {
+  const p = state.panels[pIdx];
+  if (!p || !p.modules) return;
+  if (confirm(`Delete Module ${mIdx + 1}?`)) {
+    p.modules.splice(mIdx, 1);
+    render();
+  }
+}
+
+function renderSolver() {
+  const s = state.solver;
+  const hours = (s.end_time / 3600).toFixed(2);
+  return `
+    <div class="card">
+      <div class="card-hdr">Solver Settings</div>
+      <div class="card-hint">Adaptive explicit-Euler solver. Smaller accuracy = more accurate, slower.</div>
+      <div class="prop-grid cols3">
+        <div class="prop-field">
+          <label class="prop-lbl">Global Current <span class="u">[A]</span></label>
+          <input class="prop-inp" type="number" step="10" data-bind="solver.global_current" value="${s.global_current}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Ambient T <span class="u">[°C]</span></label>
+          <input class="prop-inp" type="number" step="1" data-bind="solver.T_ambient" value="${s.T_ambient}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Initial T₀ <span class="u">[°C]</span></label>
+          <input class="prop-inp" type="number" step="1" data-bind="solver.T0" value="${s.T0}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl" title="Max ΔT per step (smaller = more accurate, slower)">Accuracy <span class="u">[K]</span></label>
+          <input class="prop-inp" type="number" step="0.01" min="0" data-bind="solver.accuracy" value="${s.accuracy}" title="Max ΔT per step. Smaller = more accurate but slower.">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Initial dt <span class="u">[s]</span></label>
+          <input class="prop-inp" type="number" step="0.1" min="0" data-bind="solver.dt_init" value="${s.dt_init}">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">Air Update <span class="u">[s]</span></label>
+          <input class="prop-inp" type="number" step="0.5" min="0" data-bind="solver.air_interval" value="${s.air_interval}" title="Interval between in-panel air model updates">
+        </div>
+        <div class="prop-field" style="grid-column: span 3">
+          <label class="prop-lbl">Simulation Duration <span class="u">[s] — ${hours} h</span></label>
+          <input class="prop-inp" type="number" step="60" min="0" data-bind="solver.end_time" value="${s.end_time}">
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────
+   Centre panel — event wiring
+   ───────────────────────────────────────────────────── */
+function attachCentreHandlers() {
+  // generic binds
+  document.querySelectorAll('[data-bind]').forEach(inp => {
+    inp.addEventListener('input', onBindInput);
+    inp.addEventListener('change', onBindInput);
+  });
+  // element rename
+  const renameInp = document.getElementById('elem-name');
+  if (renameInp) renameInp.addEventListener('change', onElementRename);
+  // material editor
+  const matNameInp = document.getElementById('mat-name');
+  if (matNameInp) matNameInp.addEventListener('change', onMaterialRename);
+  document.querySelectorAll('[data-matbind]').forEach(inp => {
+    inp.addEventListener('input', onMatBindInput);
+    inp.addEventListener('change', onMatBindInput);
+  });
+  // override toggle
+  const showBtn = document.getElementById('show-overrides');
+  if (showBtn) showBtn.addEventListener('click', () => { ui.showOverrides = true; render(); });
+  const hideBtn = document.getElementById('hide-overrides');
+  if (hideBtn) hideBtn.addEventListener('click', () => {
+    ui.showOverrides = false;
+    if (ui.selectedElement && state.elements[ui.selectedElement]) {
+      delete state.elements[ui.selectedElement].htc;
+      delete state.elements[ui.selectedElement].emissivity;
+      delete state.elements[ui.selectedElement].ac_factor;
+    }
+    render();
+  });
+  // DC2BB segment rows
+  document.querySelectorAll('[data-segsel]').forEach(sel => sel.addEventListener('change', onSegSelChange));
+  document.querySelectorAll('[data-seginp]').forEach(inp => inp.addEventListener('input', onSegInpChange));
+  document.querySelectorAll('[data-segdel]').forEach(btn => btn.addEventListener('click', onSegRowDelete));
+  document.querySelectorAll('[data-segadd]').forEach(btn => btn.addEventListener('click', onSegRowAdd));
+  document.querySelectorAll('[data-segaddsensor]').forEach(btn => btn.addEventListener('click', onSegAddSensor));
+  document.querySelectorAll('[data-sensname]').forEach(inp => inp.addEventListener('change', onSensorNameChange));
+  // MCC module segment rows
+  document.querySelectorAll('[data-msegsel]').forEach(sel => sel.addEventListener('change', onMSegSelChange));
+  document.querySelectorAll('[data-mseginp]').forEach(inp => inp.addEventListener('input', onMSegInpChange));
+  document.querySelectorAll('[data-msegdel]').forEach(btn => btn.addEventListener('click', onMSegRowDelete));
+  document.querySelectorAll('[data-msegadd]').forEach(btn => btn.addEventListener('click', onMSegRowAdd));
+}
+
+function setStatePath(path, value) {
+  // path like "elements.VBB.width" — navigate state
+  const parts = path.split('.');
+  let cur = state;
+  for (let i = 0; i < parts.length - 1; i++) {
+    cur = cur[parts[i]];
+    if (cur == null) return;
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function getStatePath(path) {
+  const parts = path.split('.');
+  let cur = state;
+  for (const p of parts) {
+    if (cur == null) return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+function onBindInput(ev) {
+  const inp = ev.currentTarget;
+  const path = inp.dataset.bind;
+  const nullable = inp.dataset.nullable !== undefined;
+  let v = inp.value;
+  if (inp.tagName === 'SELECT') {
+    setStatePath(path, v);
+    // changing element type → adjust angle default & dims
+    if (path.startsWith('elements.') && path.endsWith('.type')) {
+      const name = path.split('.')[1];
+      const e = state.elements[name];
+      if (e) {
+        e.angle = TYPE_DEFAULT_ANGLE[e.type];
+        if (e.type === 'cable') {
+          if (e.outer_diameter == null) e.outer_diameter = 25;
+          if (e.inner_diameter == null) e.inner_diameter = 0;
+        } else {
+          if (e.width == null)  e.width  = 10;
+          if (e.height == null) e.height = 40;
+        }
+      }
+    }
+    render();
+    return;
+  }
+  if (inp.type === 'number') {
+    if (v === '' || v === null) {
+      if (nullable) {
+        // erase value
+        const parts = path.split('.');
+        const key = parts[parts.length - 1];
+        const parent = parts.slice(0, -1).reduce((o, k) => o[k], state);
+        delete parent[key];
+        renderRightAndYAML();
+        return;
+      } else {
+        v = 0;
+      }
+    } else {
+      v = parseFloat(v);
+      if (!isFinite(v)) v = 0;
+    }
+  }
+  setStatePath(path, v);
+  renderRightAndYAML();
+}
+
+function onElementRename(ev) {
+  const oldName = ev.currentTarget.dataset.rename;
+  const newName = ev.currentTarget.value.trim();
+  if (newName === oldName) return;
+  if (!NAME_RE.test(newName)) {
+    showToast('Invalid name. Use letters, digits, underscore (must start with a letter).');
+    ev.currentTarget.value = oldName;
+    return;
+  }
+  if (state.elements[newName]) {
+    showToast(`Name "${newName}" already exists.`);
+    ev.currentTarget.value = oldName;
+    return;
+  }
+  // preserve order
+  const newElements = {};
+  Object.keys(state.elements).forEach(k => {
+    if (k === oldName) newElements[newName] = state.elements[oldName];
+    else newElements[k] = state.elements[k];
+  });
+  state.elements = newElements;
+  // update segment references
+  state.panels.forEach(p => {
+    ['main_busbar', 'angle_bars', 'io_bars', 'breaker'].forEach(g => {
+      (p[g] || []).forEach(r => { if (r.element === oldName) r.element = newName; });
+    });
+  });
+  ui.selectedElement = newName;
+  render();
+}
+
+function onSegSelChange(ev) {
+  const [pIdx, key, rIdx] = ev.currentTarget.dataset.segsel.split('.');
+  state.panels[+pIdx][key][+rIdx].element = ev.currentTarget.value;
+  renderRightAndYAML();
+}
+
+function onSegInpChange(ev) {
+  const [pIdx, key, rIdx, field] = ev.currentTarget.dataset.seginp.split('.');
+  const nullable = ev.currentTarget.dataset.nullable !== undefined;
+  let v = ev.currentTarget.value;
+  if (v === '' || v === null) {
+    if (nullable) {
+      delete state.panels[+pIdx][key][+rIdx][field];
+      renderRightAndYAML();
+      return;
+    } else {
+      v = 0;
+    }
+  } else {
+    v = parseFloat(v);
+    if (!isFinite(v)) v = 0;
+    if (field === 'count') v = Math.max(1, Math.round(v));
+  }
+  state.panels[+pIdx][key][+rIdx][field] = v;
+  // refresh count display in segment header → re-render centre
+  render();
+}
+
+function onSegRowDelete(ev) {
+  const [pIdx, key, rIdx] = ev.currentTarget.dataset.segdel.split('.');
+  state.panels[+pIdx][key].splice(+rIdx, 1);
+  render();
+}
+
+function onSegRowAdd(ev) {
+  const [pIdx, key] = ev.currentTarget.dataset.segadd.split('.');
+  const firstElem = Object.keys(state.elements)[0] || '';
+  state.panels[+pIdx][key].push({ element: firstElem, count: 1 });
+  render();
+}
+
+function onSegAddSensor(ev) {
+  const [pIdx, key] = ev.currentTarget.dataset.segaddsensor.split('.');
+  const existing = (state.panels[+pIdx][key] || []).filter(r => r.sensor !== undefined).length;
+  state.panels[+pIdx][key].push({ sensor: `sensor_${existing + 1}` });
+  render();
+}
+
+function onSensorNameChange(ev) {
+  const [pIdx, key, rIdx] = ev.currentTarget.dataset.sensname.split('.');
+  state.panels[+pIdx][key][+rIdx].sensor = ev.currentTarget.value;
+  renderRightAndYAML();
+}
+
+function moveSegRow(pIdx, key, rIdx, dir) {
+  const arr = state.panels[+pIdx][key];
+  if (!arr) return;
+  const newIdx = rIdx + dir;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[rIdx], arr[newIdx]] = [arr[newIdx], arr[rIdx]];
+  render();
+}
+
+/* MCC module segment handlers */
+function _mccModSegRef(attr) {
+  // attr = "pIdx.mIdx.grpKey.rIdx" or "pIdx.mIdx.grpKey.rIdx.field"
+  const parts = attr.split('.');
+  const [pIdx, mIdx, grpKey, rIdx] = parts;
+  const mod = state.panels[+pIdx]?.modules?.[+mIdx];
+  if (!mod) return null;
+  if (!mod[grpKey]) mod[grpKey] = [];
+  return { mod, grpKey, rIdx: +rIdx, field: parts[4] };
+}
+
+function onMSegSelChange(ev) {
+  const ref = _mccModSegRef(ev.currentTarget.dataset.msegsel);
+  if (!ref) return;
+  ref.mod[ref.grpKey][ref.rIdx].element = ev.currentTarget.value;
+  renderRightAndYAML();
+}
+
+function onMSegInpChange(ev) {
+  const ref = _mccModSegRef(ev.currentTarget.dataset.mseginp);
+  if (!ref) return;
+  let v = parseFloat(ev.currentTarget.value);
+  if (!isFinite(v)) v = 0;
+  if (ref.field === 'count') v = Math.max(1, Math.round(v));
+  ref.mod[ref.grpKey][ref.rIdx][ref.field] = v;
+  render();
+}
+
+function onMSegRowDelete(ev) {
+  const ref = _mccModSegRef(ev.currentTarget.dataset.msegdel);
+  if (!ref) return;
+  ref.mod[ref.grpKey].splice(ref.rIdx, 1);
+  render();
+}
+
+function onMSegRowAdd(ev) {
+  const parts = ev.currentTarget.dataset.msegadd.split('.');
+  const [pIdx, mIdx, grpKey] = parts;
+  const mod = state.panels[+pIdx]?.modules?.[+mIdx];
+  if (!mod) return;
+  if (!mod[grpKey]) mod[grpKey] = [];
+  const firstElem = Object.keys(state.elements)[0] || '';
+  mod[grpKey].push({ element: firstElem, count: 1 });
+  render();
+}
+
+/* ─────────────────────────────────────────────────────
+   Right panel — schematic + summary
+   ───────────────────────────────────────────────────── */
+function renderRight() {
+  // schematic
+  const svg = document.getElementById('schematic-svg');
+  const meta = document.getElementById('schem-meta');
+  const p = state.panels[ui.selectedPanel];
+  if (!p) {
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" font-size="11" fill="#9ca3af">No panel selected</text>`;
+    meta.textContent = '';
+  } else {
+    svg.innerHTML = panelSchematic(p);
+    meta.textContent = `${p.height} mm tall`;
+  }
+  // bottom
+  const rbT = document.getElementById('rb-title');
+  const rbC = document.getElementById('rb-content');
+  if (ui.section === 'elements' && ui.selectedElement && state.elements[ui.selectedElement]) {
+    rbT.textContent = `Element — ${ui.selectedElement}`;
+    rbC.innerHTML = renderElementMiniPreview(state.elements[ui.selectedElement]);
+  } else {
+    rbT.textContent = 'Lineup Summary';
+    rbC.innerHTML = renderLineupSummary();
+  }
+}
+
+function panelSchematic(p, panelIdx) {
+  if (panelIdx === undefined) panelIdx = ui.selectedPanel;
+  if ((p.type || 'DC2BB') === 'MCC') return mccSchematic(p, panelIdx);
+
+  // Canvas
+  const W = 240, H = 380;
+  const margin = 16;
+  const labelW = 32;   // left margin reserved for Y-axis labels
+  const innerH = H - 2 * margin;
+  const panelX = margin + labelW;
+  const panelW = W - panelX - margin;
+  const yTop = margin, yBottom = margin + innerH;
+
+  // Geometry helpers
+  const totalH = Math.max(p.height || 2100, 1);
+  const scaleY = innerH / totalH;
+  const yMm = mm => yBottom - mm * scaleY;
+  const yMBB = yMm(Math.max(0, Math.min(p.mbb_height || 1500, totalH)));
+
+  const colMbb = getComputedStyleVar('--col-mbb');
+  const colAng = getComputedStyleVar('--col-angle');
+  const colIo  = getComputedStyleVar('--col-io');
+  const colBrk = getComputedStyleVar('--col-brk');
+
+  // Sum element lengths through a segment list (used for MBB horizontal scale)
+  function segTotLen(rows) {
+    return (rows||[]).reduce((s, r) => {
+      if (!r.element) return s;
+      const e = state.elements[r.element];
+      return s + (e?.length || 50) * (r.count || 1);
+    }, 0);
+  }
+  // First real element in a group
+  function firstE(rows) {
+    for (const r of (rows||[])) if (r.element && state.elements[r.element]) return state.elements[r.element];
+    return null;
+  }
+  // Cross-section height of an element [mm]
+  function csH(e) {
+    if (!e) return 20;
+    return e.type === 'cable' ? (e.outer_diameter || 25) : (e.height || 40);
+  }
+
+  // ── MBB: horizontal bar ──────────────────────────────────────────────
+  const mbbTotLen = segTotLen(p.main_busbar);
+  const mbbPxH    = Math.max(4, Math.min(csH(firstE(p.main_busbar)) * scaleY * 0.7, 16));
+  const mbbScX    = mbbTotLen > 0 ? (panelW - 6) / mbbTotLen : 0.05;
+
+  function drawMBB() {
+    let out = '', cumMm = 0;
+    (p.main_busbar||[]).forEach(r => {
+      if (r.sensor !== undefined) {
+        const sx = panelX + 3 + cumMm * mbbScX;
+        out += `<line x1="${sx.toFixed(1)}" y1="${(yMBB - mbbPxH - 5).toFixed(1)}" x2="${sx.toFixed(1)}" y2="${(yMBB + mbbPxH + 5).toFixed(1)}" stroke="#fcc138" stroke-width="1.5" stroke-dasharray="2,2"/>`;
+        out += `<circle cx="${sx.toFixed(1)}" cy="${(yMBB - mbbPxH - 9).toFixed(1)}" r="2.5" fill="#fcc138" stroke="#92620a" stroke-width=".7"/>`;
+        out += `<text x="${sx.toFixed(1)}" y="${(yMBB - mbbPxH - 14).toFixed(1)}" text-anchor="middle" font-size="6.5" fill="#fcc138">${r.sensor}</text>`;
+        return;
+      }
+      const e = state.elements[r.element];
+      if (!e) return;
+      const pxW = (e.length||50) * (r.count||1) * mbbScX;
+      const rx  = panelX + 3 + cumMm * mbbScX;
+      out += `<rect x="${rx.toFixed(1)}" y="${(yMBB - mbbPxH/2).toFixed(1)}" width="${Math.max(1, pxW).toFixed(1)}" height="${mbbPxH.toFixed(1)}" fill="${colMbb}" fill-opacity=".9" stroke="${colMbb}" stroke-width=".6" rx="1"/>`;
+      // segment label on longer sections
+      if (pxW > 22) out += `<text x="${(rx + pxW/2).toFixed(1)}" y="${(yMBB + mbbPxH/2 + 7).toFixed(1)}" text-anchor="middle" font-size="6" fill="${colMbb}" opacity=".7">${r.element}</text>`;
+      cumMm += (e.length||50) * (r.count||1);
+    });
+    return out;
+  }
+
+  // Visual line half-widths based on element cross-section
+  const csScale = 0.85;
+  const angHW = Math.max(3, Math.min(csH(firstE(p.angle_bars)) * csScale, 18));
+  const brkHW = Math.max(5, Math.min(csH(firstE(p.breaker))    * csScale, 24));
+  const ioHW  = Math.max(3, Math.min(csH(firstE(p.io_bars))    * csScale, 18));
+
+  const cx = panelX + panelW / 2;
+
+  // Draw element chain as directed line segments from the MBB connection point.
+  // Each row advances the cursor by (length * count) in the row's angle direction.
+  // angle convention: 0=horizontal, 90=up, -90=down (same as solver).
+  // SVG Y increases downward, so dy_svg = -length * sin(angle) * scaleY.
+  function drawChain() {
+    let out = '';
+    let px = cx, py = yMBB;
+    const groups = [
+      {rows: p.angle_bars, color: colAng, hw: angHW},
+      {rows: p.breaker,    color: colBrk, hw: brkHW},
+      {rows: p.io_bars,    color: colIo,  hw: ioHW},
+    ];
+    groups.forEach(({rows, color, hw}) => {
+      const sw = Math.max(2, hw * 0.8);
+      (rows||[]).forEach(r => {
+        if (r.sensor !== undefined) {
+          out += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3" fill="#fcc138" stroke="#92620a" stroke-width=".8"/>`;
+          out += `<text x="${(px + 5).toFixed(1)}" y="${(py - 5).toFixed(1)}" font-size="6.5" fill="#fcc138">${r.sensor}</text>`;
+          return;
+        }
+        const e = state.elements[r.element];
+        if (!e) return;
+        const deg = r.angle ?? e.angle ?? 0;
+        const rad = deg * Math.PI / 180;
+        const total_len = (e.length||50) * (r.count||1);
+        const ex = px + total_len * Math.cos(rad) * scaleY;
+        const ey = py - total_len * Math.sin(rad) * scaleY;
+        out += `<line x1="${px.toFixed(1)}" y1="${py.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${color}" stroke-width="${sw.toFixed(1)}" stroke-linecap="round" stroke-opacity=".85"/>`;
+        const seg_px = Math.hypot(ex - px, ey - py);
+        if (seg_px > 20) {
+          const mx = (px + ex) / 2, my = (py + ey) / 2;
+          out += `<text x="${(mx + sw + 3).toFixed(1)}" y="${(my + 3).toFixed(1)}" font-size="6" fill="${color}" opacity=".8">${r.element}×${r.count||1}</text>`;
+        }
+        px = ex; py = ey;
+      });
+    });
+    return {svg: out, endX: px, endY: py};
+  }
+  const {svg: chainSVG, endX: chainEndX, endY: chainEndY} = drawChain();
+
+  // ── Y-axis ticks ─────────────────────────────────────────────────────
+  function yAxis() {
+    const step = totalH > 2500 ? 500 : 250;
+    let out = '';
+    for (let h = 0; h <= totalH; h += step) {
+      const ty = yMm(h);
+      out += `<line x1="${panelX - 3}" y1="${ty.toFixed(1)}" x2="${panelX}" y2="${ty.toFixed(1)}" stroke="#6b7280" stroke-width=".8"/>`;
+      out += `<text x="${(panelX - 5).toFixed(1)}" y="${(ty + 3.5).toFixed(1)}" text-anchor="end" font-size="7.5" fill="#9ca3af">${h}</text>`;
+    }
+    // MBB tick
+    out += `<line x1="${panelX - 5}" y1="${yMBB.toFixed(1)}" x2="${panelX}" y2="${yMBB.toFixed(1)}" stroke="${colMbb}" stroke-width="1.2"/>`;
+    return out;
+  }
+
+  // ── Load indicator ────────────────────────────────────────────────────
+  const yLoad = Math.min(chainEndY, yBottom - 4) + 2;
+  const loadAbs  = Math.abs(p.load || 0);
+  const loadSign = (p.load || 0) >= 0 ? '+' : '−';
+  const triPts   = `${chainEndX-7},${yLoad} ${chainEndX+7},${yLoad} ${chainEndX},${yLoad+11}`;
+
+  const gradId = `pg-${panelIdx ?? 0}`;
+  return `
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1e293b" stop-opacity=".06"/>
+        <stop offset="100%" stop-color="#1e293b" stop-opacity=".01"/>
+      </linearGradient>
+    </defs>
+
+    <!-- enclosure -->
+    <rect x="${panelX}" y="${yTop}" width="${panelW}" height="${innerH}"
+          fill="url(#${gradId})" stroke="#94a3b8" stroke-width="1" rx="2"/>
+
+    <!-- Y axis -->
+    ${yAxis()}
+
+    <!-- MBB -->
+    ${drawMBB()}
+    <text x="${panelX + panelW - 3}" y="${(yMBB - mbbPxH/2 - 3).toFixed(1)}" text-anchor="end"
+          font-size="8" fill="${colMbb}" font-weight="600">MBB ${Math.round(p.mbb_height)} mm</text>
+
+    <!-- element chain -->
+    ${chainSVG}
+
+    <!-- load -->
+    ${yLoad < yBottom ? `
+    <polygon points="${triPts}" fill="#f97316" stroke="#c2410c" stroke-width=".8"/>
+    <text x="${chainEndX}" y="${yLoad + 22}" text-anchor="middle" font-size="9" fill="#374151" font-weight="600">${loadSign}${loadAbs} A</text>` : ''}
+
+    <!-- panel label -->
+    <text x="${panelX + 4}" y="${yTop + 11}" font-size="8.5" fill="#6b7280">P${(panelIdx??0)+1}${p.T0 != null ? ` T₀=${p.T0}°C` : ''}</text>
+    <text x="${panelX + panelW - 3}" y="${yBottom - 3}" text-anchor="end" font-size="7.5" fill="#9ca3af">${p.height} mm</text>
+  `;
+}
+
+function mccSchematic(p, panelIdx) {
+  const W = 240, H = 380;
+  const margin = 18;
+  const innerH = H - 2 * margin;
+  const panelX = margin + 30;
+  const panelW = W - 2 * margin - 60;
+  const yTop = margin, yBottom = margin + innerH;
+  const panelHeight = Math.max(p.height || 2000, 1);
+  const scaleY = innerH / panelHeight;
+  const gradId = `panel-grad-${panelIdx}`;
+  const colMbb = getComputedStyleVar('--col-mbb');
+  const dbbColor = '#0ea5e9';
+  const brkColor = getComputedStyleVar('--col-brk');
+
+  // MBB junction: position from bottom
+  const mbbH = Math.min(p.mbb_height || 2000, panelHeight);
+  const yJunction = yBottom - mbbH * scaleY;
+
+  // DBB: full vertical bar from bottom (y=yBottom) to top (y=yTop+margin/2)
+  const dbbX = panelX + 14;
+  const dbbLen = p.dbb_length || 1900;
+  const yDbbTop = yBottom - dbbLen * scaleY;
+  const yDbbTopClamped = Math.max(yTop + 4, yDbbTop);
+
+  // Modules: stacked from bottom, each at their cumulative center
+  const modules = p.modules || [];
+  let cumY = 0;
+  const moduleLines = modules.map((m, i) => {
+    const modH = Math.max(m.height ?? 200, 25);
+    const centerMM = cumY + modH / 2;
+    cumY += modH;
+    const yMod = yBottom - centerMM * scaleY;
+    const loadAbs = Math.abs(m.load || 0);
+    const loadSign = (m.load || 0) >= 0 ? '+' : '−';
+    const hasDevice = (m.device || []).length > 0;
+    const barRight = dbbX + 52;
+    return `
+      <line x1="${dbbX + 3}" y1="${yMod.toFixed(1)}" x2="${barRight}" y2="${yMod.toFixed(1)}" stroke="${dbbColor}" stroke-width="1.5"/>
+      ${hasDevice ? `<rect x="${barRight}" y="${(yMod - 4.5).toFixed(1)}" width="11" height="9" fill="${brkColor}22" stroke="${brkColor}" stroke-width="1" rx="1"/>` : ''}
+      <text x="${barRight + 14}" y="${(yMod + 3).toFixed(1)}" font-size="8" fill="#374151">${loadSign}${loadAbs}A</text>
+      <text x="${barRight + 14}" y="${(yMod - 4).toFixed(1)}" font-size="7" fill="#9ca3af">h=${modH}</text>
+    `;
+  }).join('');
+
+  // MBB junction marker (diamond) on DBB
+  const jx = dbbX, jy = yJunction;
+  const junctionMarker = `<polygon points="${jx},${(jy - 5).toFixed(1)} ${(jx + 4).toFixed(1)},${jy.toFixed(1)} ${jx},${(jy + 5).toFixed(1)} ${(jx - 4).toFixed(1)},${jy.toFixed(1)}" fill="${colMbb}" stroke="none"/>`;
+
+  return `
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1e293b" stop-opacity=".08"/>
+        <stop offset="100%" stop-color="#1e293b" stop-opacity=".02"/>
+      </linearGradient>
+    </defs>
+    <!-- enclosure -->
+    <rect x="${panelX}" y="${yTop}" width="${panelW}" height="${innerH}" fill="url(#${gradId})" stroke="#1e293b" stroke-width="1.2" rx="3"/>
+    <!-- DBB: full vertical bar bottom-to-top -->
+    <rect x="${(dbbX - 3).toFixed(1)}" y="${yDbbTopClamped.toFixed(1)}" width="6" height="${(yBottom - yDbbTopClamped).toFixed(1)}" fill="${dbbColor}" rx="1"/>
+    <!-- MBB horizontal at junction height -->
+    <rect x="${panelX + 6}" y="${(yJunction - 4).toFixed(1)}" width="${panelW - 12}" height="8" fill="${colMbb}" rx="2"/>
+    <!-- junction diamond where MBB meets DBB -->
+    ${junctionMarker}
+    <!-- module taps -->
+    ${moduleLines}
+    <!-- labels -->
+    <text x="${panelX + 4}" y="${yTop + 12}" font-size="9" fill="#6b7280">Panel ${panelIdx + 1} · MCC${p.T0 != null ? ` · T₀=${p.T0}°C` : ''}</text>
+    <text x="${panelX + panelW - 6}" y="${(yJunction - 7).toFixed(1)}" text-anchor="end" font-size="9" fill="${colMbb}" font-weight="700">MBB ${Math.round(mbbH)} mm</text>
+    <text x="${dbbX + 8}" y="${(yDbbTopClamped - 3).toFixed(1)}" font-size="8" fill="${dbbColor}">DBB ${Math.round(dbbLen)} mm</text>
+    <text x="${panelX + 4}" y="${yBottom - 4}" font-size="9" fill="#6b7280">${panelHeight} mm</text>
+  `;
+}
+
+function renderElementMiniPreview(e) {
+  const mat = MATERIALS[e.material] || state.materials[e.material] || {};
+  const dims = e.type === 'cable'
+    ? `⌀${fmtNum(e.outer_diameter)} mm${e.inner_diameter ? ` (inner ⌀${fmtNum(e.inner_diameter)})` : ''}`
+    : `${fmtNum(e.width)} × ${fmtNum(e.height)} mm`;
+  return `
+    <div class="shape-preview" style="min-height:90px">${elementShapeSVG(e)}</div>
+    <div style="margin-top:8px; padding:8px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); font-size:11px; line-height:1.6;">
+      <div><b>${escapeHtml(e.type)}</b> · ${escapeHtml(e.material)} — ${escapeHtml(mat.name || '')}</div>
+      <div style="color:var(--text2)">Cross-section: ${dims}</div>
+      <div style="color:var(--text2)">Length: ${fmtNum(e.length)} mm · n=${e.n}</div>
+      <div style="color:var(--text2)">σ = ${(mat.sigma/1e6 || 0).toFixed(1)} MS/m · α = ${(mat.alpha || 0).toExponential(2)} 1/K</div>
+    </div>
+  `;
+}
+
+function renderLineupSummary() {
+  const nPanels = state.panels.length;
+  const nElems  = Object.keys(state.elements).length;
+  let nodes = 0;
+  state.panels.forEach(p => {
+    const grps = p.type === 'MCC'
+      ? ['main_busbar']
+      : ['main_busbar', 'angle_bars', 'io_bars', 'breaker'];
+    grps.forEach(g => {
+      (p[g] || []).forEach(r => {
+        const e = state.elements[r.element];
+        nodes += (r.count || 0) * (e ? (e.n || 1) : 1);
+      });
+    });
+    if (p.type === 'MCC') {
+      (p.modules || []).forEach(m => {
+        ['incoming_bars', 'device', 'outgoing'].forEach(g => {
+          (m[g] || []).forEach(r => {
+            const e = state.elements[r.element];
+            nodes += (r.count || 0) * (e ? (e.n || 1) : 1);
+          });
+        });
+      });
+    }
+  });
+  return `
+    <div class="summary-stats">
+      <div class="stat-box"><div class="stat-val">${nPanels}</div><div class="stat-lbl">Panels</div></div>
+      <div class="stat-box"><div class="stat-val">${nElems}</div><div class="stat-lbl">Elements</div></div>
+      <div class="stat-box"><div class="stat-val">${nodes}</div><div class="stat-lbl">Node count (est.)</div></div>
+      <div class="stat-box"><div class="stat-val">${(state.solver.end_time/3600).toFixed(1)} h</div><div class="stat-lbl">Sim duration</div></div>
+    </div>
+  `;
+}
+
+/* ─────────────────────────────────────────────────────
+   YAML output & status
+   ───────────────────────────────────────────────────── */
+function renderYAML() {
+  const valid = validate();
+  const out = document.getElementById('yaml-out');
+  const status = document.getElementById('status-bar');
+  if (valid) {
+    out.value = generateYAML();
+    out.classList.remove('invalid');
+    status.textContent = `OK · ${Object.keys(state.elements).length} elements · ${state.panels.length} panels`;
+    status.className = 'tb-status ok';
+  } else {
+    out.value = `# ⚠ ${ui.errors.length} validation error(s):\n` +
+                ui.errors.map(e => `# - ${e}`).join('\n') +
+                `\n\n# (YAML output disabled until errors are fixed)`;
+    out.classList.add('invalid');
+    status.textContent = `${ui.errors.length} error(s)`;
+    status.className = 'tb-status error';
+  }
+}
+
+function renderRightAndYAML() { renderRight(); renderYAML(); }
+
+/* ─────────────────────────────────────────────────────
+   Full render
+   ───────────────────────────────────────────────────── */
+function render() {
+  renderLeft();
+  renderCentre();
+  renderRight();
+  renderYAML();
+}
+
+/* ─────────────────────────────────────────────────────
+   Add / new buttons
+   ───────────────────────────────────────────────────── */
+function addElement() {
+  let base = 'NEW_ELEM';
+  let name = base;
+  let i = 1;
+  while (state.elements[name]) { name = `${base}_${i++}`; }
+  state.elements[name] = {
+    type: 'busbar', material: 'Cu',
+    width: 10, height: 40, length: 50,
+    n: 1, angle: TYPE_DEFAULT_ANGLE.busbar
+  };
+  ui.selectedElement = name;
+  render();
+}
+
+function addMaterial() {
+  let n = 1;
+  while (state.materials[`MAT${n}`] || MATERIALS[`MAT${n}`]) n++;
+  const name = `MAT${n}`;
+  state.materials[name] = { sigma: 58e6, alpha: 3.9e-3, k: 401, density: 8920, Cp: 385 };
+  ui.selectedMaterial = name;
+  render();
+}
+
+function onMaterialRename(ev) {
+  const oldName = ui.selectedMaterial;
+  const newName = ev.currentTarget.value.trim();
+  if (!newName || newName === oldName) { render(); return; }
+  if (!NAME_RE.test(newName)) {
+    showToast(`Invalid material key: "${newName}"`);
+    render(); return;
+  }
+  if (state.materials[newName] || MATERIALS[newName]) {
+    showToast(`Material "${newName}" already exists`);
+    render(); return;
+  }
+  state.materials[newName] = state.materials[oldName];
+  delete state.materials[oldName];
+  // update references in elements
+  Object.values(state.elements).forEach(e => {
+    if (e.material === oldName) e.material = newName;
+  });
+  ui.selectedMaterial = newName;
+  render();
+}
+
+function onMatBindInput(ev) {
+  const parts = ev.currentTarget.dataset.matbind.split('.');
+  const matName = parts[0];
+  const field = parts[1];
+  const v = parseFloat(ev.currentTarget.value);
+  if (!isFinite(v) || v <= 0) return;
+  if (state.materials[matName]) {
+    state.materials[matName][field] = v;
+    renderYAML();
+  }
+}
+
+function movePanelUp(idx) {
+  if (idx <= 0) return;
+  [state.panels[idx - 1], state.panels[idx]] = [state.panels[idx], state.panels[idx - 1]];
+  ui.selectedPanel = idx - 1;
+  render();
+}
+
+function movePanelDown(idx) {
+  if (idx >= state.panels.length - 1) return;
+  [state.panels[idx], state.panels[idx + 1]] = [state.panels[idx + 1], state.panels[idx]];
+  ui.selectedPanel = idx + 1;
+  render();
+}
+
+function addPanel() {
+  const base = state.panels[state.panels.length - 1];
+  const fresh = base ? deepCopy(base) : {
+    type: 'DC2BB', height: 2100, mbb_height: 1250, load: 0, T0: null,
+    ventilation: 'closed', panel_depth: 600,
+    main_busbar: [], angle_bars: [], io_bars: [], breaker: []
+  };
+  fresh.load = 0;
+  state.panels.push(fresh);
+  ui.selectedPanel = state.panels.length - 1;
+  render();
+}
+
+/* ─────────────────────────────────────────────────────
+   File I/O
+   ───────────────────────────────────────────────────── */
+function downloadYAML() {
+  const valid = validate();
+  if (!valid) {
+    showToast('Fix validation errors before downloading.');
+    return;
+  }
+  const blob = new Blob([generateYAML()], { type: 'text/yaml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lineup.yaml';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  showToast('Downloaded lineup.yaml');
+}
+
+function copyYAML() {
+  const valid = validate();
+  if (!valid) { showToast('Fix validation errors first.'); return; }
+  const text = generateYAML();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => showToast('✓ Copied!'), () => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); showToast('✓ Copied!'); }
+  catch (_) { showToast('Copy failed'); }
+  document.body.removeChild(ta);
+}
+
+function openLoadDialog() {
+  document.getElementById('file-input').click();
+}
+function handleFileLoad(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const ok = loadFromYAMLText(e.target.result);
+    if (ok) { showToast(`Loaded ${file.name}`); render(); }
+    else { showToast('YAML parse failed — see console'); }
+  };
+  reader.readAsText(file);
+  ev.target.value = ''; // allow re-loading the same file
+}
+
+/* ─────────────────────────────────────────────────────
+   Toast
+   ───────────────────────────────────────────────────── */
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ─────────────────────────────────────────────────────
+   Helpers
+   ───────────────────────────────────────────────────── */
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+/* ─────────────────────────────────────────────────────
+   Lineup View — modal showing all panels side by side
+   ───────────────────────────────────────────────────── */
+function lineupSchematic() {
+  const panels = state.panels;
+  if (panels.length === 0) {
+    return `<svg viewBox="0 0 300 100" width="300" height="100">
+      <text x="150" y="55" text-anchor="middle" font-size="13" fill="#9ca3af">No panels defined yet.</text>
+    </svg>`;
+  }
+
+  const colW = 240;     // SVG units per panel column (matches panelSchematic's W)
+  const colH = 380;
+  const gap  = 12;
+  const totalW = panels.length * colW + (panels.length + 1) * gap;
+
+  // Build one nested <svg> per panel — each reuses panelSchematic's coordinate space
+  const cells = panels.map((p, i) => {
+    const x = gap + i * (colW + gap);
+    return `<svg x="${x}" y="0" width="${colW}" height="${colH}" viewBox="0 0 ${colW} ${colH}" overflow="visible">${panelSchematic(p, i)}</svg>`;
+  }).join('');
+
+  // Pixel size for display — scale down so it fits nicely in the modal
+  const displayH = Math.min(480, window.innerHeight * 0.55);
+  const displayW = Math.round(displayH * totalW / colH);
+
+  return `<svg viewBox="0 0 ${totalW} ${colH}" width="${displayW}" height="${displayH}"
+    style="display:block; max-width:100%; overflow:visible">${cells}</svg>`;
+}
+
+function showLineupView() {
+  let existing = document.getElementById('lineup-modal');
+  if (existing) { existing.remove(); }
+
+  const modal = document.createElement('div');
+  modal.id = 'lineup-modal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:92vw; min-width:360px;">
+      <div class="modal-hdr">
+        <span>Lineup View — ${state.panels.length} panel${state.panels.length !== 1 ? 's' : ''}</span>
+        <button class="close" onclick="document.getElementById('lineup-modal').remove()">×</button>
+      </div>
+      <div class="modal-body" style="overflow-x:auto; overflow-y:auto; padding:16px 20px;">
+        <div id="lineup-svg-wrap" style="min-width:max-content">${lineupSchematic()}</div>
+        <div style="margin-top:12px; font-size:11px; color:var(--text3); display:flex; gap:16px; flex-wrap:wrap;">
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--col-mbb);border-radius:2px;margin-right:4px;vertical-align:middle"></span>Main Busbar</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--col-angle);border-radius:2px;margin-right:4px;vertical-align:middle"></span>Angle Bars</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--col-brk);border-radius:2px;margin-right:4px;vertical-align:middle"></span>Breaker</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--col-io);border-radius:2px;margin-right:4px;vertical-align:middle"></span>I/O Bars</span>
+          <span style="margin-left:auto; color:var(--text3)">Bar rectangles = actual cross-section proportions</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tb-btn" onclick="exportLineupSVG()">Export SVG</button>
+        <button class="tb-btn" onclick="document.getElementById('lineup-modal').remove()">Close</button>
+      </div>
+    </div>
+  `;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+
+function exportLineupSVG() {
+  const wrap = document.getElementById('lineup-svg-wrap');
+  if (!wrap) return;
+  const svgEl = wrap.querySelector('svg');
+  if (!svgEl) return;
+  const blob = new Blob([svgEl.outerHTML], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lineup.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  showToast('Downloaded lineup.svg');
+}
+
+/* ─────────────────────────────────────────────────────
+   Wiring
+   ───────────────────────────────────────────────────── */
+document.querySelectorAll('.nav-tab').forEach(t => {
+  t.addEventListener('click', () => {
+    ui.section = t.dataset.section;
+    ui.showOverrides = false;
+    render();
+  });
+});
+
+document.getElementById('add-btn').addEventListener('click', () => {
+  if (ui.section === 'elements') addElement();
+  else if (ui.section === 'panels') addPanel();
+  else if (ui.section === 'materials') addMaterial();
+});
+
+document.getElementById('btn-lineup').addEventListener('click', showLineupView);
+
+document.getElementById('btn-new').addEventListener('click', () => {
+  if (confirm('Discard current lineup and start fresh?')) {
+    clearLineup();
+    render();
+  }
+});
+document.getElementById('btn-example').addEventListener('click', () => {
+  if (confirm('Replace current lineup with the bundled example?')) {
+    loadExample();
+    ui.section = 'elements';
+    render();
+  }
+});
+document.getElementById('btn-load').addEventListener('click', openLoadDialog);
+document.getElementById('file-input').addEventListener('change', handleFileLoad);
+document.getElementById('btn-download').addEventListener('click', downloadYAML);
+document.getElementById('btn-copy').addEventListener('click', copyYAML);
+document.getElementById('btn-dl-yaml').addEventListener('click', downloadYAML);
+
+/* boot */
+loadExample();
+render();
+</script>
+</body>
+</html>
