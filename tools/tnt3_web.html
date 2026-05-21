@@ -703,7 +703,7 @@ body {
 
 /* ── YAML Drawer (bottom of Design tab) ─────────────── */
 #yaml-drawer {
-  height: 210px;
+  height: 340px;
   background: var(--panel);
   border-top: 1px solid var(--border);
   display: flex;
@@ -768,8 +768,32 @@ body {
   outline: none;
   min-height: 0;
 }
-#yaml-output.invalid { background: rgba(239,68,68,.08); color: var(--danger); }
+#yaml-output.invalid { background: rgba(220,38,38,.07); color: var(--danger); }
+#yaml-output.dirty  { background: #fffbeb; }
+#yaml-output.flash-ok  { background: #f0fdf4; transition: background .4s; }
+#yaml-output.flash-err { background: #fef2f2; transition: background .4s; }
 #yaml-drawer.collapsed #yaml-output { display: none; }
+#yaml-drawer.collapsed #yaml-dirty-bar { display: none !important; }
+#yaml-dirty-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px;
+  background: #fffbeb;
+  border-top: 1px solid #fcd34d;
+  font-size: 11px;
+  color: #92400e;
+  flex-shrink: 0;
+}
+#yaml-dirty-bar.visible { display: flex; }
+#yaml-parse-err {
+  font-size: 10px;
+  color: var(--danger);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ═══════════════════════════════════════════════════════
    SOLVE TAB — 2-column layout
@@ -1460,12 +1484,21 @@ body {
     <!-- YAML DRAWER (bottom, collapsible) -->
     <div id="yaml-drawer">
       <div id="yaml-hdr" onclick="toggleYamlDrawer()">
-        <span class="pv-title">YAML Output</span>
+        <span class="pv-title">YAML — editable</span>
         <span id="yaml-drawer-toggle">&#9660;</span>
+        <button class="pv-btn" id="btn-apply-yaml" onclick="event.stopPropagation(); applyYAMLEdit()" style="display:none; border-color:var(--warn); color:var(--warn2); font-weight:700">&#8593; Apply</button>
+        <button class="pv-btn" id="btn-revert-yaml" onclick="event.stopPropagation(); revertYAMLEdit()" style="display:none">Revert</button>
         <button class="pv-btn" id="btn-copy-yaml" onclick="event.stopPropagation(); copyYAML()">Copy</button>
         <button class="pv-btn primary" id="btn-dl-yaml" onclick="event.stopPropagation(); downloadYAML()">Download</button>
       </div>
-      <textarea id="yaml-output" readonly spellcheck="false" placeholder="YAML will appear here…"></textarea>
+      <textarea id="yaml-output" spellcheck="false" placeholder="YAML will appear here…"
+                title="Edit YAML directly — Ctrl+Enter to apply, Escape to revert"></textarea>
+      <div id="yaml-dirty-bar">
+        <span>&#9998; Unsaved edits —</span>
+        <span id="yaml-parse-err"></span>
+        <button class="pv-btn" style="padding:2px 8px;font-size:10px;border-color:var(--warn);color:var(--warn2);font-weight:700" onclick="applyYAMLEdit()">&#8593; Apply to editor</button>
+        <button class="pv-btn" style="padding:2px 8px;font-size:10px" onclick="revertYAMLEdit()">&#215; Revert</button>
+      </div>
     </div>
 
   </div><!-- /#tab-design -->
@@ -1765,6 +1798,73 @@ function switchSubTab(subId) {
 function toggleYamlDrawer() {
   const drawer = document.getElementById('yaml-drawer');
   if (drawer) drawer.classList.toggle('collapsed');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// YAML LIVE EDIT
+// ═══════════════════════════════════════════════════════════════════════
+let _yamlEditDirty = false;
+let _yamlParseTimer = null;
+
+function _setYamlDirty(dirty) {
+  _yamlEditDirty = dirty;
+  const bar  = document.getElementById('yaml-dirty-bar');
+  const ta   = document.getElementById('yaml-output');
+  const btnA = document.getElementById('btn-apply-yaml');
+  const btnR = document.getElementById('btn-revert-yaml');
+  if (bar)  bar.classList.toggle('visible', dirty);
+  if (ta)   ta.classList.toggle('dirty', dirty);
+  if (btnA) btnA.style.display = dirty ? '' : 'none';
+  if (btnR) btnR.style.display = dirty ? '' : 'none';
+  if (!dirty) {
+    const errEl = document.getElementById('yaml-parse-err');
+    if (errEl) errEl.textContent = '';
+  }
+}
+
+function _onYamlInput() {
+  _setYamlDirty(true);
+  // debounced live parse-check (error hint only, no state change)
+  clearTimeout(_yamlParseTimer);
+  _yamlParseTimer = setTimeout(() => {
+    const ta = document.getElementById('yaml-output');
+    if (!ta || !_yamlEditDirty) return;
+    const errEl = document.getElementById('yaml-parse-err');
+    try {
+      parseYAML(ta.value);
+      if (errEl) errEl.textContent = '';
+    } catch (e) {
+      if (errEl) errEl.textContent = String(e.message || e).slice(0, 120);
+    }
+  }, 600);
+}
+
+function applyYAMLEdit() {
+  const ta = document.getElementById('yaml-output');
+  if (!ta) return;
+  const ok = loadFromYAMLText(ta.value);
+  if (ok) {
+    _setYamlDirty(false);
+    render();
+    // brief green flash
+    ta.classList.add('flash-ok');
+    setTimeout(() => ta.classList.remove('flash-ok'), 600);
+    showToast('YAML applied');
+  } else {
+    ta.classList.add('flash-err');
+    setTimeout(() => ta.classList.remove('flash-err'), 600);
+    const errEl = document.getElementById('yaml-parse-err');
+    if (errEl && !errEl.textContent) errEl.textContent = 'Parse failed — check syntax';
+    showToast('YAML parse error — check syntax');
+  }
+}
+
+function revertYAMLEdit() {
+  _setYamlDirty(false);
+  // re-generate from current state
+  const out = document.getElementById('yaml-output');
+  if (out) out.value = generateYAML();
+  showToast('Reverted to editor state');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3147,6 +3247,7 @@ function validate() {
           errs.push(`Panel ${idx + 1} module ${mIdx + 1}: device segment is required`);
         ['incoming_bars', 'device', 'outgoing'].forEach(grp => {
           (m[grp] || []).forEach((row, rIdx) => {
+            if (row.sensor !== undefined) return;
             if (!row.element || !elemNames.includes(row.element))
               errs.push(`Panel ${idx + 1} module ${mIdx + 1} ${grp}[${rIdx}]: element "${row.element || '?'}" not defined`);
           });
@@ -4204,7 +4305,10 @@ function renderMCCEditor(p, idx) {
       <div class="card-hdr">Main Busbar</div>
       <div class="seg-row-hdr"><span>Element</span><span>Count</span><span>Angle°</span><span></span><span></span><span></span></div>
       <div>${mbbRows}</div>
-      <button class="seg-add" data-segadd="${idx}.main_busbar">+ Add row</button>
+      <div class="seg-btn-row">
+        <button class="seg-add" data-segadd="${idx}.main_busbar">+ Add row</button>
+        <button class="seg-add seg-add-sensor" data-segaddsensor="${idx}.main_busbar">&#9679; Add sensor</button>
+      </div>
     </div>
 
     <div class="card">
@@ -4225,12 +4329,24 @@ function renderMCCModuleCard(m, pIdx, mIdx, elemNames) {
     : elemNames.map(n => `<option value="${escapeHtml(n)}" ${n===sel?'selected':''}>${escapeHtml(n)}</option>`).join('');
 
   function segRows(grpKey, rows) {
-    return (rows || []).map((r, rIdx) => `
+    return (rows || []).map((r, rIdx) => {
+      if (r.sensor !== undefined) {
+        return `
+      <div class="seg-row seg-row-sensor">
+        <span class="sensor-dot">&#9679;</span>
+        <input class="prop-inp sensor-name-inp" type="text"
+               data-msensname="${pIdx}.${mIdx}.${grpKey}.${rIdx}"
+               value="${escapeHtml(r.sensor)}" placeholder="sensor name">
+        <button class="row-del" data-msegdel="${pIdx}.${mIdx}.${grpKey}.${rIdx}" title="Remove sensor">×</button>
+      </div>`;
+      }
+      return `
       <div class="seg-row">
         <select data-msegsel="${pIdx}.${mIdx}.${grpKey}.${rIdx}">${optsFor(r.element)}</select>
         <input type="number" step="1" min="1" class="prop-inp" data-mseginp="${pIdx}.${mIdx}.${grpKey}.${rIdx}.count" value="${r.count ?? 1}">
         <button class="row-del" data-msegdel="${pIdx}.${mIdx}.${grpKey}.${rIdx}">×</button>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   return `
@@ -4255,17 +4371,26 @@ function renderMCCModuleCard(m, pIdx, mIdx, elemNames) {
         <div class="mcc-seg-mini">
           <div class="mcc-seg-mini-hdr">Incoming Bars</div>
           ${segRows('incoming_bars', m.incoming_bars)}
-          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.incoming_bars">+ row</button>
+          <div class="seg-btn-row" style="margin-top:4px">
+            <button class="seg-add" data-msegadd="${pIdx}.${mIdx}.incoming_bars">+ row</button>
+            <button class="seg-add seg-add-sensor" data-msegaddsensor="${pIdx}.${mIdx}.incoming_bars">&#9679;</button>
+          </div>
         </div>
         <div class="mcc-seg-mini">
           <div class="mcc-seg-mini-hdr">Device</div>
           ${segRows('device', m.device)}
-          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.device">+ row</button>
+          <div class="seg-btn-row" style="margin-top:4px">
+            <button class="seg-add" data-msegadd="${pIdx}.${mIdx}.device">+ row</button>
+            <button class="seg-add seg-add-sensor" data-msegaddsensor="${pIdx}.${mIdx}.device">&#9679;</button>
+          </div>
         </div>
         <div class="mcc-seg-mini">
           <div class="mcc-seg-mini-hdr">Outgoing</div>
           ${segRows('outgoing', m.outgoing)}
-          <button class="seg-add" style="margin-top:4px" data-msegadd="${pIdx}.${mIdx}.outgoing">+ row</button>
+          <div class="seg-btn-row" style="margin-top:4px">
+            <button class="seg-add" data-msegadd="${pIdx}.${mIdx}.outgoing">+ row</button>
+            <button class="seg-add seg-add-sensor" data-msegaddsensor="${pIdx}.${mIdx}.outgoing">&#9679;</button>
+          </div>
         </div>
       </div>
     </div>
@@ -4388,6 +4513,8 @@ function attachCentreHandlers() {
   document.querySelectorAll('[data-mseginp]').forEach(inp => inp.addEventListener('input', onMSegInpChange));
   document.querySelectorAll('[data-msegdel]').forEach(btn => btn.addEventListener('click', onMSegRowDelete));
   document.querySelectorAll('[data-msegadd]').forEach(btn => btn.addEventListener('click', onMSegRowAdd));
+  document.querySelectorAll('[data-msegaddsensor]').forEach(btn => btn.addEventListener('click', onMSegAddSensor));
+  document.querySelectorAll('[data-msensname]').forEach(inp => inp.addEventListener('change', onMSensorNameChange));
 }
 
 function setStatePath(path, value) {
@@ -4589,6 +4716,24 @@ function onMSegRowAdd(ev) {
   const firstElem = Object.keys(state.elements)[0] || '';
   mod[grpKey].push({ element: firstElem, count: 1 });
   render();
+}
+
+function onMSegAddSensor(ev) {
+  const [pIdx, mIdx, grpKey] = ev.currentTarget.dataset.msegaddsensor.split('.');
+  const mod = state.panels[+pIdx]?.modules?.[+mIdx];
+  if (!mod) return;
+  if (!mod[grpKey]) mod[grpKey] = [];
+  const existing = mod[grpKey].filter(r => r.sensor !== undefined).length;
+  mod[grpKey].push({ sensor: `sensor_${existing + 1}` });
+  render();
+}
+
+function onMSensorNameChange(ev) {
+  const [pIdx, mIdx, grpKey, rIdx] = ev.currentTarget.dataset.msensname.split('.');
+  const mod = state.panels[+pIdx]?.modules?.[+mIdx];
+  if (!mod) return;
+  mod[grpKey][+rIdx].sensor = ev.currentTarget.value;
+  renderRightAndYAML();
 }
 
 /* ─────────────────────────────────────────────────────
@@ -4884,17 +5029,22 @@ function renderYAML() {
   const out = document.getElementById('yaml-output');
   const statusEl = document.getElementById('status');
   if (valid) {
-    out.value = generateYAML();
-    out.classList.remove('invalid');
+    // don't clobber in-progress manual edits
+    if (!_yamlEditDirty) {
+      out.value = generateYAML();
+      out.classList.remove('invalid');
+    }
     if (statusEl) {
       statusEl.textContent = `OK · ${Object.keys(state.elements).length} elements · ${state.panels.length} panels`;
       statusEl.className = 'ok';
     }
   } else {
-    out.value = `# ⚠ ${ui.errors.length} validation error(s):\n` +
-                ui.errors.map(e => `# - ${e}`).join('\n') +
-                `\n\n# (YAML output disabled until errors are fixed)`;
-    out.classList.add('invalid');
+    if (!_yamlEditDirty) {
+      out.value = `# ⚠ ${ui.errors.length} validation error(s):\n` +
+                  ui.errors.map(e => `# - ${e}`).join('\n') +
+                  `\n\n# (YAML output disabled until errors are fixed)`;
+      out.classList.add('invalid');
+    }
     if (statusEl) {
       statusEl.textContent = `${ui.errors.length} error(s)`;
       statusEl.className = 'error';
@@ -6245,6 +6395,25 @@ function _setupHeatmapInteraction() {
 document.addEventListener('DOMContentLoaded', () => {
   _setupHeatmapInteraction();
   document.getElementById('file-input')?.addEventListener('change', onFileChange);
+
+  // Wire up YAML live editing
+  const yamlOut = document.getElementById('yaml-output');
+  if (yamlOut) {
+    yamlOut.addEventListener('input', _onYamlInput);
+    // Ctrl/Cmd+Enter = Apply
+    yamlOut.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (_yamlEditDirty) applyYAMLEdit();
+      }
+      // Escape = Revert
+      if (e.key === 'Escape' && _yamlEditDirty) {
+        e.preventDefault();
+        revertYAMLEdit();
+      }
+    });
+  }
+
   // Initialize charts with empty state
   const trendCanvas = document.getElementById('trend-canvas');
   if (trendCanvas) drawTrendChart(trendCanvas, [], [], 20);
