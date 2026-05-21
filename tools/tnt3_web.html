@@ -1191,9 +1191,10 @@ body {
 .sc-name { font-size: 12px; font-weight: 700; color: var(--text); }
 .sc-panel { font-size: 10px; color: var(--text2); }
 .sc-body { padding: 8px 10px; }
-.sc-temp { font-size: 22px; font-weight: 700; font-family: monospace; color: var(--text); }
-.sc-unit { font-size: 12px; font-weight: 400; color: var(--text2); }
-.sc-rise { font-size: 11px; color: var(--text2); margin: 2px 0 5px; }
+.sc-rise { font-size: 22px; font-weight: 700; font-family: monospace; margin: 0 0 2px; }
+.sc-unit-rise { font-size: 12px; font-weight: 400; color: inherit; opacity: .75; }
+.sc-temp { font-size: 12px; font-weight: 400; font-family: monospace; color: var(--text3); margin-bottom: 4px; }
+.sc-unit { font-size: 10px; font-weight: 400; color: var(--text3); }
 .sc-bar-wrap { height: 4px; background: var(--panel2); border-radius: 2px; overflow: hidden; }
 .sc-bar { height: 100%; border-radius: 2px; }
 
@@ -5880,7 +5881,7 @@ function setSelectedNode(idx) {
   const dT  = T !== null ? (T - T_amb).toFixed(1) : '—';
   const Tstr = T !== null ? T.toFixed(1) + '°C' : '—';
   document.getElementById('selected-info-text').textContent =
-    `Node #${idx}  |  Panel ${node.panel_id + 1}  |  x=${node.x.toFixed(0)} mm  y=${node.y.toFixed(0)} mm  |  T=${Tstr}  |  ΔT=${dT} K` +
+    `Node #${idx}  |  Panel ${node.panel_id + 1}  |  x=${node.x.toFixed(0)} mm  y=${node.y.toFixed(0)} mm  |  ΔT=+${dT} K  |  T=${Tstr}` +
     (node.sensor_name ? `  |  sensor: ${node.sensor_name}` : '');
   document.getElementById('clear-sel-btn').style.display = '';
 
@@ -5940,8 +5941,8 @@ function renderSensorTable() {
           <span class="sc-name">${name}</span><span class="sc-panel">P${pid+1}</span>
         </div>
         <div class="sc-body">
-          <div class="sc-temp" style="color:${col}">${T.toFixed(1)}<span class="sc-unit">°C</span></div>
-          <div class="sc-rise">+${dT.toFixed(1)} K rise</div>
+          <div class="sc-rise" style="color:${col}">+${dT.toFixed(1)}<span class="sc-unit-rise"> K</span></div>
+          <div class="sc-temp">${T.toFixed(1)}<span class="sc-unit"> °C abs</span></div>
           <div class="sc-bar-wrap"><div class="sc-bar" style="width:${Math.min(100,dT/60*100).toFixed(1)}%;background:${col}"></div></div>
         </div>
       </div>`;
@@ -5965,7 +5966,7 @@ function renderNodeTableHTML(T_amb) {
   rows.sort((a, b) => _nodeSortAsc ? a.dT - b.dT : b.dT - a.dT);
 
   let html = '<div class="node-tbl-wrap"><table class="node-tbl"><thead><tr>'
-    + '<th>#</th><th>Panel</th><th>x</th><th>y</th><th>T [°C]</th><th>ΔT [K]</th><th>Sensor</th>'
+    + '<th>#</th><th>Panel</th><th>x</th><th>y</th><th>ΔT [K]</th><th style="color:var(--text3)">T [°C]</th><th>Sensor</th>'
     + '</tr></thead><tbody>';
   for (const r of rows) {
     const pc  = PANEL_COLORS[r.panel % PANEL_COLORS.length];
@@ -5975,8 +5976,8 @@ function renderNodeTableHTML(T_amb) {
       <td>${r.idx}</td>
       <td><span class="dot" style="background:${pc}"></span>P${r.panel+1}</td>
       <td>${r.x.toFixed(0)}</td><td>${r.y.toFixed(0)}</td>
-      <td>${r.T.toFixed(1)}</td>
-      <td style="color:${dtc};font-weight:600">${r.dT.toFixed(1)}</td>
+      <td style="color:${dtc};font-weight:700;font-size:12px">+${r.dT.toFixed(1)}</td>
+      <td style="color:var(--text3);font-size:10px">${r.T.toFixed(1)}</td>
       <td>${r.sensor}</td>
     </tr>`;
   }
