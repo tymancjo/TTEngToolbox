@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TnT-3 Web — Design · Solve · Results</title>
+<title>TnT-3 Web — Design · Solve · Results · Live</title>
 <style>
 /* ═══════════════════════════════════════════════════════
    ROOT VARIABLES — light theme
@@ -423,6 +423,12 @@ body {
 .prop-inp.error { border-color: var(--danger); background: rgba(239,68,68,.1); }
 .prop-err { font-size: 10px; color: var(--danger); margin-top: 2px; }
 .prop-help { font-size: 10px; color: var(--text3); margin-top: 2px; line-height: 1.4; }
+/* Quick-check result rows */
+.qc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin-top: 10px; }
+.qc-row  { display: flex; justify-content: space-between; align-items: baseline;
+           font-size: 12px; border-bottom: 1px dotted var(--border); padding-bottom: 3px; }
+.qc-lbl  { color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+.qc-val  { font-weight: 700; font-family: monospace; color: var(--accent); font-size: 12px; }
 
 .toggle-btn {
   background: none;
@@ -891,6 +897,26 @@ body {
 #btn-stop { background: var(--stop-bg); border-color: var(--stop-bdr); color: var(--stop-text); }
 #btn-stop:hover { background: var(--stop-bdr); }
 #btn-stop:disabled { background: var(--panel2); border-color: var(--border); color: var(--text3); cursor: default; }
+#btn-pause { background: var(--ss-bg); border-color: var(--ss-bdr); color: var(--ss-text); display:none; }
+#btn-pause:hover { background: var(--ss-bdr); }
+#btn-pause.paused { background: var(--run-bg); border-color: var(--run-border); color: var(--run-text); }
+#btn-pause.paused:hover { background: var(--run-border); }
+#btn-pause:disabled { background: var(--panel2); border-color: var(--border); color: var(--text3); cursor: default; }
+.live-frame-btn {
+  padding: 2px 8px; font-size: 11px;
+  border: 1px solid var(--ss-bdr); border-radius: 3px;
+  background: var(--ss-bg); color: var(--ss-text);
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.live-frame-btn:hover { background: var(--ss-bdr); }
+.live-rewind-btn {
+  padding: 2px 8px; font-size: 11px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--panel2); color: var(--text2);
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+}
+.live-rewind-btn:disabled { opacity: .4; cursor: not-allowed; }
+.live-rewind-btn:not(:disabled):hover { background: var(--accent3); color: #fff; border-color: var(--accent2); }
 
 #progress-bar-wrap {
   height: 28px;
@@ -942,6 +968,7 @@ body {
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+  position: relative;
 }
 
 #viz-top-bar {
@@ -981,6 +1008,43 @@ body {
   min-height: 0;
 }
 #viz-svg { width: 100%; height: 100%; }
+
+/* ── Live controls ──────────────────────────────────── */
+.live-panel-ctrl {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border2);
+}
+.live-panel-hdr {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; color: var(--text);
+  margin-bottom: 4px;
+}
+.live-ctrl-row {
+  display: flex; align-items: center; gap: 4px;
+}
+.live-ctrl-inp {
+  width: 72px; padding: 3px 5px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--input); color: var(--text);
+  font-size: 11px; font-family: monospace;
+}
+.live-ctrl-btn {
+  padding: 2px 7px; font-size: 11px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--panel2); color: var(--text2);
+  cursor: pointer; font-family: inherit;
+}
+.live-ctrl-btn:hover { background: var(--hover); color: var(--text); }
+.live-ctrl-btn.on  { background: #14532d; border-color: #166534; color: #d1fae5; }
+.live-ctrl-btn.off { background: #7f1d1d; border-color: #991b1b; color: #fee2e2; }
+.live-sensor-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 3px 0;
+  font-size: 11px; border-bottom: 1px solid var(--border2);
+}
+.live-sensor-name  { font-weight: 600; color: var(--text); }
+.live-sensor-dt    { font-family: monospace; font-weight: 700; }
+.live-sensor-active { background: var(--panel2); border-radius: 3px; padding: 2px 4px; margin: 0 -4px; }
 
 #solve-stats-bar {
   display: flex;
@@ -1394,35 +1458,30 @@ body {
 <div id="toolbar">
   <span class="app-title">TnT-3</span>
 
-  <!-- Main tab switching buttons -->
-  <button class="main-tab-btn active" id="main-btn-design" onclick="switchMainTab('design')">Design</button>
-  <button class="main-tab-btn" id="main-btn-solve"  onclick="switchMainTab('solve')">Solve</button>
-  <button class="main-tab-btn" id="main-btn-results" onclick="switchMainTab('results')">Results</button>
-
+  <!-- Group 1: Project / Load -->
   <div class="tb-sep"></div>
+  <button class="tb-btn" onclick="document.getElementById('file-input').click()">📂 Load YAML</button>
+  <button class="tb-btn" onclick="loadExample()">Example</button>
 
-  <!-- Solver action buttons -->
-  <button class="tb-btn ss-btn" id="btn-ss-toolbar" onclick="runSteadyState()">&#9889; Steady State</button>
-  <button class="tb-btn run-btn" id="btn-run-toolbar" onclick="runSolverFromToolbar()">&#9654; Transient</button>
-  <button class="tb-btn stop-btn" id="btn-stop-toolbar" onclick="stopSolver()" style="display:none">&#9632; Stop</button>
-
+  <!-- Main nav tabs -->
   <div class="tb-sep"></div>
+  <button class="main-tab-btn active" id="main-btn-design"  onclick="switchMainTab('design')">Design</button>
+  <button class="main-tab-btn"        id="main-btn-solve"   onclick="switchMainTab('solve')">Solve</button>
+  <button class="main-tab-btn"        id="main-btn-results" onclick="switchMainTab('results')">Results</button>
 
-  <!-- View buttons -->
+  <!-- Group 2: View -->
+  <div class="tb-sep"></div>
   <button class="tb-btn" onclick="showLineupView()">Lineup View</button>
 
+  <!-- Group 3: Export / Save -->
   <div class="tb-sep"></div>
-
-  <!-- Export / report buttons -->
-  <button class="tb-btn" onclick="exportCSV()">Export CSV</button>
-  <button class="tb-btn" onclick="saveReport()">Save Report</button>
-
-  <div class="tb-sep"></div>
-
-  <!-- File buttons -->
-  <button class="tb-btn" onclick="document.getElementById('file-input').click()">Load YAML</button>
-  <button class="tb-btn" onclick="loadExample()">Example</button>
+  <button class="tb-btn" id="btn-report" onclick="saveReport()" disabled>Save Report</button>
+  <button class="tb-btn" id="btn-csv"    onclick="exportCSV()"  disabled>Export CSV</button>
   <button class="tb-btn" onclick="downloadYAML()">Download YAML</button>
+
+  <!-- Group 4: Danger — isolated -->
+  <div class="tb-sep"></div>
+  <button class="tb-btn danger" onclick="clearDesign()" title="Remove all elements and panels — keeps defaults and solver settings">🗑 Clear All</button>
 
   <!-- Status indicator -->
   <div id="status" class="idle">Ready</div>
@@ -1451,7 +1510,6 @@ body {
           <button class="nav-tab" id="tab-mats"      data-section="materials" onclick="switchSection('materials')">Materials</button>
           <button class="nav-tab active" id="tab-elems" data-section="elements" onclick="switchSection('elements')">Elements</button>
           <button class="nav-tab" id="tab-panels"    data-section="panels"    onclick="switchSection('panels')">Panels</button>
-          <button class="nav-tab" id="tab-solver"    data-section="solver"    onclick="switchSection('solver')">Solver</button>
         </div>
         <div class="panel-hdr" id="left-hdr">Element Library</div>
         <div id="left-list"></div>
@@ -1529,32 +1587,66 @@ body {
         <div class="params-grid">
           <div class="param-field">
             <label class="param-lbl">Current [A]</label>
-            <input class="param-inp" id="sp-current" type="number" value="1000" step="100">
+            <input class="param-inp" id="sp-current" type="number" value="1000" step="100" oninput="_onSolveParamChange()">
           </div>
           <div class="param-field">
             <label class="param-lbl">T_amb [&#176;C]</label>
-            <input class="param-inp" id="sp-tamb" type="number" value="20" step="1">
+            <input class="param-inp" id="sp-tamb" type="number" value="20" step="1" oninput="_onSolveParamChange()">
           </div>
           <div class="param-field">
             <label class="param-lbl">T&#8320; [&#176;C]</label>
-            <input class="param-inp" id="sp-t0" type="number" value="20" step="1">
+            <input class="param-inp" id="sp-t0" type="number" value="20" step="1" oninput="_onSolveParamChange()">
           </div>
-          <div class="param-field">
+          <div class="param-field" id="end-time-row">
             <label class="param-lbl">End [h]</label>
-            <input class="param-inp" id="sp-end" type="number" value="8" step="1" min="0.1">
+            <input class="param-inp" id="sp-end" type="number" value="8" step="1" min="0.1" oninput="_onSolveParamChange()">
           </div>
           <div class="param-field">
             <label class="param-lbl">Accuracy [K]</label>
-            <input class="param-inp" id="sp-acc" type="number" value="0.1" step="0.01" min="0.001">
+            <input class="param-inp" id="sp-acc" type="number" value="0.1" step="0.01" min="0.001" oninput="_onSolveParamChange()">
           </div>
           <div class="param-field">
             <label class="param-lbl">Air interval [s]</label>
-            <input class="param-inp" id="sp-air" type="number" value="5" step="1" min="1">
+            <input class="param-inp" id="sp-air" type="number" value="5" step="1" min="1" oninput="_onSolveParamChange()">
           </div>
         </div>
 
+        <!-- Run Mode selector -->
+        <div class="param-row" style="margin-bottom:8px">
+          <label class="param-lbl" style="margin-bottom:4px">Run Mode</label>
+          <div style="display:flex;gap:4px">
+            <button class="mode-btn active" id="rm-transient"  onclick="setRunMode('transient')">&#9654; Transient</button>
+            <button class="mode-btn"        id="rm-continuous" onclick="setRunMode('continuous')">&#8635; Continuous</button>
+          </div>
+        </div>
+
+        <!-- Continuous-only opts (hidden when transient) -->
+        <div id="continuous-opts" style="display:none;margin-bottom:8px;padding:8px;background:var(--panel2);border:1px solid var(--border);border-radius:4px">
+          <div style="margin-bottom:6px">
+            <label class="param-lbl" style="margin-bottom:4px">Speed</label>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <button class="mode-btn" id="ls-1"   onclick="setLiveSpeed(1)">1:1</button>
+              <button class="mode-btn" id="ls-10"  onclick="setLiveSpeed(10)">&#215;10</button>
+              <button class="mode-btn" id="ls-20"  onclick="setLiveSpeed(20)">&#215;20</button>
+              <button class="mode-btn" id="ls-50"  onclick="setLiveSpeed(50)">&#215;50</button>
+              <button class="mode-btn" id="ls-100" onclick="setLiveSpeed(100)">&#215;100</button>
+              <button class="mode-btn active" id="ls-0" onclick="setLiveSpeed(0)">&#9889; Max</button>
+            </div>
+          </div>
+          <div>
+            <label class="param-lbl">Trend Window [h]</label>
+            <input class="param-inp" id="sp-window" type="number" value="1" step="0.5" min="0.1" style="margin-top:2px">
+          </div>
+        </div>
+
+        <button id="btn-ss" onclick="runSteadyState()"
+                style="width:100%;margin-bottom:6px;padding:6px 0;background:var(--warn);color:#000;
+                       border:none;border-radius:var(--radius);cursor:pointer;font-size:12px;font-weight:600">
+          &#9889; Steady State
+        </button>
         <div class="btn-row">
           <button id="btn-run" onclick="runSolverFromPanel()">&#9654; Run</button>
+          <button id="btn-pause" onclick="togglePauseContinuous()" disabled>&#9208; Pause</button>
           <button id="btn-stop" onclick="stopSolver()" disabled>&#9632; Stop</button>
         </div>
 
@@ -1563,6 +1655,16 @@ body {
           <div id="progress-text">Ready</div>
         </div>
       </div><!-- /.solve-section-body -->
+
+      <!-- Live Controls (shown during continuous run) -->
+      <div id="live-controls" style="display:none;border-top:1px solid var(--border)">
+        <div class="solve-section-hdr" style="cursor:pointer" onclick="toggleLiveControls()">
+          &#9889; Live Controls <span id="live-ctrl-toggle" style="margin-left:auto;font-size:10px">&#9660;</span>
+        </div>
+        <div class="solve-section-body" id="live-ctrl-body" style="padding:8px">
+          <!-- populated by renderLiveControls() -->
+        </div>
+      </div>
 
     </div><!-- /#solve-left -->
 
@@ -1613,6 +1715,30 @@ body {
         </div>
       </div><!-- /#solve-stats-bar -->
 
+      <!-- Live Dashboard (shown during continuous run) -->
+      <div id="live-dashboard" style="display:none;flex:1;flex-direction:column;overflow:hidden;position:absolute;inset:0;background:var(--bg);z-index:10">
+        <div style="flex:0 0 220px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
+          <div class="chart-lbl" style="display:flex;align-items:center;gap:6px">
+            Live Trend (rolling)
+            <span id="live-time-lbl" style="margin-left:auto;font-family:monospace;font-size:10px;color:var(--text2)"></span>
+            <button class="live-frame-btn" onclick="saveStatusFrame()" title="Save checkpoint (single slot)">&#128204; Save</button>
+            <button class="live-rewind-btn" id="btn-rewind" onclick="rewindToStatusFrame()" disabled title="Rewind solver to saved frame">&#9194; Rewind</button>
+            <span id="frame-time-lbl" style="font-size:10px;font-family:monospace;color:var(--text3)"></span>
+          </div>
+          <canvas id="live-trend-canvas" style="flex:1;width:100%;min-height:0"></canvas>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <div style="flex:1;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
+            <div class="chart-lbl">Live Heatmap</div>
+            <canvas id="live-hm-canvas" style="flex:1;width:100%;min-height:0"></canvas>
+          </div>
+          <div style="width:210px;overflow-y:auto;padding:8px;background:var(--panel)">
+            <div class="chart-lbl" style="padding:0 0 4px;margin-bottom:6px">Sensors</div>
+            <div id="live-sensors-list"><!-- rendered by _renderLiveSensors() --></div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /#solve-right -->
 
   </div><!-- /#tab-solve -->
@@ -1626,6 +1752,7 @@ body {
     <div class="sub-tab-bar">
       <button class="sub-tab-btn active" id="sub-tab-charts"  onclick="switchSubTab('charts')">Charts</button>
       <button class="sub-tab-btn"        id="sub-tab-sensors" onclick="switchSubTab('sensors')">Sensors &amp; Export</button>
+      <button class="sub-tab-btn"        id="sub-tab-nodes"   onclick="switchSubTab('nodes')">All Nodes</button>
     </div>
 
     <!-- Sub-tab: Charts -->
@@ -1671,6 +1798,20 @@ body {
         <div class="sensors-empty">Run the solver to see sensor results</div>
       </div>
     </div><!-- /#sub-sensors -->
+
+    <!-- Sub-tab: All Nodes -->
+    <div class="sub-tab-content" id="sub-nodes">
+      <div class="export-row">
+        <span>All Nodes</span>
+        <div class="export-row-btns">
+          <button class="tb-btn" id="sort-nodes-btn" onclick="toggleNodeSort()">Sort: &#916;T &#8595;</button>
+          <button class="tb-btn" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+      <div id="nodes-content" style="flex:1;overflow-y:auto;padding:10px;background:var(--bg)">
+        <div class="sensors-empty">Run the solver to see node results</div>
+      </div>
+    </div><!-- /#sub-nodes -->
 
   </div><!-- /#tab-results -->
 
@@ -1755,7 +1896,9 @@ const ui = {
   selectedMaterial: null,
   selectedPanel: 0,
   errors: [],
-  showOverrides: false
+  showOverrides: false,
+  elemCheckI: 1000,
+  elemCheckT: 130
 };
 
 // Design-change stale flag
@@ -1847,6 +1990,7 @@ function applyYAMLEdit() {
   if (ok) {
     _setYamlDirty(false);
     render();
+    _syncSolveInputsFromState();
     // brief green flash
     ta.classList.add('flash-ok');
     setTimeout(() => ta.classList.remove('flash-ok'), 600);
@@ -2844,8 +2988,9 @@ class ThermalSolver {
     this.iterations  = 0;
 
     // trend data
-    this._times   = [0];
-    this._maxDTs  = [0];
+    this._times    = [0];
+    this._maxDTs   = [0];
+    this._maxTemps = [T0];   // absolute max node temperature [°C]
 
     // air snapshots: one list per panel, each entry is [..._T]
     this._airSnapTimes = [0];
@@ -2929,14 +3074,17 @@ class ThermalSolver {
         }
       }
 
-      // record trend
+      // record trend — iterates this._T (mechanical nodes only; panel air model is separate)
       let maxDT = 0;
+      let maxTemp = -Infinity;
       for (let i = 0; i < T.length; i++) {
         const dT = T[i] - this.T_ambient;
         if (dT > maxDT) maxDT = dT;
+        if (T[i] > maxTemp) maxTemp = T[i];
       }
       this._times.push(this.t);
       this._maxDTs.push(maxDT);
+      this._maxTemps.push(maxTemp);   // true max node temp — no T_ambient dependency
 
       // adaptive timestep
       const remaining = endTime - this.t;
@@ -2958,7 +3106,7 @@ class ThermalSolver {
   get finalTemps() { return Array.from(this._T); }
 
   get trendData() {
-    return { times: this._times, maxDTs: this._maxDTs };
+    return { times: this._times, maxDTs: this._maxDTs, maxTemps: this._maxTemps };
   }
 
   get airData() {
@@ -3846,8 +3994,8 @@ function renderCentre() {
   else if (ui.section === 'materials') c.innerHTML = renderMaterialEditor();
   else if (ui.section === 'elements')  c.innerHTML = renderElementEditor();
   else if (ui.section === 'panels')    c.innerHTML = renderPanelEditor();
-  else if (ui.section === 'solver')    c.innerHTML = renderSolver();
   attachCentreHandlers();
+  if (ui.section === 'elements') _updateElemQuickCalc();
 }
 
 function renderMaterialEditor() {
@@ -4028,6 +4176,23 @@ function renderElementEditor() {
     <div class="card">
       <div class="card-hdr">Shape preview</div>
       <div class="shape-preview">${elementShapeSVG(e)}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">⚡ Quick check</div>
+      <div class="prop-grid">
+        <div class="prop-field">
+          <label class="prop-lbl">Current <span class="u">[A]</span></label>
+          <input class="prop-inp" type="number" step="100" min="0"
+                 value="${ui.elemCheckI}" oninput="_elemQCSetI(this.value)">
+        </div>
+        <div class="prop-field">
+          <label class="prop-lbl">T conductor <span class="u">[°C]</span></label>
+          <input class="prop-inp" type="number" step="5" min="-40" max="300"
+                 value="${ui.elemCheckT}" oninput="_elemQCSetT(this.value)">
+        </div>
+      </div>
+      <div id="elem-qc-out" class="qc-grid"></div>
     </div>
   `;
 }
@@ -4435,47 +4600,6 @@ function deleteMCCModule(pIdx, mIdx) {
   }
 }
 
-function renderSolver() {
-  const s = state.solver;
-  const hours = (s.end_time / 3600).toFixed(2);
-  return `
-    <div class="card">
-      <div class="card-hdr">Solver Settings</div>
-      <div class="card-hint">Adaptive explicit-Euler solver. Smaller accuracy = more accurate, slower.</div>
-      <div class="prop-grid cols3">
-        <div class="prop-field">
-          <label class="prop-lbl">Global Current <span class="u">[A]</span></label>
-          <input class="prop-inp" type="number" step="10" data-bind="solver.global_current" value="${s.global_current}">
-        </div>
-        <div class="prop-field">
-          <label class="prop-lbl">Ambient T <span class="u">[°C]</span></label>
-          <input class="prop-inp" type="number" step="1" data-bind="solver.T_ambient" value="${s.T_ambient}">
-        </div>
-        <div class="prop-field">
-          <label class="prop-lbl">Initial T₀ <span class="u">[°C]</span></label>
-          <input class="prop-inp" type="number" step="1" data-bind="solver.T0" value="${s.T0}">
-        </div>
-        <div class="prop-field">
-          <label class="prop-lbl" title="Max ΔT per step (smaller = more accurate, slower)">Accuracy <span class="u">[K]</span></label>
-          <input class="prop-inp" type="number" step="0.01" min="0" data-bind="solver.accuracy" value="${s.accuracy}" title="Max ΔT per step. Smaller = more accurate but slower.">
-        </div>
-        <div class="prop-field">
-          <label class="prop-lbl">Initial dt <span class="u">[s]</span></label>
-          <input class="prop-inp" type="number" step="0.1" min="0" data-bind="solver.dt_init" value="${s.dt_init}">
-        </div>
-        <div class="prop-field">
-          <label class="prop-lbl">Air Update <span class="u">[s]</span></label>
-          <input class="prop-inp" type="number" step="0.5" min="0" data-bind="solver.air_interval" value="${s.air_interval}" title="Interval between in-panel air model updates">
-        </div>
-        <div class="prop-field" style="grid-column: span 3">
-          <label class="prop-lbl">Simulation Duration <span class="u">[s] — ${hours} h</span></label>
-          <input class="prop-inp" type="number" step="60" min="0" data-bind="solver.end_time" value="${s.end_time}">
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 /* ─────────────────────────────────────────────────────
    Centre panel — event wiring
    ───────────────────────────────────────────────────── */
@@ -4516,6 +4640,68 @@ function attachCentreHandlers() {
   document.querySelectorAll('[data-msegadd]').forEach(btn => btn.addEventListener('click', onMSegRowAdd));
   document.querySelectorAll('[data-msegaddsensor]').forEach(btn => btn.addEventListener('click', onMSegAddSensor));
   document.querySelectorAll('[data-msensname]').forEach(inp => inp.addEventListener('change', onMSensorNameChange));
+}
+
+// ─── Element Quick-Check ─────────────────────────────────────────────
+function _elemQCSetI(v) {
+  ui.elemCheckI = parseFloat(v) || 0;
+  _updateElemQuickCalc();
+}
+
+function _elemQCSetT(v) {
+  const t = parseFloat(v);
+  ui.elemCheckT = isFinite(t) ? t : 20;
+  _updateElemQuickCalc();
+}
+
+function _updateElemQuickCalc() {
+  const out = document.getElementById('elem-qc-out');
+  if (!out) return;
+  const name = ui.selectedElement;
+  if (!name || !state.elements[name]) { out.innerHTML = ''; return; }
+  const e = state.elements[name];
+  const I = ui.elemCheckI || 0;
+
+  // resolve sigma from material
+  const matDef = MATERIALS[e.material] || state.materials[e.material] || {};
+  const sigma  = matDef.sigma || 58e6;
+
+  let A_conv, A_rad, R_el;
+  if (e.type === 'cable') {
+    const s = new PipeShape(e.outer_diameter || 0, e.inner_diameter || 0, e.length || 0, e.n || 1, e.angle || 0);
+    A_conv = s.convectionArea();
+    A_rad  = s.radiationArea();
+    R_el   = s.crossSection() > 0 ? s.electricalResistance(sigma) : Infinity;
+  } else {
+    const s = new Shape(e.width || 0, e.height || 0, e.length || 0, e.n || 1, e.angle || 0);
+    A_conv = s.convectionArea();
+    A_rad  = s.radiationArea();
+    R_el   = s.crossSection() > 0 ? s.electricalResistance(sigma) : Infinity;
+  }
+
+  const T     = isFinite(ui.elemCheckT) ? ui.elemCheckT : 20;
+  const alpha  = matDef.alpha || 3.9e-3;
+  const R_atT  = R_el * (1 + alpha * (T - 20));
+  const acFactor = (e.ac_factor != null ? e.ac_factor : 1.0);
+  const R_ac_T   = R_atT * acFactor;
+  const P_W      = isFinite(R_el) ? I * I * R_ac_T : Infinity;
+  const fmt  = (v, digits) => isFinite(v) ? v.toFixed(digits) : '—';
+  const rLbl = acFactor !== 1.0
+    ? `R<sub>AC</sub> (${T}°C) <small style="color:var(--text3)">×${acFactor.toFixed(2)}</small>`
+    : `R (${T}°C)`;
+
+  out.innerHTML = `
+    <div class="qc-row"><span class="qc-lbl">${rLbl}</span><span class="qc-val">${fmt(R_ac_T * 1e6, 3)} µΩ</span></div>
+    <div class="qc-row"><span class="qc-lbl">P loss @ ${I} A</span><span class="qc-val">${fmt(P_W, 1)} W</span></div>
+    <div class="qc-row"><span class="qc-lbl">A conv.</span><span class="qc-val">${fmt(A_conv * 1e4, 1)} cm²</span></div>
+    <div class="qc-row"><span class="qc-lbl">A rad.</span><span class="qc-val">${fmt(A_rad * 1e4, 1)} cm²</span></div>
+  `;
+}
+
+function _updateElemShapePreview() {
+  const spDiv = document.querySelector('.shape-preview');
+  if (!spDiv || !ui.selectedElement || !state.elements[ui.selectedElement]) return;
+  spDiv.innerHTML = elementShapeSVG(state.elements[ui.selectedElement]);
 }
 
 function setStatePath(path, value) {
@@ -4570,6 +4756,7 @@ function onBindInput(ev) {
         const parent = parts.slice(0, -1).reduce((o, k) => o[k], state);
         delete parent[key];
         renderRightAndYAML();
+        if (ui.section === 'elements') { _updateElemQuickCalc(); _updateElemShapePreview(); }
         return;
       } else {
         v = 0;
@@ -4581,6 +4768,7 @@ function onBindInput(ev) {
   }
   setStatePath(path, v);
   renderRightAndYAML();
+  if (ui.section === 'elements') { _updateElemQuickCalc(); _updateElemShapePreview(); }
 }
 
 function onElementRename(ev) {
@@ -5172,6 +5360,19 @@ function downloadYAML() {
   showToast('Downloaded lineup.yaml');
 }
 
+function clearDesign() {
+  if (!confirm('Remove all elements and panels? Defaults and solver settings are kept.')) return;
+  state.elements = {};
+  state.panels   = [];
+  state.materials = {};
+  ui.selectedElement = null;
+  ui.selectedMaterial = null;
+  ui.selectedPanel = 0;
+  ui.section = 'elements';
+  render();
+  showToast('Design cleared.');
+}
+
 // Override the simpler copyYAML defined in Part 1 — this version validates first
 function copyYAML() {
   const valid = validate();
@@ -5199,7 +5400,7 @@ function handleFileLoad(ev) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const ok = loadFromYAMLText(e.target.result);
-    if (ok) { showToast(`Loaded ${file.name}`); render(); }
+    if (ok) { showToast(`Loaded ${file.name}`); render(); _syncSolveInputsFromState(); }
     else { showToast('YAML parse failed — see console'); }
   };
   reader.readAsText(file);
@@ -5311,6 +5512,26 @@ let _endTime       = 0;
 let _rafHandle     = null;
 let _nodeSortAsc   = false;
 
+// ─── Continuous / Live mode globals ──────────────────────────────────
+let _runMode          = 'transient';  // 'transient' | 'continuous'
+let _liveSpeed        = 0;            // 0=max, 1=1:1, 5=x5, 10=x10, 20=x20
+let _liveWindowS      = 3600;         // rolling trend window [s]
+const _liveMaxPts     = 2000;         // max trend data points
+let _liveWallT0       = 0;            // performance.now() at speed-ref epoch
+let _liveSimT0        = 0;            // _solver.t at speed-ref epoch
+let _livePanelLoads   = [];           // saved load per DC2BB panel
+let _livePanelMuted   = [];           // bool: panel muted (load=0)
+let _liveMCCModLoads  = [];           // [panelIdx][modIdx] saved module loads
+let _liveMCCModMuted  = [];           // [panelIdx][modIdx] bool muted
+let _liveHmTime       = 0;            // last heatmap update sim-time
+let _liveCtrlOpen     = true;         // live controls panel open state
+let _liveSelectedNode = null;         // last-clicked node (amber ring on heatmap)
+let _livePinnedNodes  = new Set();    // multi-pinned nodes shown in sensor sidebar
+let _liveLastMaxDT    = 0;            // last non-zero maxDT (for skip-frame display)
+const LIVE_HM_INTERVAL = 5;           // heatmap redraw every N sim-seconds
+let _livePaused       = false;         // true = RAF cancelled but solver alive (paused)
+let _statusFrame      = null;          // single-slot checkpoint ({t, dt, T, …})
+
 // ─── Constants ───────────────────────────────────────────────────────
 const PANEL_COLORS = ['#60a5fa','#34d399','#f87171','#fbbf24','#a78bfa',
                       '#fb7185','#38bdf8','#4ade80','#facc15','#c084fc'];
@@ -5349,7 +5570,7 @@ function jetColor(t) {
 // ═══════════════════════════════════════════════════════════════════
 
 // ─── Trend chart ─────────────────────────────────────────────────────
-function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
+function drawTrendChart(canvas, times_s, maxDTs, T_ambient, maxTemps) {
   const W = canvas.width  = canvas.offsetWidth  * (window.devicePixelRatio || 1);
   const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
   const ctx = canvas.getContext('2d');
@@ -5364,6 +5585,11 @@ function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
   const cAxis  = getComputedStyleVar('--text3');
   const cLabel = getComputedStyleVar('--text2');
 
+  // Use absolute temps if provided (live mode), else fall back to delta-T
+  const useTempC = maxTemps && maxTemps.length > 0;
+  const yData    = useTempC ? maxTemps : maxDTs;
+  const yLabel   = useTempC ? 'Max Temp [°C]' : 'Max DT [K]';
+
   ctx.fillStyle = cBg;
   ctx.fillRect(0, 0, cW, cH);
 
@@ -5377,17 +5603,20 @@ function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
 
   const t_h = times_s.map(t => t / 3600);
   const minT = 0, maxT = Math.max(...t_h);
-  const minDT = 0, maxDT = Math.max(...maxDTs, 1) * 1.05;
+  const rawMin = Math.min(...yData), rawMax = Math.max(...yData, rawMin + 1);
+  const span   = rawMax - rawMin;
+  const minVal = rawMin - span * 0.05;
+  const maxVal = rawMax + span * 0.05;
 
   const tx = t => ml + (t - minT) / (maxT - minT || 1) * pw;
-  const ty = d => mt + ph - (d - minDT) / (maxDT - minDT || 1) * ph;
+  const ty = d => mt + ph - (d - minVal) / (maxVal - minVal || 1) * ph;
 
   // gridlines
   ctx.strokeStyle = cGrid;
   ctx.lineWidth = 0.5;
   const nGridY = 5;
   for (let i = 0; i <= nGridY; i++) {
-    const d = minDT + i * (maxDT - minDT) / nGridY;
+    const d = minVal + i * (maxVal - minVal) / nGridY;
     const y = ty(d);
     ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + pw, y); ctx.stroke();
     ctx.fillStyle = cAxis;
@@ -5419,7 +5648,7 @@ function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
   ctx.save(); ctx.translate(10, mt + ph / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = 'center';
-  ctx.fillText('Max DT [K]', 0, 0);
+  ctx.fillText(yLabel, 0, 0);
   ctx.restore();
 
   // data line
@@ -5429,7 +5658,7 @@ function drawTrendChart(canvas, times_s, maxDTs, T_ambient) {
   ctx.shadowBlur = 3;
   ctx.beginPath();
   for (let i = 0; i < t_h.length; i++) {
-    const x = tx(t_h[i]), y = ty(maxDTs[i]);
+    const x = tx(t_h[i]), y = ty(yData[i]);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
@@ -5522,8 +5751,24 @@ function drawNodeHistoryChart(canvas, times_s, temps, nodeLabel, T_ambient) {
   ctx.fillText(`${lastT.toFixed(1)}°C  (+${finalDT.toFixed(1)} K)`, ml + pw - 2, ty(lastT) - 5);
 }
 
+// ─── Build edge list [[i,j],...] from lineup node outputs ─────────────
+function _buildEdges(nodes) {
+  const idx  = new Map(nodes.map((n, i) => [n, i]));
+  const edges = [];
+  const seen  = new Set();
+  nodes.forEach((n, i) => {
+    for (const nb of n.outputs) {
+      const j = idx.get(nb);
+      if (j === undefined) continue;
+      const key = i < j ? `${i}-${j}` : `${j}-${i}`;
+      if (!seen.has(key)) { seen.add(key); edges.push([i, j]); }
+    }
+  });
+  return edges;
+}
+
 // ─── Heatmap chart (with node-position storage for click detection) ───
-function drawHeatmapChart(canvas, nodeX, nodeY, dTs, panelIds) {
+function drawHeatmapChart(canvas, nodeX, nodeY, dTs, panelIds, airCols, edges) {
   const W = canvas.width  = canvas.offsetWidth  * (window.devicePixelRatio || 1);
   const H = canvas.height = canvas.offsetHeight * (window.devicePixelRatio || 1);
   const ctx = canvas.getContext('2d');
@@ -5553,6 +5798,69 @@ function drawHeatmapChart(canvas, nodeX, nodeY, dTs, panelIds) {
 
   const sx = x => ml + (x - minX) / (maxX - minX || 1) * pw;
   const sy = y => mt + ph - (y - minY) / (maxY - minY || 1) * ph;
+
+  // air column backgrounds (drawn before nodes so nodes appear on top)
+  if (airCols && airCols.length) {
+    // independent air scale — air ΔT is typically 0–5 K, node scale is 20–50 K
+    const allAirD  = airCols.flatMap(c => c.deltas);
+    const airMinDT = Math.min(...allAirD);
+    const airMaxDT = Math.max(...allAirD, airMinDT + 0.1);  // guard flat range
+
+    airCols.forEach(col => {
+      const x1 = sx(col.panelMinX);
+      const x2 = sx(col.panelMaxX);
+      const bw  = Math.max(x2 - x1, 14);  // minimum 14px so single-column panels are visible
+      col.cellCenters.forEach((yMm, j) => {
+        const t      = (col.deltas[j] - airMinDT) / (airMaxDT - airMinDT);
+        const cy_hi  = sy(yMm + col.cellHeight / 2);   // top of cell on canvas
+        const cy_lo  = sy(yMm - col.cellHeight / 2);   // bottom of cell on canvas
+        ctx.fillStyle    = jetColor(t);
+        ctx.globalAlpha  = 0.28;
+        ctx.fillRect(x1, cy_hi, bw, Math.max(cy_lo - cy_hi, 1));
+      });
+    });
+    ctx.globalAlpha = 1.0;
+
+    // "air" label + scale range on first panel only
+    airCols.forEach((col, ci) => {
+      const cx  = sx((col.panelMinX + col.panelMaxX) / 2);
+      const x1  = sx(col.panelMinX);
+      const bw  = Math.max(sx(col.panelMaxX) - x1, 14);
+      ctx.fillStyle = cAxis;
+      ctx.font      = '7px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('air', cx, mt + 8);
+      if (ci === 0) {
+        // show air ΔT range on first panel
+        ctx.textAlign = 'left';
+        ctx.fillText((airMaxDT).toFixed(1) + 'K', x1 + bw + 2, mt + 14);
+        ctx.fillText((airMinDT).toFixed(1) + 'K', x1 + bw + 2, sy(Math.min(...airCols.flatMap(c => c.cellCenters))) + 4);
+      }
+    });
+  }
+
+  // connection lines between thermally-coupled nodes — two-pass for visibility
+  if (edges && edges.length) {
+    ctx.setLineDash([]);
+    // pass 1: dark shadow for contrast on light backgrounds
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth   = 2.5;
+    for (const [i, j] of edges) {
+      ctx.beginPath();
+      ctx.moveTo(sx(nodeX[i]), sy(nodeY[i]));
+      ctx.lineTo(sx(nodeX[j]), sy(nodeY[j]));
+      ctx.stroke();
+    }
+    // pass 2: bright highlight on top
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth   = 1.2;
+    for (const [i, j] of edges) {
+      ctx.beginPath();
+      ctx.moveTo(sx(nodeX[i]), sy(nodeY[i]));
+      ctx.lineTo(sx(nodeX[j]), sy(nodeY[j]));
+      ctx.stroke();
+    }
+  }
 
   // nodes
   for (let i = 0; i < nodeX.length; i++) {
@@ -5900,7 +6208,7 @@ function setSelectedNode(idx) {
     const nodeX = _lineup.nodes.map(n => n.x);
     const nodeY = _lineup.nodes.map(n => n.y);
     const dTs   = _finalTemps.map(t => t - T_amb);
-    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, _lineup.nodes.map(n => n.panel_id));
+    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, _lineup.nodes.map(n => n.panel_id), undefined, _buildEdges(_lineup.nodes));
   }
 }
 
@@ -5990,6 +6298,25 @@ function toggleSensorSort() {
   if (_finalTemps) renderSensorTable();
 }
 
+// Nodes sub-tab renderer
+function renderNodeTable() {
+  const container = document.getElementById('nodes-content');
+  if (!container) return;
+  if (!_lineup || !_finalTemps) {
+    container.innerHTML = '<div class="sensors-empty">Run the solver to see node results</div>';
+    return;
+  }
+  const T_amb = parseFloat(document.getElementById('sp-tamb').value) || 20;
+  container.innerHTML = renderNodeTableHTML(T_amb);
+}
+
+function toggleNodeSort() {
+  _nodeSortAsc = !_nodeSortAsc;
+  const btn = document.getElementById('sort-nodes-btn');
+  if (btn) btn.textContent = `Sort: ΔT ${_nodeSortAsc ? '↑' : '↓'}`;
+  if (_finalTemps) renderNodeTable();
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SOLVER PARAMETER HELPERS
 // ═══════════════════════════════════════════════════════════════════
@@ -6005,20 +6332,94 @@ function solverParamsFromUI() {
   };
 }
 
+// Sync state.solver → Solve tab inputs (called after YAML load)
+function _syncSolveInputsFromState() {
+  const s = state.solver;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  if (s.global_current !== undefined) set('sp-current', s.global_current);
+  if (s.T_ambient      !== undefined) set('sp-tamb',    s.T_ambient);
+  if (s.T0             !== undefined) set('sp-t0',      s.T0);
+  if (s.end_time       !== undefined) set('sp-end',     (s.end_time / 3600).toFixed(2));
+  if (s.accuracy       !== undefined) set('sp-acc',     s.accuracy);
+  if (s.air_interval   !== undefined) set('sp-air',     s.air_interval);
+}
+
+// Write Solve tab inputs → state.solver (keeps YAML export in sync)
+function _onSolveParamChange() {
+  const get = id => parseFloat(document.getElementById(id).value);
+  state.solver.global_current = get('sp-current');
+  state.solver.T_ambient      = get('sp-tamb');
+  state.solver.T0             = get('sp-t0');
+  state.solver.end_time       = get('sp-end') * 3600;
+  state.solver.accuracy       = get('sp-acc');
+  state.solver.air_interval   = get('sp-air');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RUN MODE CONTROL
+// ═══════════════════════════════════════════════════════════════════
+function setRunMode(m) {
+  _runMode = m;
+  document.getElementById('rm-transient').classList.toggle('active', m === 'transient');
+  document.getElementById('rm-continuous').classList.toggle('active', m === 'continuous');
+  const endRow  = document.getElementById('end-time-row');
+  const contOpt = document.getElementById('continuous-opts');
+  if (endRow)  endRow.style.display  = m === 'transient'  ? '' : 'none';
+  if (contOpt) contOpt.style.display = m === 'continuous' ? '' : 'none';
+}
+
+function setLiveSpeed(s) {
+  // s: 0=max, 1=1:1, 5=x5, 10=x10, 20=x20
+  _liveSpeed = s;
+  // Reset timing reference so delay calc is relative to current moment
+  if (_solverRunning && _solver) {
+    _liveWallT0 = performance.now();
+    _liveSimT0  = _solver.t;
+  }
+  [0, 1, 10, 20, 50, 100].forEach(v => {
+    const btn = document.getElementById('ls-' + v);
+    if (btn) btn.classList.toggle('active', v === s);
+  });
+}
+
+function _fmtSimTime(sec) {
+  const s = Math.floor(sec);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+}
+
+function toggleLiveControls() {
+  _liveCtrlOpen = !_liveCtrlOpen;
+  const body   = document.getElementById('live-ctrl-body');
+  const toggle = document.getElementById('live-ctrl-toggle');
+  if (body)   body.style.display   = _liveCtrlOpen ? '' : 'none';
+  if (toggle) toggle.textContent   = _liveCtrlOpen ? '▼' : '▶';
+}
+
 function _setSolverRunning(running) {
   _solverRunning = running;
+  if (!running) _livePaused = false;
   document.getElementById('btn-run').disabled = running;
   document.getElementById('btn-stop').disabled = !running;
-  const tb_run  = document.getElementById('btn-run-toolbar');
-  const tb_stop = document.getElementById('btn-stop-toolbar');
-  tb_run.style.display  = running ? 'none' : '';
-  tb_stop.style.display = running ? '' : 'none';
-  const btnSS = document.getElementById('btn-ss-toolbar');
+  const btnSS = document.getElementById('btn-ss');
   if (btnSS) btnSS.disabled = running;
+  _updatePauseUI();
 }
 
 function _setProgress(frac, text) {
-  document.getElementById('progress-bar').style.width = (frac * 100).toFixed(1) + '%';
+  // frac = -1 signals continuous/infinite mode — animate bar as pulsing stripe
+  const bar = document.getElementById('progress-bar');
+  if (frac < 0) {
+    bar.style.width = '100%';
+    bar.style.opacity = '0.4';
+    bar.style.background = 'var(--warn)';
+  } else {
+    bar.style.width = (Math.max(0, frac) * 100).toFixed(1) + '%';
+    bar.style.opacity = '1';
+    bar.style.background = '';
+  }
   document.getElementById('progress-text').textContent = text;
 }
 
@@ -6082,7 +6483,7 @@ function runSteadyState() {
 
     renderGraph(lineup, finalTemps);
     drawTrendChart(document.getElementById('trend-canvas'), [], [], params.T_ambient);
-    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, lineup.nodes.map(n => n.panel_id));
+    drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, lineup.nodes.map(n => n.panel_id), undefined, _buildEdges(lineup.nodes));
     drawAirChart(document.getElementById('air-canvas'), _airDataCache, params.T_ambient);
 
     renderSensorTable();
@@ -6104,10 +6505,10 @@ function runSteadyState() {
 // ═══════════════════════════════════════════════════════════════════
 function runSolverFromPanel() { _startSolver(); }
 
-function runSolverFromToolbar() { _startSolver(); }
 
 function _startSolver() {
   if (_solverRunning) return;
+  if (_runMode === 'continuous') { _startContinuousSolver(); return; }
 
   const yaml = generateYAML();
   if (!yaml) { setStatus('Build a design first', 'err'); return; }
@@ -6147,6 +6548,621 @@ function _startSolver() {
     setStatus(e.message, 'err');
     console.error(e);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTINUOUS / LIVE SOLVER
+// ═══════════════════════════════════════════════════════════════════
+function _startContinuousSolver() {
+  const yaml = generateYAML();
+  if (!yaml) { setStatus('Build a design first', 'err'); return; }
+
+  const params = solverParamsFromUI();
+  _solverTAmb  = params.T_ambient;
+  _liveWindowS = (parseFloat(document.getElementById('sp-window').value) || 1) * 3600;
+
+  try {
+    const { lineup } = loadLineup(yaml);
+    _applyAmbientToLineup(lineup, params.T_ambient);
+
+    _lineup = lineup;
+    _solver = new ThermalSolver(lineup, {
+      global_current: params.global_current,
+      T_ambient:      params.T_ambient,
+      T0:             params.T0,
+      accuracy:       params.accuracy,
+      air_interval:   params.air_interval,
+      dt_init: 1,
+    });
+
+    lineup.solve_currents();
+    updateStats(lineup);
+
+    // Save initial loads for live control
+    _livePanelLoads  = lineup.panels.map(p => (typeof p.load === 'number' ? p.load : 0));
+    _livePanelMuted  = lineup.panels.map(() => false);
+    _liveMCCModLoads = lineup.panels.map((p, pi) =>
+      p.rawModules ? p.rawModules.map(m => m.load || 0) : []);
+    _liveMCCModMuted = lineup.panels.map((p, pi) =>
+      p.rawModules ? p.rawModules.map(() => false) : []);
+
+    // Setup live controls UI
+    renderLiveControls();
+    document.getElementById('live-controls').style.display = '';
+
+    // Show live dashboard in solve-right
+    document.getElementById('live-dashboard').style.display = 'flex';
+    document.getElementById('viz-top-bar').style.display    = 'none';
+    document.getElementById('viz-container').style.display  = 'none';
+    document.getElementById('solve-stats-bar').style.display = 'none';
+
+    _liveHmTime       = 0;
+    _liveWallT0       = performance.now();
+    _liveSimT0        = 0;
+    _liveSelectedNode = null;
+    _livePinnedNodes  = new Set();
+    _liveLastMaxDT    = 0;
+    _livePaused       = false;
+    _statusFrame      = null;
+
+    // Reset frame indicator
+    const btnRw = document.getElementById('btn-rewind');
+    if (btnRw) btnRw.disabled = true;
+    const ftLbl = document.getElementById('frame-time-lbl');
+    if (ftLbl) ftLbl.textContent = '';
+
+    _setSolverRunning(true);
+    _setProgress(-1, 'Running continuous…');
+    setStatus('Continuous solver running…', 'run');
+    switchMainTab('solve');
+    clearStaleIndicator();
+
+    _rafHandle = requestAnimationFrame(_continuousStep);
+  } catch (e) {
+    setStatus(e.message, 'err');
+    console.error(e);
+  }
+}
+
+function _continuousStep() {
+  if (!_solverRunning || !_solver || _livePaused) return;
+
+  // 1. Apply any live current changes from controls
+  _applyLiveCurrentChanges();
+
+  // 2. Run chunk — paced by budget when speed < max
+  // Budget = how many sim-seconds we're *allowed* to advance right now.
+  // Without this cap, runChunk(200, Infinity) would advance hundreds of
+  // sim-seconds in one JS frame, forcing a multi-second setTimeout → solver appears frozen.
+  let result;
+  if (_liveSpeed === 0) {
+    // Max speed: no throttle, run full chunk
+    result = _solver.runChunk(200, Infinity);
+  } else {
+    const wallS  = (performance.now() - _liveWallT0) / 1000;
+    const simS   = _solver.t - _liveSimT0;
+    const budget = wallS * _liveSpeed - simS;   // sim-seconds we're behind schedule
+    if (budget <= 0) {
+      // Sim is ahead — skip stepping this frame, just wait
+      result = { done: false, diverged: false, maxDT: _liveLastMaxDT || 0, iterations: 0 };
+    } else {
+      // Advance up to budget sim-seconds (caps overshoot to at most one dt)
+      result = _solver.runChunk(200, _solver.t + budget);
+    }
+  }
+
+  if (result.diverged) {
+    setStatus('Solver diverged (NaN) — check YAML and params', 'err');
+    _stopContinuousSolver();
+    return;
+  }
+  if (result.iterations > 0) _liveLastMaxDT = result.maxDT;
+
+  // 3. Trim rolling window
+  _trimLiveData();
+
+  // 4. Update live trend chart every frame
+  const td = _solver.trendData;
+  const trendC = document.getElementById('live-trend-canvas');
+  if (trendC && trendC.offsetWidth > 0) {
+    drawTrendChart(trendC, td.times, td.maxDTs, _solver.T_ambient, td.maxTemps);
+  }
+
+  // 5. Update heatmap + sensors on LIVE_HM_INTERVAL
+  if (_solver.t - _liveHmTime >= LIVE_HM_INTERVAL) {
+    _liveHmTime = _solver.t;
+    const hmC = document.getElementById('live-hm-canvas');
+    if (hmC && hmC.offsetWidth > 0) {
+      const T_amb  = _solver.T_ambient;
+      const nodeX  = _lineup.nodes.map(n => n.x);
+      const nodeY  = _lineup.nodes.map(n => n.y);
+      const dTs    = _solver.finalTemps.map(t => t - T_amb);
+      const panels = _lineup.nodes.map(n => n.panel_id);
+      _selectedNode = _liveSelectedNode;   // sync highlight to drawHeatmapChart
+      drawHeatmapChart(hmC, nodeX, nodeY, dTs, panels, _buildAirCols(T_amb), _buildEdges(_lineup.nodes));
+      _drawLivePinLabels(hmC);             // overlay pinned node numbers
+    }
+    _renderLiveSensors();
+    _finalTemps = _solver.finalTemps;
+  }
+
+  // 6. Update time label + speed indicator
+  const speedLabel = _liveSpeed === 0 ? 'Max' : (_liveSpeed === 1 ? '1:1' : '×' + _liveSpeed);
+  const displayMaxDT = (_liveLastMaxDT || 0).toFixed(1);
+  const timeLbl = document.getElementById('live-time-lbl');
+  if (timeLbl) {
+    timeLbl.textContent =
+      `⏱ ${_fmtSimTime(_solver.t)}  |  ΔT=${displayMaxDT} K  [${speedLabel}]`;
+  }
+
+  // 7. Progress bar (continuous amber pulse) + text
+  _setProgress(-1,
+    `⏱ ${_fmtSimTime(_solver.t)}  |  maxΔT=${displayMaxDT} K  |  iter=${_solver.iterations}  [${speedLabel}]`);
+
+  // 8. Schedule next step — delay if sim is ahead of wall clock
+  const delay = _realtimeDelay();
+  if (delay > 4) {
+    setTimeout(() => {
+      if (!_livePaused && _solverRunning) _rafHandle = requestAnimationFrame(_continuousStep);
+    }, delay);
+  } else {
+    _rafHandle = requestAnimationFrame(_continuousStep);
+  }
+}
+
+function _trimLiveData() {
+  const d = _solver.trendData;
+  if (!d || d.times.length <= _liveMaxPts) return;
+  const trim = d.times.length - _liveMaxPts;
+  d.times.splice(0, trim);
+  d.maxDTs.splice(0, trim);
+  if (d.maxTemps) d.maxTemps.splice(0, trim);
+}
+
+// Build airCols array for live heatmap — per-panel air temperature data
+function _buildAirCols(T_amb) {
+  if (!_lineup) return null;
+  return _lineup.panels.map((p, pid) => {
+    const pnodes = _lineup.nodes.filter(n => n.panel_id === pid);
+    if (!pnodes.length) return null;
+    const xs = pnodes.map(n => n.x);
+    return {
+      cellCenters: p.air.cell_centers,
+      cellHeight:  p.air.cell_height,
+      deltas:      p.air.temperatures.map(t => t - T_amb),
+      panelMinX:   Math.min(...xs),
+      panelMaxX:   Math.max(...xs),
+    };
+  }).filter(Boolean);
+}
+
+function _realtimeDelay() {
+  if (_liveSpeed === 0) return 0;  // max speed — no throttle
+  // speed N means sim runs N× wall clock
+  const wallS = (performance.now() - _liveWallT0) / 1000;
+  const simS  = _solver.t - _liveSimT0;
+  // sim should not advance beyond speed×wallS
+  return Math.max(0, (simS / _liveSpeed - wallS) * 1000);
+}
+
+function _applyLiveCurrentChanges() {
+  _lineup.panels.forEach((p, i) => {
+    if (p.rawModules && p.rawModules.length > 0) {
+      // MCC: update per-module loads
+      p.rawModules.forEach((m, mi) => {
+        const muted = _liveMCCModMuted[i]?.[mi];
+        const load  = muted ? 0 : (_liveMCCModLoads[i]?.[mi] ?? m.load ?? 0);
+        m.load = load;
+      });
+    } else {
+      // DC2BB: update panel load
+      const load = _livePanelMuted[i] ? 0 : (_livePanelLoads[i] ?? 0);
+      p.load = load;
+    }
+    if (typeof p._apply_internal_currents === 'function') {
+      p._apply_internal_currents();
+    }
+  });
+}
+
+function renderLiveControls() {
+  const body = document.getElementById('live-ctrl-body');
+  if (!body || !_lineup) return;
+  const tAmb = _solver ? _solver.T_ambient : _solverTAmb;
+  let html = `<div class="live-ctrl-row" style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border2)">
+    <span style="font-size:11px;color:var(--text2);min-width:70px">T_ambient</span>
+    <input class="live-ctrl-inp" type="number" step="1" min="-40" max="80" id="live-amb-inp"
+      value="${tAmb}" onchange="_setLiveAmbient(+this.value)" title="Ambient temperature [°C]">
+    <span style="font-size:10px;color:var(--text3)">°C</span>
+  </div>`;
+  _lineup.panels.forEach((p, i) => {
+    const isMCC = p.rawModules && p.rawModules.length > 0;
+    if (isMCC) {
+      html += `<div class="live-panel-ctrl">
+        <div class="live-panel-hdr">&#9679; P${i+1} MCC</div>`;
+      (p.rawModules || []).forEach((m, mi) => {
+        const muted = _liveMCCModMuted[i]?.[mi];
+        html += `<div class="live-ctrl-row" style="margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text3);width:24px">M${mi+1}</span>
+          <input class="live-ctrl-inp" type="number" step="100"
+            value="${_liveMCCModLoads[i]?.[mi] ?? m.load ?? 0}"
+            onchange="_setMCCModLoad(${i},${mi},+this.value)">
+          <button class="live-ctrl-btn ${muted ? 'off' : 'on'}"
+            onclick="_toggleMCCMod(${i},${mi})">
+            ${muted ? 'OFF' : 'ON'}
+          </button>
+        </div>`;
+      });
+      html += `</div>`;
+    } else {
+      const muted = _livePanelMuted[i];
+      const load  = _livePanelLoads[i] ?? (p.load || 0);
+      html += `<div class="live-panel-ctrl">
+        <div class="live-panel-hdr">&#9679; P${i+1} DC2BB</div>
+        <div class="live-ctrl-row">
+          <input class="live-ctrl-inp" type="number" step="100"
+            value="${load}"
+            onchange="_setPanelLoad(${i},+this.value)">
+          <span style="font-size:10px;color:var(--text3)">A</span>
+          <button class="live-ctrl-btn" onclick="_flipPanelPolarity(${i})" title="Flip polarity">&#8645;</button>
+          <button class="live-ctrl-btn ${muted ? 'off' : 'on'}"
+            onclick="_togglePanel(${i})">
+            ${muted ? 'OFF' : 'ON'}
+          </button>
+        </div>
+      </div>`;
+    }
+  });
+  body.innerHTML = html || '<div style="font-size:11px;color:var(--text3)">No panels</div>';
+}
+
+function _setPanelLoad(i, val) {
+  _livePanelLoads[i] = val;
+  renderLiveControls();
+}
+function _flipPanelPolarity(i) {
+  _livePanelLoads[i] = -(_livePanelLoads[i] || 0);
+  renderLiveControls();
+}
+function _togglePanel(i) {
+  _livePanelMuted[i] = !_livePanelMuted[i];
+  renderLiveControls();
+}
+function _setMCCModLoad(pi, mi, val) {
+  if (!_liveMCCModLoads[pi]) _liveMCCModLoads[pi] = [];
+  _liveMCCModLoads[pi][mi] = val;
+  renderLiveControls();
+}
+function _toggleMCCMod(pi, mi) {
+  if (!_liveMCCModMuted[pi]) _liveMCCModMuted[pi] = [];
+  _liveMCCModMuted[pi][mi] = !_liveMCCModMuted[pi][mi];
+  renderLiveControls();
+}
+function _setLiveAmbient(val) {
+  const v = parseFloat(val);
+  if (!isFinite(v)) return;
+  if (_solver && _lineup) {
+    const delta = v - _solver.T_ambient;   // shift amount
+    _solver.T_ambient = v;
+    _lineup.panels.forEach(p => {
+      p.air.T0 = v;                        // fix inlet air + wall-loss boundary
+      for (let i = 0; i < p.air._T.length; i++) {
+        p.air._T[i] += delta;              // shift evolved temps, preserve stratification shape
+      }
+    });
+  } else if (_solver) {
+    _solver.T_ambient = v;
+  }
+  _solverTAmb = v;
+}
+
+function _liveSetSelectedNode(idx) {
+  _liveSelectedNode = idx;
+  _selectedNode     = idx;
+  _renderLiveSensors();
+}
+
+function _livePinToggle(idx) {
+  if (idx === null) return;
+  if (_livePinnedNodes.has(idx)) {
+    _livePinnedNodes.delete(idx);
+  } else {
+    _livePinnedNodes.add(idx);
+  }
+  _liveSelectedNode = idx;  // keep amber ring on last interaction
+  _selectedNode     = idx;
+  _renderLiveSensors();
+}
+
+function _livePinRemove(idx) {
+  _livePinnedNodes.delete(idx);
+  if (_liveSelectedNode === idx) _liveSelectedNode = null;
+  _renderLiveSensors();
+}
+
+function _renderLiveSensors() {
+  const container = document.getElementById('live-sensors-list');
+  if (!container || !_lineup || !_solver) return;
+  const T_amb  = _solver.T_ambient;
+  const finalT = _solver.finalTemps;
+  let html = '';
+
+  // ─── Pinned nodes ───────────────────────────────────────────────
+  if (_livePinnedNodes.size > 0) {
+    html += `<div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Pinned nodes</div>`;
+    for (const idx of _livePinnedNodes) {
+      if (!_lineup.nodes[idx]) continue;
+      const node = _lineup.nodes[idx];
+      const T    = finalT[idx];
+      const dT   = T - T_amb;
+      const col  = dT < 30 ? '#27ae60' : dT < 50 ? '#d97706' : '#dc2626';
+      const ring = idx === _liveSelectedNode ? ';outline:1px solid var(--accent)' : '';
+      html += `<div style="background:var(--panel2);border-radius:4px;padding:5px 6px;margin-bottom:4px;font-size:10px;cursor:pointer${ring}" onclick="_liveSetSelectedNode(${idx})">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:var(--accent)">#${idx}</span>
+          <span style="font-size:11px;font-weight:700;color:${col}">+${dT.toFixed(1)} K</span>
+          <span style="cursor:pointer;color:var(--text3);font-size:10px;padding:0 2px" onclick="event.stopPropagation();_livePinRemove(${idx})">✕</span>
+        </div>
+        <div style="color:var(--text3);font-size:9px">P${node.panel_id+1}  x=${node.x.toFixed(0)}  y=${node.y.toFixed(0)} mm</div>
+        ${node.sensor_name ? `<div style="color:var(--text3);font-size:9px">⬡ ${node.sensor_name}</div>` : ''}
+        <div style="color:var(--text3);font-size:9px">T = ${T.toFixed(1)} °C</div>
+      </div>`;
+    }
+  }
+
+  // ─── Named sensors (from YAML) ──────────────────────────────────
+  const sensors = Object.entries(_lineup.sensors || {});
+  if (sensors.length > 0) {
+    html += `<div style="font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:${_livePinnedNodes.size?'8px':'0'}">Sensors</div>`;
+    for (const [name, idx] of sensors) {
+      const T  = finalT[idx];
+      const dT = T - T_amb;
+      const col = dT < 30 ? '#27ae60' : dT < 50 ? '#d97706' : '#dc2626';
+      const pinned = _livePinnedNodes.has(idx);
+      html += `<div class="live-sensor-row${pinned ? ' live-sensor-active' : ''}" style="cursor:pointer" onclick="_livePinToggle(${idx})" title="Click to pin/unpin">
+        <span class="live-sensor-name">${name}</span>
+        <span class="live-sensor-dt" style="color:${col}">+${dT.toFixed(1)} K</span>
+      </div>`;
+    }
+  }
+
+  if (_livePinnedNodes.size === 0 && sensors.length === 0) {
+    html = '<div style="font-size:10px;color:var(--text3)">Click heatmap node to pin.<br>Pinned nodes show live ΔT here.</div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function _drawLivePinLabels(canvas) {
+  // Overlay: draw node index number next to each pinned node dot.
+  // NOTE: do NOT re-apply dpr scale — context already has scale(dpr,dpr)
+  // from drawHeatmapChart which ran just before this call.
+  if (!_heatmapNodes || _livePinnedNodes.size === 0) return;
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'center';
+  for (const idx of _livePinnedNodes) {
+    const nd = _heatmapNodes[idx];
+    if (!nd) continue;
+    const label = String(idx);
+    const tw = ctx.measureText(label).width;
+    // small pill above the dot
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.beginPath();
+    const rx = nd.cx - tw/2 - 3, ry = nd.cy - 19, rw = tw + 6, rh = 12;
+    if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, 2); }
+    else { ctx.rect(rx, ry, rw, rh); }
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, nd.cx, nd.cy - 10);
+    // ring around pinned dot
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(nd.cx, nd.cy, 10, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function _setupLiveHeatmapInteraction() {
+  const canvas = document.getElementById('live-hm-canvas');
+  if (!canvas) return;
+  canvas.style.cursor = 'crosshair';
+
+  canvas.addEventListener('mousemove', e => {
+    if (!_heatmapNodes) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    let near = false;
+    for (const nd of _heatmapNodes) {
+      if (Math.hypot(nd.cx - cx, nd.cy - cy) < 14) { near = true; break; }
+    }
+    canvas.style.cursor = near ? 'pointer' : 'crosshair';
+  });
+
+  canvas.addEventListener('click', e => {
+    if (!_heatmapNodes || !_solver) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    let best = null, bestD = 18;
+    for (const nd of _heatmapNodes) {
+      const d = Math.hypot(nd.cx - cx, nd.cy - cy);
+      if (d < bestD) { best = nd; bestD = d; }
+    }
+    if (best !== null) _livePinToggle(best.idx);
+  });
+}
+
+function _stopContinuousSolver() {
+  if (_rafHandle) { cancelAnimationFrame(_rafHandle); _rafHandle = null; }
+  _setSolverRunning(false);
+  // Restore solve-right to normal view
+  document.getElementById('live-dashboard').style.display  = 'none';
+  document.getElementById('viz-top-bar').style.display     = '';
+  document.getElementById('viz-container').style.display   = '';
+  document.getElementById('solve-stats-bar').style.display = '';
+  document.getElementById('live-controls').style.display   = 'none';
+  // Grab final temps
+  if (_solver) {
+    _finalTemps   = _solver.finalTemps;
+    _airDataCache = _solver.airData;
+    if (_lineup) {
+      renderGraph(_lineup, _finalTemps);
+      renderSensorTable();
+      renderNodeTable();
+    }
+  }
+  setStatus('Continuous run stopped', 'idle');
+  _setProgress(0, _solver ? `Stopped at t=${(_solver.t/3600).toFixed(3)} h` : 'Stopped');
+}
+
+// ─── Pause / Resume ──────────────────────────────────────────────────────
+function _updatePauseUI() {
+  const btn = document.getElementById('btn-pause');
+  if (!btn) return;
+  if (_runMode !== 'continuous' || !_solverRunning) {
+    btn.style.display = 'none';
+    btn.classList.remove('paused');
+    return;
+  }
+  btn.style.display = 'block';
+  btn.disabled = false;
+  if (_livePaused) {
+    btn.innerHTML = '&#9654; Resume';
+    btn.classList.add('paused');
+  } else {
+    btn.innerHTML = '&#9208; Pause';
+    btn.classList.remove('paused');
+  }
+}
+
+function togglePauseContinuous() {
+  if (!_solverRunning || _runMode !== 'continuous') return;
+  if (_livePaused) resumeContinuousSolver();
+  else pauseContinuousSolver();
+}
+
+function pauseContinuousSolver() {
+  if (_rafHandle) { cancelAnimationFrame(_rafHandle); _rafHandle = null; }
+  _livePaused = true;
+  _updatePauseUI();
+  const t = _solver ? _fmtSimTime(_solver.t) : '00:00:00';
+  setStatus(`Paused at ${t} — adjust params, Save Frame, or Resume`, 'idle');
+  _setProgress(-1, `⏸ Paused at ${t}`);
+}
+
+function resumeContinuousSolver() {
+  if (!_solver || !_solverRunning) return;
+  _livePaused = false;
+  _liveWallT0 = performance.now();   // reset epoch to avoid backlog
+  _liveSimT0  = _solver.t;
+  _updatePauseUI();
+  setStatus('Continuous solver running…', 'run');
+  _setProgress(-1, 'Running continuous…');
+  _rafHandle = requestAnimationFrame(_continuousStep);
+}
+
+// ─── Status Frame (checkpoint / rewind) ──────────────────────────────────
+function saveStatusFrame() {
+  if (!_solver || !_lineup) return;
+  _statusFrame = {
+    t:             _solver.t,
+    dt:            _solver.dt,
+    T:             new Float64Array(_solver._T),
+    _last_air_t:   _solver._last_air_t,
+    T_ambient:     _solver.T_ambient,
+    times:         [..._solver._times],
+    maxDTs:        [..._solver._maxDTs],
+    maxTemps:      [..._solver._maxTemps],
+    _airSnapTimes: [..._solver._airSnapTimes],
+    _airSnaps:     _solver._airSnaps.map(ps => ps.map(s => [...s])),
+    _nodeHistTimes: [..._solver._nodeHistTimes],
+    _nodeHistSnaps: _solver._nodeHistSnaps.map(s => new Float32Array(s)),
+    airTemps:      _lineup.panels.map(p => new Float64Array(p.air._T)),
+    livePanelLoads:  [..._livePanelLoads],
+    livePanelMuted:  [..._livePanelMuted],
+    liveMCCModLoads: _liveMCCModLoads.map(a => [...(a || [])]),
+    liveMCCModMuted: _liveMCCModMuted.map(a => [...(a || [])]),
+  };
+  const ts = _fmtSimTime(_statusFrame.t);
+  const ftLbl = document.getElementById('frame-time-lbl');
+  if (ftLbl) ftLbl.textContent = `@ ${ts}`;
+  const btnRw = document.getElementById('btn-rewind');
+  if (btnRw) btnRw.disabled = false;
+  setStatus(`Frame saved at ${ts}`, 'ok');
+}
+
+function rewindToStatusFrame() {
+  if (!_statusFrame || !_solver || !_lineup) return;
+  // Auto-pause if running
+  if (!_livePaused) pauseContinuousSolver();
+
+  const f = _statusFrame;
+  // Restore scalar solver state
+  _solver.t           = f.t;
+  _solver.dt          = f.dt;
+  _solver._last_air_t = f._last_air_t;
+  _solver.T_ambient   = f.T_ambient;
+  _solverTAmb         = f.T_ambient;
+  // Restore node temperatures
+  _solver._T = new Float64Array(f.T);
+  // Restore trend data
+  _solver._times    = [...f.times];
+  _solver._maxDTs   = [...f.maxDTs];
+  _solver._maxTemps = f.maxTemps ? [...f.maxTemps] : _solver._maxDTs.map((dt, i) => dt + f.T_ambient);
+  // Restore air snapshot history
+  _solver._airSnapTimes = [...f._airSnapTimes];
+  _solver._airSnaps     = f._airSnaps.map(ps => ps.map(s => [...s]));
+  // Restore node history
+  _solver._nodeHistTimes = [...f._nodeHistTimes];
+  _solver._nodeHistSnaps = f._nodeHistSnaps.map(s => new Float32Array(s));
+  // Restore live panel air model temperatures
+  _lineup.panels.forEach((p, i) => {
+    if (f.airTemps[i]) p.air._T.set(f.airTemps[i]);
+  });
+  // Restore live control arrays
+  _livePanelLoads  = [...f.livePanelLoads];
+  _livePanelMuted  = [...f.livePanelMuted];
+  _liveMCCModLoads = f.liveMCCModLoads.map(a => [...a]);
+  _liveMCCModMuted = f.liveMCCModMuted.map(a => [...a]);
+  // Sync ambient input
+  const ambInp = document.getElementById('live-amb-inp');
+  if (ambInp) ambInp.value = f.T_ambient;
+  // Apply restored currents
+  _applyLiveCurrentChanges();
+  // Reset timing epoch
+  _liveWallT0 = performance.now();
+  _liveSimT0  = _solver.t;
+  // Redraw charts immediately
+  const td = _solver.trendData;
+  const trendC = document.getElementById('live-trend-canvas');
+  if (trendC && trendC.offsetWidth > 0) {
+    drawTrendChart(trendC, td.times, td.maxDTs, _solver.T_ambient, td.maxTemps);
+  }
+  const hmC = document.getElementById('live-hm-canvas');
+  if (hmC && hmC.offsetWidth > 0) {
+    const T_amb  = _solver.T_ambient;
+    const nodeX  = _lineup.nodes.map(n => n.x);
+    const nodeY  = _lineup.nodes.map(n => n.y);
+    const dTs    = Array.from(_solver._T).map(t => t - T_amb);
+    const panels = _lineup.nodes.map(n => n.panel_id);
+    _selectedNode = _liveSelectedNode;
+    drawHeatmapChart(hmC, nodeX, nodeY, dTs, panels, _buildAirCols(T_amb), _buildEdges(_lineup.nodes));
+    _drawLivePinLabels(hmC);
+  }
+  _liveHmTime = _solver.t;   // suppress extra heatmap redraw on next step
+  renderLiveControls();
+  _renderLiveSensors();
+  // Update labels
+  const speedLabel = _liveSpeed === 0 ? 'Max' : (_liveSpeed === 1 ? '1:1' : '×' + _liveSpeed);
+  const displayMaxDT = (f.maxDTs.length ? f.maxDTs[f.maxDTs.length - 1] : 0).toFixed(1);
+  const timeLbl = document.getElementById('live-time-lbl');
+  if (timeLbl) timeLbl.textContent = `⏱ ${_fmtSimTime(_solver.t)}  |  ΔT=${displayMaxDT} K  [${speedLabel}]`;
+  const ts = _fmtSimTime(f.t);
+  _setProgress(-1, `⏸ Rewound to ${ts}`);
+  setStatus(`Rewound to ${ts} — Resume when ready`, 'idle');
 }
 
 function _solverStep() {
@@ -6193,13 +7209,14 @@ function _finalizeSolver() {
 
   const td = _solver.trendData;
   drawTrendChart(document.getElementById('trend-canvas'), td.times, td.maxDTs, _solver.T_ambient);
-  drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, panelIds);
+  drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, panelIds, undefined, _buildEdges(nodes));
   drawAirChart(document.getElementById('air-canvas'), _solver.airData, _solver.T_ambient);
 
   _finalTemps   = _solver.finalTemps;
   _airDataCache = _solver.airData;
   renderGraph(_lineup, _finalTemps);
   renderSensorTable();
+  renderNodeTable();
   document.getElementById('btn-csv') && (document.getElementById('btn-csv').disabled = false);
   document.getElementById('btn-report') && (document.getElementById('btn-report').disabled = false);
 
@@ -6207,6 +7224,9 @@ function _finalizeSolver() {
 }
 
 function stopSolver() {
+  // Continuous mode gets its own cleanup
+  if (_runMode === 'continuous') { _stopContinuousSolver(); return; }
+
   _finalTemps = _solver?.finalTemps ?? _finalTemps;
   if (_rafHandle) { cancelAnimationFrame(_rafHandle); _rafHandle = null; }
   _setSolverRunning(false);
@@ -6225,10 +7245,11 @@ function stopSolver() {
       const nodeX  = nodes.map(n => n.x);
       const nodeY  = nodes.map(n => n.y);
       const dTs    = finalT.map(t => t - _solver.T_ambient);
-      drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, nodes.map(n => n.panel_id));
+      drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, nodes.map(n => n.panel_id), undefined, _buildEdges(nodes));
       drawAirChart(document.getElementById('air-canvas'), _solver.airData, _solver.T_ambient);
       renderGraph(_lineup, _finalTemps);
       renderSensorTable();
+      renderNodeTable();
     }
   }
 }
@@ -6395,6 +7416,8 @@ function _setupHeatmapInteraction() {
 // ═══════════════════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
   _setupHeatmapInteraction();
+  _setupLiveHeatmapInteraction();
+  _syncSolveInputsFromState();   // sync initial state.solver → Solve tab inputs
   document.getElementById('file-input')?.addEventListener('change', onFileChange);
 
   // Wire up YAML live editing
