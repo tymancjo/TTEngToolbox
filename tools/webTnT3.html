@@ -1921,6 +1921,11 @@ function switchMainTab(tabId) {
     const ind = document.getElementById('stale-indicator');
     if (ind) ind.style.display = 'block';
   }
+
+  // When switching to Results with an active solver, snapshot current state
+  if (tabId === 'results' && _solver && _lineup) {
+    _snapshotToResults();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2188,27 +2193,27 @@ class SensorMarker {
 
 // ─── Factories ──────────────────────────────────────────────────────
 function Busbar(width, height, length,
-                { n=1, angle=0, material='Cu', htc=5, emissivity=0.35, ac_factor=1 } = {}) {
+                { n=1, angle=0, material='Cu', htc=5, emissivity=0.35, ac_factor=1, dissipates=true } = {}) {
   return new ThermalElement({
     shape: new Shape(width, height, length, n, angle),
     material: resolveMaterial(material),
-    htc, emissivity, ac_factor, dissipates: true,
+    htc, emissivity, ac_factor, dissipates,
   });
 }
 function ACBreaker(width, height, length,
-                   { n=1, angle=-90, material='CuACB', htc=3, emissivity=0.35, ac_factor=1 } = {}) {
+                   { n=1, angle=-90, material='CuACB', htc=3, emissivity=0.35, ac_factor=1, dissipates=true } = {}) {
   return new ThermalElement({
     shape: new Shape(width, height, length, n, angle),
     material: resolveMaterial(material),
-    htc, emissivity, ac_factor, dissipates: true,
+    htc, emissivity, ac_factor, dissipates,
   });
 }
 function Cable(outer_d, inner_d=0, length=100,
-               { n=1, angle=0, material='Cu', htc=5, emissivity=0.9, ac_factor=1 } = {}) {
+               { n=1, angle=0, material='Cu', htc=5, emissivity=0.9, ac_factor=1, dissipates=true } = {}) {
   return new ThermalElement({
     shape: new PipeShape(outer_d, inner_d, length, n, angle),
     material: resolveMaterial(material),
-    htc, emissivity, ac_factor, dissipates: true,
+    htc, emissivity, ac_factor, dissipates,
   });
 }
 
@@ -2710,6 +2715,7 @@ function _buildElement(name, cfg, defaults, materials) {
   const htc        = cfg.htc        ?? defaults.htc        ?? 5.0;
   const emissivity = cfg.emissivity ?? defaults.emissivity ?? 0.35;
   const ac_factor  = cfg.ac_factor  ?? 1.0;
+  const dissipates = cfg.dissipates ?? cfg.power_losses ?? true;
   const mat_name   = cfg.material   ?? 'Cu';
   if (!(mat_name in materials)) throw new Error(`Element '${name}': unknown material '${mat_name}'`);
   const material = materials[mat_name];
@@ -2721,7 +2727,7 @@ function _buildElement(name, cfg, defaults, materials) {
     const n      = cfg.n      ?? 1;
     const angle  = cfg.angle  ?? (etype === 'busbar' ? 0 : -90);
     const fn = etype === 'busbar' ? Busbar : ACBreaker;
-    return fn(width, height, length, { n, angle, material, htc, emissivity, ac_factor });
+    return fn(width, height, length, { n, angle, material, htc, emissivity, ac_factor, dissipates });
   }
   if (etype === 'cable') {
     const outer  = cfg.outer_diameter ?? _require(name, 'outer_diameter');
@@ -2729,7 +2735,7 @@ function _buildElement(name, cfg, defaults, materials) {
     const length = cfg.length         ?? _require(name, 'length');
     const n      = cfg.n     ?? 1;
     const angle  = cfg.angle ?? 0;
-    return Cable(outer, inner, length, { n, angle, material, htc, emissivity, ac_factor });
+    return Cable(outer, inner, length, { n, angle, material, htc, emissivity, ac_factor, dissipates });
   }
   throw new Error(`Element '${name}': unknown type '${etype}'`);
 }
@@ -3264,37 +3270,182 @@ function _applyAmbientToLineup(lineup, T_ambient) {
 /* ─────────────────────────────────────────────────────
    Starter example / clear
    ───────────────────────────────────────────────────── */
-function loadExample() {
-  state.defaults = { htc: 3.0, emissivity: 0.35 };
-  state.materials = {};
-  state.elements = {
-    VBB:   { type: 'busbar', material: 'Cu', width: 10, height: 40,  length: 50,  n: 2, angle: -90 },
-    MBB:   { type: 'busbar', material: 'Cu', width: 10, height: 30,  length: 50,  n: 4, angle: 0 },
-    FISHP: { type: 'busbar', material: 'Cu', width: 10, height: 100, length: 100, n: 2, angle: 0 },
-    ACB:   { type: 'breaker', material: 'CuACB', width: 20, height: 100, length: 50, n: 1, angle: -90 }
-  };
-  const segs = {
-    main_busbar: [ { element: 'FISHP', count: 1 }, { element: 'MBB', count: 10 } ],
-    angle_bars:  [ { element: 'VBB', count: 2, angle: 90 }, { element: 'VBB', count: 2, angle: 0 }, { element: 'VBB', count: 6 } ],
-    io_bars:     [ { element: 'VBB', count: 3, angle: 180 }, { element: 'VBB', count: 22, angle: 90 }, { element: 'VBB', count: 1, angle: 0 } ],
-    breaker:     [ { element: 'ACB', count: 4 } ]
-  };
-  state.panels = [
-    { type: 'DC2BB', height: 2100, mbb_height: 1250, load: 2500, T0: null,
-      ventilation: 'closed', panel_depth: 600,
-      main_busbar: deepCopy(segs.main_busbar), angle_bars: deepCopy(segs.angle_bars),
-      io_bars: deepCopy(segs.io_bars), breaker: deepCopy(segs.breaker) },
-    { type: 'DC2BB', height: 2100, mbb_height: 1250, load: -2500, T0: null,
-      ventilation: 'closed', panel_depth: 600,
-      main_busbar: deepCopy(segs.main_busbar), angle_bars: deepCopy(segs.angle_bars),
-      io_bars: deepCopy(segs.io_bars), breaker: deepCopy(segs.breaker) }
-  ];
-  state.solver = {
-    global_current: 1000, T_ambient: 20, T0: 20,
-    accuracy: 0.1, dt_init: 1.0, air_interval: 5.0, end_time: 28800
-  };
-  ui.selectedElement = 'VBB';
-  ui.selectedPanel = 0;
+const _EXAMPLE_YAML = `
+defaults:
+  htc: 10
+  emissivity: 0.35
+
+materials:
+  Copper_std:
+    sigma: 58e6
+    alpha: 0.0039
+    k: 401
+    density: 8920
+    Cp: 385
+  ACB_eXX:
+    sigma: 5e6
+    alpha: 0.0039
+    k: 401
+    density: 8920
+    Cp: 385
+
+elements:
+  vbb_Cu_1x50x10:
+    type: busbar
+    material: Copper_std
+    width: 10
+    height: 50
+    length: 50
+    ac_factor: 1.2
+  vbb_Cu_2x50x10:
+    type: busbar
+    material: Copper_std
+    width: 10
+    height: 50
+    length: 50
+    n: 2
+    ac_factor: 1.4
+  vbb_Cu_2x2x80x10:
+    type: busbar
+    material: Copper_std
+    width: 10
+    height: 80
+    length: 50
+    n: 4
+    ac_factor: 1.95
+  acb_E12_wd:
+    type: breaker
+    material: ACB_eXX
+    width: 20
+    height: 100
+    length: 50
+    ac_factor: 2
+  acb_E42_wd:
+    type: breaker
+    material: ACB_eXX
+    width: 20
+    height: 100
+    length: 50
+    ac_factor: 0.94
+  DBB_10x50:
+    type: busbar
+    material: Cu
+    width: 10
+    height: 50
+    length: 50
+    ac_factor: 1.2
+  mbb_4x30x10_2800A:
+    type: busbar
+    material: Cu
+    width: 10
+    height: 30
+    length: 50
+    n: 4
+    ac_factor: 1.2
+  XT3_250_TM:
+    type: breaker
+    material: ACB_eXX
+    width: 5
+    height: 40
+    length: 200
+    htc: 0
+    emissivity: 0
+    ac_factor: 1.12
+  bb_Cu_1x20x5:
+    type: busbar
+    material: Copper_std
+    width: 5
+    height: 20
+    length: 50
+
+panels:
+  - type: DC2BB
+    height: 2100
+    mbb_height: 1250
+    load: -1000
+    main_busbar:
+      - {element: mbb_4x30x10_2800A, count: 20}
+    angle_bars:
+      - {element: vbb_Cu_2x50x10, count: 2, angle: -90}
+      - {element: vbb_Cu_2x50x10, count: 4}
+    io_bars:
+      - {element: vbb_Cu_2x50x10, count: 3, angle: 180}
+      - {element: vbb_Cu_2x50x10, count: 10, angle: 90}
+    breaker:
+      - {element: acb_E12_wd, count: 4, angle: 90}
+  - type: DC2BB
+    height: 2100
+    mbb_height: 1250
+    ventilation: louvers
+    load: 3650
+    main_busbar:
+      - {element: mbb_4x30x10_2800A, count: 20}
+    angle_bars:
+      - {element: vbb_Cu_2x2x80x10, count: 2, angle: 90}
+      - {element: vbb_Cu_2x2x80x10, count: 4}
+    io_bars:
+      - {element: vbb_Cu_2x2x80x10, count: 3, angle: 180}
+      - {element: vbb_Cu_2x2x80x10, count: 10, angle: -90}
+    breaker:
+      - {element: acb_E42_wd, count: 4}
+  - type: DC2BB
+    height: 2100
+    mbb_height: 1250
+    load: -2650
+    main_busbar:
+      - {element: mbb_4x30x10_2800A, count: 20}
+    angle_bars:
+      - {element: vbb_Cu_2x2x80x10, count: 2, angle: -90}
+      - {element: vbb_Cu_2x2x80x10, count: 4}
+    io_bars:
+      - {element: vbb_Cu_2x2x80x10, count: 3, angle: 180}
+      - {element: vbb_Cu_2x2x80x10, count: 10, angle: 90}
+    breaker:
+      - {element: acb_E42_wd, count: 4, angle: 90}
+  - type: MCC
+    height: 2100
+    mbb_height: 1250
+    ventilation: louvers
+    dbb_length: 1900
+    dbb_element: DBB_10x50
+    main_busbar:
+      - {element: mbb_4x30x10_2800A, count: 20}
+    modules:
+      - load: 0
+        height: 400
+        incoming_bars:
+          - {element: vbb_Cu_1x50x10, count: 1}
+        device:
+          - {element: vbb_Cu_1x50x10, count: 1}
+      - load: 250
+        height: 200
+        incoming_bars:
+          - {element: bb_Cu_1x20x5, count: 5}
+        device:
+          - {element: XT3_250_TM, count: 1}
+        outgoing:
+          - {element: bb_Cu_1x20x5, count: 6}
+
+solver:
+  global_current: 1000
+  T_ambient: 20
+  T0: 20
+  accuracy: 0.1
+  dt_init: 1
+  air_interval: 5
+  end_time: 28800
+`;
+
+function loadExample(skipConfirm = false) {
+  if (!skipConfirm && !confirm('Load example design? Current design will be replaced.')) return;
+  const ok = loadFromYAMLText(_EXAMPLE_YAML);
+  if (ok) {
+    showToast('Example loaded');
+    render();
+    _syncSolveInputsFromState();
+  } else {
+    showToast('Failed to parse example YAML — see console');
+  }
 }
 
 function clearLineup() {
@@ -3780,6 +3931,8 @@ function loadFromYAMLText(text) {
         if (src.htc != null) e.htc = src.htc;
         if (src.emissivity != null) e.emissivity = src.emissivity;
         if (src.ac_factor != null) e.ac_factor = src.ac_factor;
+        if ('dissipates'   in src) e.dissipates = src.dissipates;
+        if ('power_losses' in src) e.dissipates = src.power_losses;
         state.elements[name] = e;
       });
     }
@@ -4165,6 +4318,14 @@ function renderElementEditor() {
               <label class="prop-lbl">AC Factor</label>
               <input class="prop-inp" type="number" step="0.01" min="0" data-bind="elements.${name}.ac_factor" data-nullable value="${e.ac_factor ?? ''}" placeholder="1.0">
             </div>
+          </div>
+          <div class="prop-field" style="grid-column:1/-1;margin-top:6px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2)">
+              <input type="checkbox"
+                ${e.dissipates !== false ? 'checked' : ''}
+                onchange="setStatePath('elements.${name}.dissipates', this.checked)">
+              Power losses (I²R heating)
+            </label>
           </div>
           <button class="toggle-btn" id="hide-overrides" style="margin-top:8px">− Hide optional overrides</button>
         ` : `
@@ -5265,7 +5426,8 @@ function addElement() {
   state.elements[name] = {
     type: 'busbar', material: 'Cu',
     width: 10, height: 40, length: 50,
-    n: 1, angle: TYPE_DEFAULT_ANGLE.busbar
+    n: 1, angle: TYPE_DEFAULT_ANGLE.busbar,
+    dissipates: true
   };
   ui.selectedElement = name;
   render();
@@ -5487,7 +5649,7 @@ function exportLineupSVG() {
 /* ─────────────────────────────────────────────────────
    Boot
    ───────────────────────────────────────────────────── */
-loadExample();
+loadExample(true);  // boot — skip confirm
 render();
 </script>
 
@@ -6582,9 +6744,9 @@ function _startContinuousSolver() {
     _livePanelLoads  = lineup.panels.map(p => (typeof p.load === 'number' ? p.load : 0));
     _livePanelMuted  = lineup.panels.map(() => false);
     _liveMCCModLoads = lineup.panels.map((p, pi) =>
-      p.rawModules ? p.rawModules.map(m => m.load || 0) : []);
+      p.modules ? p.modules.map(m => m.load || 0) : []);
     _liveMCCModMuted = lineup.panels.map((p, pi) =>
-      p.rawModules ? p.rawModules.map(() => false) : []);
+      p.modules ? p.modules.map(() => false) : []);
 
     // Setup live controls UI
     renderLiveControls();
@@ -6747,9 +6909,9 @@ function _realtimeDelay() {
 
 function _applyLiveCurrentChanges() {
   _lineup.panels.forEach((p, i) => {
-    if (p.rawModules && p.rawModules.length > 0) {
+    if (p.modules && p.modules.length > 0) {
       // MCC: update per-module loads
-      p.rawModules.forEach((m, mi) => {
+      p.modules.forEach((m, mi) => {
         const muted = _liveMCCModMuted[i]?.[mi];
         const load  = muted ? 0 : (_liveMCCModLoads[i]?.[mi] ?? m.load ?? 0);
         m.load = load;
@@ -6776,11 +6938,11 @@ function renderLiveControls() {
     <span style="font-size:10px;color:var(--text3)">°C</span>
   </div>`;
   _lineup.panels.forEach((p, i) => {
-    const isMCC = p.rawModules && p.rawModules.length > 0;
+    const isMCC = p.modules && p.modules.length > 0;
     if (isMCC) {
       html += `<div class="live-panel-ctrl">
         <div class="live-panel-hdr">&#9679; P${i+1} MCC</div>`;
-      (p.rawModules || []).forEach((m, mi) => {
+      (p.modules || []).forEach((m, mi) => {
         const muted = _liveMCCModMuted[i]?.[mi];
         html += `<div class="live-ctrl-row" style="margin-bottom:3px">
           <span style="font-size:10px;color:var(--text3);width:24px">M${mi+1}</span>
@@ -7193,6 +7355,29 @@ function _solverStep() {
   }
 
   _rafHandle = requestAnimationFrame(_solverStep);
+}
+
+function _snapshotToResults() {
+  if (!_solver || !_lineup) return;
+  const nodes    = _lineup.nodes;
+  const finalT   = _solver.finalTemps;
+  const nodeX    = nodes.map(n => n.x);
+  const nodeY    = nodes.map(n => n.y);
+  const dTs      = finalT.map(t => t - _solver.T_ambient);
+  const panelIds = nodes.map(n => n.panel_id);
+  const td       = _solver.trendData;
+
+  drawTrendChart(document.getElementById('trend-canvas'), td.times, td.maxDTs, _solver.T_ambient);
+  drawHeatmapChart(document.getElementById('heatmap-canvas'), nodeX, nodeY, dTs, panelIds, undefined, _buildEdges(nodes));
+  drawAirChart(document.getElementById('air-canvas'), _solver.airData, _solver.T_ambient);
+
+  _finalTemps   = finalT.slice();   // snapshot so CSV/export work after stop
+  _airDataCache = _solver.airData;
+  renderGraph(_lineup, _finalTemps);
+  renderSensorTable();
+  renderNodeTable();
+  document.getElementById('btn-csv')    && (document.getElementById('btn-csv').disabled    = false);
+  document.getElementById('btn-report') && (document.getElementById('btn-report').disabled = false);
 }
 
 function _finalizeSolver() {
