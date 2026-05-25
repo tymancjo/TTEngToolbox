@@ -1,77 +1,192 @@
+/* ── Theme tokens ─────────────────────────────────────── */
+:root {
+  --bg:       #f4f6fb;
+  --panel:    #ffffff;
+  --border:   #e2e8f0;
+  --accent:   #2563eb;
+  --accent-h: #1d4ed8;
+  --text:     #1e293b;
+  --text2:    #64748b;
+  --shadow:   0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-h: 0 6px 20px rgba(37, 99, 235, 0.15);
+  --radius:   12px;
+  --radius-sm: 8px;
+}
+
+[data-theme="dark"] {
+  --bg:       #0f172a;
+  --panel:    #1e293b;
+  --border:   #334155;
+  --accent:   #60a5fa;
+  --accent-h: #93c5fd;
+  --text:     #f1f5f9;
+  --text2:    #94a3b8;
+  --shadow:   0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-h: 0 6px 20px rgba(96, 165, 250, 0.18);
+}
+
+/* ── Reset / base ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.6;
-    margin: 0;
-    background-color: #f4f4f9;
-    color: #333;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: background .25s, color .25s;
 }
 
+/* ── Header ───────────────────────────────────────────── */
 header {
-    background-color: #fff;
-    padding: 1rem 2rem;
-    border-bottom: 1px solid #ddd;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-header h1 {
-    margin: 0;
-    font-size: 1.8rem;
-    color: #2c3e50;
-    text-align: center;
+.header-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: .75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.brand-icon { font-size: 1.4rem; line-height: 1; }
+
+.brand-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+
+.theme-toggle {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .35rem .6rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background .15s, border-color .15s;
+  color: var(--text2);
+}
+
+.theme-toggle:hover {
+  background: var(--border);
+  border-color: var(--accent);
+}
+
+/* ── Main content ─────────────────────────────────────── */
 main {
-    flex: 1;
-    padding: 2rem;
-    max-width: 900px;
-    margin: 0 auto;
-    width: 100%;
+  flex: 1;
+  max-width: 900px;
+  width: 100%;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
 }
 
-h2 {
-    font-size: 1.5rem;
-    color: #34495e;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 0.5rem;
-    margin-bottom: 1.5rem;
+/* ── Section ──────────────────────────────────────────── */
+.tool-section { display: flex; flex-direction: column; gap: 1rem; }
+
+.section-label {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.tool-list {
-    list-style: none;
-    padding: 0;
+/* ── Tool grid ────────────────────────────────────────── */
+.tool-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: .75rem;
 }
 
-.tool-list li {
-    margin-bottom: 1rem;
+/* ── Tool card ────────────────────────────────────────── */
+.tool-card {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .9rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s;
 }
 
-.tool-list a {
-    display: block;
-    padding: 1rem 1.5rem;
-    background-color: #fff;
-    color: #3498db;
-    text-decoration: none;
-    font-size: 1.2rem;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+.tool-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-h);
+  border-color: var(--accent);
 }
 
-.tool-list a:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    border-color: #3498db;
+.tool-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
+.tool-info {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.tool-name {
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-desc {
+  font-size: .77rem;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Footer ───────────────────────────────────────────── */
 footer {
-    text-align: center;
-    padding: 1rem;
-    background-color: #fff;
-    border-top: 1px solid #ddd;
-    font-size: 0.9rem;
-    color: #777;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  text-align: center;
+  padding: .85rem 1rem;
+  font-size: .78rem;
+  color: var(--text2);
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 480px) {
+  .tool-grid { grid-template-columns: 1fr; }
+  .brand-name { font-size: .95rem; }
 }

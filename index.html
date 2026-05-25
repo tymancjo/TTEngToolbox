@@ -1,38 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tymancjo Engineering Toolbox</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tymancjo Engineering Toolbox</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1e40af" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="EngToolbox">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <!-- Apply saved theme before paint to avoid flash -->
+  <script>
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
-    <header>
-        <h1>Tymancjo Engineering Toolbox</h1>
-    </header>
-    <main>
-        <h2>Available Tools</h2>
-        <ul class="tool-list">
-            <li><a href="tools/AcousticAnalyzer_v8.html">Switchgear Acoustic Simulator v8</a></li>
-            <li><a href="tools/Forces3d.html">F3D - 3D Electrodynamic Forces Calculation Tool</a></li>
-            <li><a href="tools/Resistance.html">Resistor Ladder Solver (T-Segment Topology)</a></li>
-            <li><a href="tools/RTI_ageing.html">RTI Ageing Simulator</a></li>
-            <li><a href="tools/SLD_Simple_Current_Flow.html">Simple SLD Current Flow Calculation Tool</a></li>
-            <li><a href="tools/TS_V6_html/index.html">Electrical Arc Pressure Wave Simulation Tool</a></li>
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-icon">⚙️</span>
+        <span class="brand-name">Engineering Toolbox</span>
+      </div>
+      <button class="theme-toggle" id="theme-toggle" title="Toggle dark / light mode" aria-label="Toggle theme">
+        <span class="toggle-icon" id="toggle-icon"></span>
+      </button>
+    </div>
+  </header>
 
-       </ul>
-        <h2>Thermal Modeling - CSD, TnT3</h2>
-        <ul class="tool-list">
-            <li><a href="tools/webCSD.html">WebCSD - Current Density Tool</a></li>
-            <li><a href="tools/webTnT3.html">Thermal Network Tool</a></li>
-        </ul>
-    </main>
+  <main>
 
-    <footer>
-        <p>Created for Tymancjo</p>
+    <section class="tool-section">
+      <h2 class="section-label">Electrical Engineering</h2>
+      <ul class="tool-grid">
+        <li>
+          <a href="tools/AcousticAnalyzer_v8.html" class="tool-card">
+            <span class="tool-icon">🔊</span>
+            <span class="tool-info">
+              <span class="tool-name">Switchgear Acoustic Simulator</span>
+              <span class="tool-desc">v8 — sound pressure level analysis</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/Forces3d.html" class="tool-card">
+            <span class="tool-icon">⚡</span>
+            <span class="tool-info">
+              <span class="tool-name">F3D — Electrodynamic Forces</span>
+              <span class="tool-desc">3D conductor force calculation</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/Resistance.html" class="tool-card">
+            <span class="tool-icon">〰️</span>
+            <span class="tool-info">
+              <span class="tool-name">Resistor Ladder Solver</span>
+              <span class="tool-desc">T-segment topology network</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/RTI_ageing.html" class="tool-card">
+            <span class="tool-icon">📉</span>
+            <span class="tool-info">
+              <span class="tool-name">RTI Ageing Simulator</span>
+              <span class="tool-desc">Insulation thermal reliability model</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/SLD_Simple_Current_Flow.html" class="tool-card">
+            <span class="tool-icon">🔌</span>
+            <span class="tool-info">
+              <span class="tool-name">SLD Current Flow</span>
+              <span class="tool-desc">Graphic single-line diagram solver</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/TS_V6_html/index.html" class="tool-card">
+            <span class="tool-icon">💥</span>
+            <span class="tool-info">
+              <span class="tool-name">Arc Pressure Wave Simulation</span>
+              <span class="tool-desc">Electrical arc high-fidelity engine v6</span>
+            </span>
+          </a>
+        </li>
+      </ul>
+    </section>
 
-      <p>This set of tools is createsd under free license (MIT 2) as a helpers in Electrical
-      Enginnering day by day work. Those tools were developed with use of AI based code assistance.</p> 
-    </footer>
+    <section class="tool-section">
+      <h2 class="section-label">Thermal Modelling — CSD · TnT3</h2>
+      <ul class="tool-grid">
+        <li>
+          <a href="tools/webCSD.html" class="tool-card">
+            <span class="tool-icon">🟦</span>
+            <span class="tool-info">
+              <span class="tool-name">WebCSD — Current Density Tool</span>
+              <span class="tool-desc">Raster-mode conductor cross-section editor</span>
+            </span>
+          </a>
+        </li>
+        <li>
+          <a href="tools/webTnT3.html" class="tool-card">
+            <span class="tool-icon">🌡️</span>
+            <span class="tool-info">
+              <span class="tool-name">TnT-3 Thermal Network Tool</span>
+              <span class="tool-desc">Design · Solve · Results · Live</span>
+            </span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>MIT License · built with AI assistance · <a href="https://github.com/tymancjo/TTEngToolbox" target="_blank" rel="noopener">GitHub</a></p>
+  </footer>
+
+  <script>
+    // Theme toggle
+    const root   = document.documentElement;
+    const btn    = document.getElementById('theme-toggle');
+    const icon   = document.getElementById('toggle-icon');
+    const ICONS  = { light: '🌙', dark: '☀️' };
+
+    function applyTheme(theme) {
+      root.setAttribute('data-theme', theme);
+      icon.textContent = ICONS[theme] || '🌙';
+      localStorage.setItem('theme', theme);
+    }
+
+    // Set icon for current theme
+    applyTheme(root.getAttribute('data-theme') || 'light');
+
+    btn.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
+
+    // Honour OS-level changes (only if user hasn't manually set preference)
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+      if (!localStorage.getItem('theme')) applyTheme(e.matches ? 'dark' : 'light');
+    });
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>
