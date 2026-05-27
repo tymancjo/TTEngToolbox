@@ -4077,6 +4077,7 @@ function renderLeft() {
           ${subLabel}
           <button class="item-move" title="Move up" onclick="movePanelUp(${idx})" ${idx === 0 ? 'disabled' : ''}>▲</button>
           <button class="item-move" title="Move down" onclick="movePanelDown(${idx})" ${idx === state.panels.length - 1 ? 'disabled' : ''}>▼</button>
+          <button class="item-move" title="Copy panel" onclick="copyPanel(${idx})">⧉</button>
           <button class="item-del" title="Delete panel">×</button>
         `;
         row.addEventListener('click', (ev) => {
@@ -4482,6 +4483,7 @@ function renderSegCard(cls, title, key, p, pIdx) {
              value="${escapeHtml(r.sensor)}" placeholder="sensor name">
       <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},-1)" ${upDis} title="Move up">▲</button>
       <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-move" onclick="copySegRow(${pIdx},'${key}',${rIdx})" title="Copy row">⧉</button>
       <button class="row-del" data-segdel="${pIdx}.${key}.${rIdx}" title="Remove sensor">×</button>
     </div>`;
     }
@@ -4495,6 +4497,7 @@ function renderSegCard(cls, title, key, p, pIdx) {
       <input class="prop-inp" type="number" step="1" data-seginp="${pIdx}.${key}.${rIdx}.angle" data-nullable value="${r.angle ?? ''}" placeholder="default">
       <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},-1)" ${upDis} title="Move up">▲</button>
       <button class="row-move" onclick="moveSegRow(${pIdx},'${key}',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-move" onclick="copySegRow(${pIdx},'${key}',${rIdx})" title="Copy row">⧉</button>
       <button class="row-del" data-segdel="${pIdx}.${key}.${rIdx}" title="Remove row">×</button>
     </div>`;
   }).join('');
@@ -4568,6 +4571,7 @@ function renderMCCEditor(p, idx) {
              value="${escapeHtml(r.sensor)}" placeholder="sensor name">
       <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},-1)" ${upDis} title="Move up">▲</button>
       <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-move" onclick="copySegRow(${idx},'main_busbar',${rIdx})" title="Copy row">⧉</button>
       <button class="row-del" data-segdel="${idx}.main_busbar.${rIdx}">×</button>
     </div>`;
     }
@@ -4580,6 +4584,7 @@ function renderMCCEditor(p, idx) {
       <input class="prop-inp" type="number" step="1" data-seginp="${idx}.main_busbar.${rIdx}.angle" data-nullable value="${r.angle ?? ''}" placeholder="default">
       <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},-1)" ${upDis} title="Move up">▲</button>
       <button class="row-move" onclick="moveSegRow(${idx},'main_busbar',${rIdx},1)" ${dnDis} title="Move down">▼</button>
+      <button class="row-move" onclick="copySegRow(${idx},'main_busbar',${rIdx})" title="Copy row">⧉</button>
       <button class="row-del" data-segdel="${idx}.main_busbar.${rIdx}">×</button>
     </div>`; }).join('');
 
@@ -4692,6 +4697,7 @@ function renderMCCModuleCard(m, pIdx, mIdx, elemNames) {
         <span style="font-size:9px;color:var(--text3)">mm</span>
         <button class="mod-move" title="Move up" onclick="moveMCCModuleUp(${pIdx},${mIdx})" ${mIdx === 0 ? 'disabled' : ''}>▲</button>
         <button class="mod-move" title="Move down" onclick="moveMCCModuleDown(${pIdx},${mIdx})" ${mIdx === state.panels[pIdx].modules.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="mod-move" title="Copy module" onclick="copyMCCModule(${pIdx},${mIdx})">⧉</button>
         <button class="mod-del" onclick="deleteMCCModule(${pIdx}, ${mIdx})">×</button>
       </div>
       <div class="mcc-seg-grid">
@@ -4735,6 +4741,13 @@ function moveMCCModuleDown(pIdx, mIdx) {
   const mods = state.panels[pIdx]?.modules;
   if (!mods || mIdx >= mods.length - 1) return;
   [mods[mIdx], mods[mIdx + 1]] = [mods[mIdx + 1], mods[mIdx]];
+  render();
+}
+
+function copyMCCModule(pIdx, mIdx) {
+  const mods = state.panels[pIdx]?.modules;
+  if (!mods) return;
+  mods.splice(mIdx + 1, 0, deepCopy(mods[mIdx]));
   render();
 }
 
@@ -5020,6 +5033,13 @@ function moveSegRow(pIdx, key, rIdx, dir) {
   const newIdx = rIdx + dir;
   if (newIdx < 0 || newIdx >= arr.length) return;
   [arr[rIdx], arr[newIdx]] = [arr[newIdx], arr[rIdx]];
+  render();
+}
+
+function copySegRow(pIdx, key, rIdx) {
+  const arr = state.panels[+pIdx][key];
+  if (!arr) return;
+  arr.splice(rIdx + 1, 0, deepCopy(arr[rIdx]));
   render();
 }
 
@@ -5485,6 +5505,13 @@ function movePanelUp(idx) {
 function movePanelDown(idx) {
   if (idx >= state.panels.length - 1) return;
   [state.panels[idx], state.panels[idx + 1]] = [state.panels[idx + 1], state.panels[idx]];
+  ui.selectedPanel = idx + 1;
+  render();
+}
+
+function copyPanel(idx) {
+  const clone = deepCopy(state.panels[idx]);
+  state.panels.splice(idx + 1, 0, clone);
   ui.selectedPanel = idx + 1;
   render();
 }
