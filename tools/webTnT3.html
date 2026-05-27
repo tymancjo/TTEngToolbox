@@ -7068,6 +7068,7 @@ function _renderLiveSensors() {
         <div style="color:var(--text3);font-size:9px">P${node.panel_id+1}  x=${node.x.toFixed(0)}  y=${node.y.toFixed(0)} mm</div>
         ${node.sensor_name ? `<div style="color:var(--text3);font-size:9px">⬡ ${node.sensor_name}</div>` : ''}
         <div style="color:var(--text3);font-size:9px">T = ${T.toFixed(1)} °C</div>
+        ${(_solver._net && _solver._net.I) ? `<div style="color:var(--text3);font-size:9px">I = ${_solver._net.I[idx].toFixed(1)} A</div>` : ''}
       </div>`;
     }
   }
