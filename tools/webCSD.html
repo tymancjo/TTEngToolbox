@@ -3279,6 +3279,18 @@ function openReport() {
   }
   const systemCDF = totalPdc > 0 ? res.totalPower / totalPdc : null;
 
+  const fmtR = v => v < 1 ? v.toFixed(3) : v < 100 ? v.toFixed(2) : v.toFixed(1);
+  let totalRdp_mOhm = null;
+  {
+    let sum = 0, valid = true;
+    for (const r of res.phaseResults) {
+      const irms = phases[r.pid]?.Irms ?? 0;
+      if (irms > 0) sum += r.power / (irms * irms) * 1000;
+      else valid = false;
+    }
+    if (valid && res.phaseResults.length > 0) totalRdp_mOhm = sum * 1000 / length; // normalize to 1 m
+  }
+
   // Results table rows
   const fmtZ = v => { const m = Math.abs(v)*1000; return (m < 1 ? m.toFixed(3) : m < 100 ? m.toFixed(2) : m.toFixed(1)); };
   const resultRows = res.phaseResults.map(r => {
@@ -3287,8 +3299,10 @@ function openReport() {
     const phi  = ((ph?.phi ?? 0) + (ph?.shift ?? 0)).toFixed(1);
     const LuH = r.L != null ? (r.L * 1e6) : null;
     const fmtL = v => v < 1 ? v.toFixed(3) : v < 100 ? v.toFixed(2) : v.toFixed(1);
+    const Rac_mOhm = irms > 0 ? (r.power / (irms * irms) * 1000) : null;
+    const fmtRac = v => v < 1 ? v.toFixed(3) : v < 100 ? v.toFixed(2) : v.toFixed(1);
     const zCols = r.Zmag != null ? `
-      <td>${fmtZ(r.Zre)}</td>
+      <td>${Rac_mOhm !== null ? fmtRac(Rac_mOhm) : '—'}</td>
       <td>${fmtZ(r.Zim)}</td>
       <td>${fmtZ(r.Zmag)}</td>
       <td>${r.Zang.toFixed(1)}</td>
@@ -3366,7 +3380,7 @@ function openReport() {
       <h2>Power Loss Results</h2>
       <table class="rpt-res-table">
         <thead>
-          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss <span class="u">(W)</span></th><th>R <span class="u">(mΩ)</span></th><th>X <span class="u">(mΩ)</span></th><th>|Z| <span class="u">(mΩ)</span></th><th>φZ <span class="u">(°)</span></th><th>L <span class="u">(μH)</span></th></tr>
+          <tr><th>Phase ID</th><th>Label</th><th>I rms</th><th>Angle</th><th>Material</th><th>Loss <span class="u">(W)</span></th><th>R<sub>ac</sub> <span class="u">(mΩ)</span></th><th>X <span class="u">(mΩ)</span></th><th>|Z| <span class="u">(mΩ)</span></th><th>φZ <span class="u">(°)</span></th><th>L <span class="u">(μH)</span></th></tr>
         </thead>
         <tbody>
           ${resultRows}
@@ -3381,6 +3395,10 @@ function openReport() {
           <tr class="rpt-total">
             <td colspan="10">Current Displacement Factor (CDF = P<sub>AC</sub> / P<sub>DC</sub>)</td>
             <td>${systemCDF !== null ? systemCDF.toFixed(3) : '—'}</td>
+          </tr>
+          <tr class="rpt-total">
+            <td colspan="10">R<sub>dp</sub> — equivalent power-loss resistance (ΣR<sub>ac</sub>, per 1 m)</td>
+            <td>${totalRdp_mOhm !== null ? fmtR(totalRdp_mOhm) + ' mΩ/m' : '—'}</td>
           </tr>
           <tr>
             <td colspan="10">Maximum current density</td>
