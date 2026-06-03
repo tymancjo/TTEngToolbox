@@ -3175,16 +3175,19 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
     const irmsSum = irmsById[c.id] ?? null;
     // Per-conductor I rms: I = sqrt(P / R), R = length[m] / (areaMm2[m²] × sigma_T)
     let irms = null;
+    let cdf = null;
     if (c.areaMm2 > 0 && power >= 0) {
       const { sigma, alpha } = getPhaseMatProps(phases[c.phaseId]);
       const sigmaT = sigma / (1 + alpha * (temp - 20));
       const R = (length * 1e-3) / (c.areaMm2 * 1e-6 * sigmaT); // Ω
       irms = R > 0 ? Math.sqrt(power / R) : null;
+      const Pdc = R > 0 && irmsSum !== null ? R * irmsSum * irmsSum : null;
+      cdf = power > 0 && Pdc > 0 ? power / Pdc : null;
     }
     let groupRow = '';
     if (c.phaseId !== lastPhaseId) {
       lastPhaseId = c.phaseId;
-      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="9" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
+      groupRow = `<tr style="background:var(--hover,#f3f4f6)"><td colspan="10" style="font-weight:600;font-size:11px;padding:4px 8px;color:var(--text2,#555)">${pLabel} — phase ${c.phaseId}</td></tr>`;
     }
     return groupRow + `<tr>
       <td>${swatch}${c.id}</td>
@@ -3196,6 +3199,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
       <td>${irmsSum !== null ? irmsSum.toFixed(1) : '—'}</td>
       <td>${irms !== null ? irms.toFixed(1) : '—'}</td>
       <td>${trise !== null ? trise.toFixed(1) : '—'}</td>
+      <td>${cdf !== null ? cdf.toFixed(3) : '—'}</td>
     </tr>`;
   }).join('');
   const htcNote = !htcOk
@@ -3212,7 +3216,7 @@ function buildConductorSection(res, comps, phases, htc, temp, length, fmt) {
         <thead><tr>
           <th>ID</th><th>Phase</th><th>Cross-section <span class="u">(mm²)</span></th>
           <th>Perimeter * <span class="u">(mm)</span></th><th>Cooling area <span class="u">(cm²)</span></th>
-          <th>Power loss <span class="u">(W)</span></th><th>I Σ <span class="u">(A)</span></th><th>I rms <span class="u">(A)</span></th><th>ΔT <span class="u">(K)</span></th>
+          <th>Power loss <span class="u">(W)</span></th><th>I Σ <span class="u">(A)</span></th><th>I rms <span class="u">(A)</span></th><th>ΔT <span class="u">(K)</span></th><th>CDF</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -3260,6 +3264,20 @@ function openReport() {
     if (ph.customMat) return `custom (σ=${(ph.customMat.sigma/1e6).toFixed(1)} MS/m)`;
     return MATERIALS[ph.material ?? 0] || '—';
   }
+
+  // System-level DC reference power and Current Displacement Factor
+  let totalPdc = 0;
+  if (solverComponents?.components) {
+    const iMap = Object.fromEntries((res.componentResults || []).map(r => [r.compId, r.Irms]));
+    for (const c of solverComponents.components) {
+      const { sigma, alpha } = getPhaseMatProps(phases[c.phaseId]);
+      const sigmaT = sigma / (1 + alpha * (temp - 20));
+      const R = (length * 1e-3) / (c.areaMm2 * 1e-6 * sigmaT);
+      const I = iMap[c.id];
+      if (I != null && R > 0) totalPdc += R * I * I;
+    }
+  }
+  const systemCDF = totalPdc > 0 ? res.totalPower / totalPdc : null;
 
   // Results table rows
   const fmtZ = v => { const m = Math.abs(v)*1000; return (m < 1 ? m.toFixed(3) : m < 100 ? m.toFixed(2) : m.toFixed(1)); };
@@ -3355,6 +3373,14 @@ function openReport() {
           <tr class="rpt-total">
             <td colspan="10">Total power loss (for ${length} mm length)</td>
             <td>${fmt(res.totalPower)} W</td>
+          </tr>
+          <tr>
+            <td colspan="10">DC reference power loss (R<sub>dc</sub>·I²)</td>
+            <td>${totalPdc > 0 ? fmt(totalPdc) + ' W' : '—'}</td>
+          </tr>
+          <tr class="rpt-total">
+            <td colspan="10">Current Displacement Factor (CDF = P<sub>AC</sub> / P<sub>DC</sub>)</td>
+            <td>${systemCDF !== null ? systemCDF.toFixed(3) : '—'}</td>
           </tr>
           <tr>
             <td colspan="10">Maximum current density</td>
