@@ -3,515 +3,1609 @@
 <head>
     <title>F3D - 3D Electrodynamic Forces Calculation Tool</title>
     <style>
-        body { margin: 0; background-color: #8fa9c1; }
-        canvas { display: block; }
-        #info {
-            position: absolute;
-            top: 10px;
-            width: 100%;
-            text-align: center;
-            color: black;
-            font-family: Arial, sans-serif;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #f0f2f5;
+            --surface: #ffffff;
+            --surface-2: #f7f8fa;
+            --border: #e2e6ea;
+            --accent: #2d6cdf;
+            --accent-light: #eef3fd;
+            --text: #1a1d23;
+            --text-muted: #6b7280;
+            --danger: #dc2626;
+            --radius: 6px;
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+            --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
         }
-        #input-container {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            background: rgba(255,255,255,0.5);
-            padding: 10px;
-            border-radius: 5px;
+
+        body {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            font-family: var(--font);
+            font-size: 13px;
+            color: var(--text);
         }
-        #conductor-input {
-            width: 600px;
-            height: 450px;
-        }
-    #results-container {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255,255,255,0.5);
-            padding: 10px;
-            border-radius: 5px;
-            color: black;
-            font-family: Arial, sans-serif;
-            max-height: 90%;
+
+        /* ---- Sidebar ---- */
+        #sidebar {
+            width: 360px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            z-index: 10;
             overflow-y: auto;
         }
-    #help-overlay {
+
+        .sidebar-header {
+            padding: 14px 12px 10px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        #app-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--accent);
+        }
+
+        #app-subtitle {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        #toolbar {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 10px;
+            border: 1px solid transparent;
+            border-radius: var(--radius);
+            font-family: var(--font);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.1s, border-color 0.1s, color 0.1s;
+            white-space: nowrap;
+        }
+        .btn:active { transform: translateY(1px); }
+
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { background: #1d56c5; border-color: #1d56c5; }
+
+        .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+        .btn-ghost:hover { background: var(--surface-2); }
+
+        .btn-danger { background: transparent; color: var(--danger); border-color: var(--border); }
+        .btn-danger:hover { background: #fef2f2; border-color: var(--danger); }
+
+        .btn-icon { padding: 4px 7px; font-size: 13px; line-height: 1; }
+
+        /* ---- Sidebar Sections ---- */
+        .sidebar-section {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-section h2 {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        /* ---- Conductor List ---- */
+        .phase-group-header {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            padding: 6px 4px 2px;
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+        }
+
+        .conductor-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            user-select: none;
+            border-left: 3px solid transparent;
+        }
+        .conductor-row:hover { background: var(--surface-2); }
+        .conductor-row.selected {
+            background: var(--accent-light);
+            border-left-color: var(--accent);
+        }
+
+        .color-swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            flex-shrink: 0;
+            border: 1px solid rgba(0,0,0,0.15);
+        }
+
+        .conductor-name {
+            flex: 1;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .force-badge {
+            font-size: 10px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        /* ---- Property Form ---- */
+        .form-group { margin-bottom: 8px; }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-family: var(--font);
+            font-size: 13px;
+            background: var(--surface-2);
+            color: var(--text);
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(45,108,223,0.15);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* ---- Point Table ---- */
+        #point-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        #point-table th {
+            text-align: left;
+            padding: 3px 4px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+        }
+        #point-table td { padding: 1px 2px; }
+        #point-table td input[type="number"] {
+            width: 100%;
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 3px 4px;
+            border-radius: 3px;
+            font-family: var(--font);
+            font-size: 11px;
+            color: var(--text);
+        }
+        #point-table td input[type="number"]:focus {
+            background: var(--surface-2);
+            border-color: var(--accent);
+            outline: none;
+        }
+        #point-table tr:hover td { background: var(--surface-2); }
+        #point-table tr:hover td input[type="number"] { background: transparent; }
+        .point-type-label {
+            font-size: 9px;
+            color: var(--text-muted);
+            padding: 3px 4px;
+            white-space: nowrap;
+        }
+
+        .prop-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        /* ---- Import/Export ---- */
+        details.sidebar-section > summary {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        details.sidebar-section > summary::before { content: '▶'; font-size: 7px; }
+        details.sidebar-section[open] > summary::before { content: '▼'; }
+        details.sidebar-section > summary + * { margin-top: 8px; }
+
+        #import-textarea {
+            width: 100%;
+            height: 100px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 10px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 6px;
+            background: var(--surface-2);
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+        #import-textarea:focus { outline: none; border-color: var(--accent); }
+
+        .import-actions { display: flex; gap: 6px; }
+
+        /* ---- Results Panel ---- */
+        .result-phase-block { margin-bottom: 8px; }
+        .result-phase-name {
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+        .result-phase-name:hover { background: var(--surface-2); color: var(--accent); }
+        .result-phase-force { font-size: 11px; color: var(--text-muted); padding: 0 6px 4px; }
+
+        .result-conductor-row {
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .result-conductor-row:hover { background: var(--surface-2); color: var(--accent); }
+        .result-forces { font-size: 10px; color: var(--text-muted); }
+
+        /* ---- Sidebar Footer ---- */
+        #sidebar-footer {
+            padding: 10px 12px;
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .slider-group label {
+            font-size: 11px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+            width: 78px;
+        }
+        .slider-group input[type="range"] { flex: 1; }
+
+        /* ---- Viewport ---- */
+        #viewport-container {
+            flex: 1;
+            position: relative;
+            background: #c8d4e0;
+            overflow: hidden;
+        }
+        #viewport-container canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        #overlay-hints {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(255,255,255,0.55);
+            color: rgba(30,40,55,0.80);
+            font-size: 10px;
+            padding: 7px 11px;
+            border-radius: var(--radius);
+            backdrop-filter: blur(4px);
+            line-height: 1.7;
+            pointer-events: none;
+            border: 1px solid rgba(0,0,0,0.10);
+        }
+
+        #drag-hint {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(45,108,223,0.85);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 500;
+            padding: 5px 10px;
+            border-radius: var(--radius);
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            display: none;
+        }
+
+        #add-point-btn {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(45,108,223,0.90);
+            color: #fff;
+            font-size: 22px;
+            line-height: 1;
+            font-weight: 300;
+            border: 2px solid rgba(255,255,255,0.5);
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            z-index: 5;
+            transition: background 0.1s, transform 0.1s;
+        }
+        #add-point-btn:hover { background: rgba(29,86,197,0.95); transform: translateX(-50%) scale(1.08); }
+        #add-point-btn:active { transform: translateX(-50%) scale(0.96); }
+
+        #view-presets {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .view-btn {
+            width: 36px;
+            height: 28px;
+            background: rgba(255,255,255,0.60);
+            border: 1px solid rgba(0,0,0,0.14);
+            border-radius: 5px;
+            font-family: var(--font);
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(30,40,55,0.85);
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: background 0.1s;
+        }
+        .view-btn:hover { background: rgba(45,108,223,0.80); color: #fff; }
+        .view-btn:active { transform: scale(0.95); }
+
+        /* ---- Help Modal ---- */
+        #help-overlay {
             display: none;
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background: rgba(0,0,0,0.5);
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
-    #help-container {
-            background: #fff;
-            padding: 20px;
+        #help-overlay.open { display: flex; }
+        #help-container {
+            background: var(--surface);
+            padding: 24px;
             border-radius: 10px;
-            max-width: 600px;
-            max-height: 80%;
+            max-width: 520px;
+            width: 90%;
+            max-height: 80vh;
             overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-    #navigation-help {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255,255,255,0.5);
-            padding: 10px;
-            border-radius: 5px;
-            color: black;
-            font-family: Arial, sans-serif;
+        #help-container h3 { margin-bottom: 12px; font-size: 16px; }
+        #help-container h4 { margin: 14px 0 5px; font-size: 13px; }
+        #help-container p, #help-container li { font-size: 13px; line-height: 1.6; }
+        #help-container ul { margin-left: 18px; }
+        #help-container code {
+            background: var(--surface-2);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid var(--border);
         }
+        .help-close-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
     </style>
 </head>
 <body>
-    <div id="info">F3D - 3D Force and Field Visualizer</div>
-    <div id="navigation-help">
-        <p><strong>3D Navigation:</strong><br>
-        - <strong>Rotate:</strong> Left-click and drag<br>
-        - <strong>Zoom:</strong> Mouse wheel<br>
-        - <strong>Pan:</strong> Right-click and drag
-        </p>
-    </div>
-    <div id="help-overlay">
-        <div id="help-container">
-            <button onclick="hideHelp()" style="float: right;">Close</button>
-            <h3>Help</h3>
-            <h4>Conductor Definition</h4>
-            <p>Each conductor is defined on a new line with the following format:</p>
-            <p><code>Name; color; current; width; height; start_x,y,z; rel_x,y,z; ...</code></p>
-            <ul>
-                <li><strong>Name:</strong> A unique name for the conductor.</li>
-                <li><strong>Color:</strong> The color of the conductor.</li>
-                <li><strong>Current:</strong> The electrical current in Amperes. Use a negative value for the opposite direction.</li>
-                <li><strong>Width:</strong> The width of the conductor cross-section.</li>
-                <li><strong>Height:</strong> The height of the conductor cross-section.</li>
-                <li><strong>start_x,y,z:</strong> The absolute starting coordinates of the conductor.</li>
-                <li><strong>rel_x,y,z:</strong> A series of relative coordinates that define the segments of the conductor. Each subsequent point is relative to the previous one.</li>
-            </ul>
-            <h4>Phases</h4>
-            <p>You can group conductors into phases to calculate the total force per phase.</p>
-            <p>To define a phase, add a line before the conductor definitions:</p>
-            <p><code>ph &lt;Phase Name&gt;</code></p>
-            <p>For example:</p>
-            <p><code>ph Phase A</code></p>
-            <p>All conductors defined after this line will belong to "Phase A" until a new phase is defined.</p>
-            <h4>Available Colors</h4>
-            <p>red, green, blue, yellow, orange, purple, cyan, magenta, white, black, gray</p>
+
+<!-- ===== SIDEBAR ===== -->
+<aside id="sidebar">
+    <div class="sidebar-header">
+        <div id="app-title">F3D</div>
+        <div id="app-subtitle">3D Electrodynamic Force Calculator</div>
+        <div id="toolbar">
+            <button class="btn btn-primary" onclick="rebuildAndRun()">&#9654; Run</button>
+            <button class="btn btn-ghost" onclick="newProject()">New</button>
+            <button class="btn btn-ghost" onclick="addConductor()">+ Add</button>
+            <button class="btn btn-ghost" onclick="zoomToFit()">Fit</button>
+            <button class="btn btn-ghost" onclick="resetView()">Reset</button>
+            <button class="btn btn-ghost" id="proj-toggle-btn" onclick="toggleProjection()">Persp</button>
+            <button class="btn btn-ghost" onclick="showHelp()">?</button>
         </div>
     </div>
-    <div id="input-container">
-        <textarea id="conductor-input" placeholder="Enter conductor data here..."></textarea>
-        <br>
-        <button onclick="run()">Visualize</button>
-        <button onclick="showCSV()">Get Results as CSV</button>
-        <button onclick="zoomToFit()">Zoom to Fit</button>
-        <button onclick="resetView()">Reset View</button>
-        <button onclick="showHelp()">Help</button>
-        <br>
-        <label for="light-slider">Light Intensity:</label>
-        <input type="range" id="light-slider" min="0" max="2" value="1" step="0.1" oninput="updateLightIntensity()">
-        <br>
-        <label for="vector-scale-slider">Vector Scale:</label>
-        <input type="range" id="vector-scale-slider" min="0.001" max="0.1" value="0.025" step="0.001" oninput="run()">
+
+    <div class="sidebar-section">
+        <h2>Conductors</h2>
+        <div id="conductor-list-items"></div>
     </div>
-    <div id="results-container"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <div class="sidebar-section" id="property-panel" style="display:none">
+        <h2>Properties</h2>
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="prop-name">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Phase</label>
+                <input type="text" id="prop-phase" placeholder="e.g. A">
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <select id="prop-color">
+                    <option>red</option>
+                    <option>green</option>
+                    <option>blue</option>
+                    <option>yellow</option>
+                    <option>orange</option>
+                    <option>purple</option>
+                    <option>cyan</option>
+                    <option>magenta</option>
+                    <option>white</option>
+                    <option>gray</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Current (A)</label>
+            <input type="number" id="prop-current">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Width (mm)</label>
+                <input type="number" id="prop-width" min="0">
+            </div>
+            <div class="form-group">
+                <label>Height (mm)</label>
+                <input type="number" id="prop-height" min="0">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Waypoints <span style="color:var(--text-muted);font-weight:400">(first: absolute, rest: delta)</span></label>
+            <table id="point-table">
+                <thead>
+                    <tr>
+                        <th style="width:30px"></th>
+                        <th>X</th><th>Y</th><th>Z</th>
+                        <th style="width:22px"></th>
+                    </tr>
+                </thead>
+                <tbody id="point-table-body"></tbody>
+            </table>
+            <button class="btn btn-ghost" onclick="addPointRow()" style="width:100%;margin-top:4px;font-size:11px">+ Point</button>
+        </div>
+        <div class="prop-actions">
+            <button class="btn btn-primary" onclick="applyFormChanges()" style="flex:1">Apply</button>
+            <button class="btn btn-ghost btn-icon" onclick="duplicateSelectedConductor()" title="Duplicate conductor">&#10697;</button>
+            <button class="btn btn-danger btn-icon" onclick="deleteSelectedConductor()" title="Delete conductor">&#128465;</button>
+        </div>
+    </div>
 
-    <script>
-        // --- Basic setup ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x8fa9c1);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+    <details class="sidebar-section">
+        <summary>Import / Export</summary>
+        <textarea id="import-textarea" placeholder="Paste conductor text here..."></textarea>
+        <div class="import-actions">
+            <button class="btn btn-ghost" onclick="importFromTextarea()" style="flex:1">Import</button>
+            <button class="btn btn-ghost" onclick="showCSV()">CSV</button>
+        </div>
+    </details>
 
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        camera.position.z = 500;
-        controls.update();
+    <div class="sidebar-section" id="results-panel">
+        <h2>Results</h2>
+        <div id="results-content">
+            <em style="color:var(--text-muted);font-size:11px">Run calculation to see forces.</em>
+        </div>
+    </div>
 
-        const root = new THREE.Object3D();
-        root.rotation.x = -Math.PI / 2;
-        scene.add(root);
+    <div id="sidebar-footer">
+        <div class="slider-group">
+            <label>Light</label>
+            <input type="range" id="light-slider" min="0" max="2" value="1" step="0.1" oninput="updateLightIntensity()">
+        </div>
+        <div class="slider-group">
+            <label>Vector Scale</label>
+            <input type="range" id="vector-scale-slider" min="0.001" max="0.1" value="0.025" step="0.001" oninput="rebuildAndRun()">
+        </div>
+    </div>
+</aside>
 
-        let ambientLight, directionalLight1, directionalLight2;
-        let conductors = [];
+<!-- ===== VIEWPORT ===== -->
+<main id="viewport-container">
+    <div id="drag-hint">Waypoint selected — drag X/Y/Z arrows &nbsp;|&nbsp; 5 mm snap &nbsp;|&nbsp; first point moves whole conductor</div>
+    <button id="add-point-btn" onclick="addPointFromViewport()" title="Add next waypoint">+</button>
+    <div id="view-presets">
+        <button class="view-btn" onclick="setView('front')" title="Front view">Ft</button>
+        <button class="view-btn" onclick="setView('top')"   title="Top view">Top</button>
+        <button class="view-btn" onclick="setView('right')" title="Right side view">Rt</button>
+        <button class="view-btn" onclick="setView('iso')"   title="Isometric view">Iso</button>
+    </div>
+    <div id="overlay-hints">
+        Rotate: drag &nbsp;|&nbsp; Zoom: scroll &nbsp;|&nbsp; Pan: right-drag
+    </div>
+</main>
 
-        function updateLightIntensity() {
-            const intensity = document.getElementById('light-slider').value;
-            if (ambientLight) ambientLight.intensity = intensity * 0.6;
-            if (directionalLight1) directionalLight1.intensity = intensity * 0.4;
-            if (directionalLight2) directionalLight2.intensity = intensity * 0.4;
+<!-- ===== HELP MODAL ===== -->
+<div id="help-overlay">
+    <div id="help-container">
+        <div class="help-close-row">
+            <button class="btn btn-ghost" onclick="hideHelp()">Close</button>
+        </div>
+        <h3>F3D Help</h3>
+        <h4>Text Format (Import / Export)</h4>
+        <p><code>Name; color; current; width; height; x,y,z; dx,dy,dz; ...</code></p>
+        <ul>
+            <li><strong>Name</strong> — unique conductor identifier</li>
+            <li><strong>Color</strong> — red, green, blue, yellow, orange, purple, cyan, magenta, white, gray</li>
+            <li><strong>Current</strong> — Amperes; negative reverses direction</li>
+            <li><strong>Width / Height</strong> — cross-section in mm</li>
+            <li><strong>Waypoints</strong> — first point absolute; subsequent points are relative deltas</li>
+        </ul>
+        <h4>Phase Grouping</h4>
+        <p>Add <code>ph Name</code> before a group of conductors to assign them to that phase. Phase totals appear in Results.</p>
+        <h4>3D Interaction</h4>
+        <ul>
+            <li><strong>Ortho / Persp</strong> button toggles orthographic (parallel) vs perspective projection — viewpoint is preserved</li>
+            <li>Click a conductor row or result entry to select it</li>
+            <li>Click a gold waypoint sphere in the viewport — X (red), Y (green), Z (blue) axis arrows appear</li>
+            <li>Drag an axis arrow to move the waypoint along that axis — snaps to 5 mm grid</li>
+            <li>Drag the <strong>first (origin) waypoint</strong> to translate the whole conductor without reshaping it</li>
+            <li>While a waypoint is active, click the <strong>blue + button</strong> (top-center of viewport) to append a new waypoint at the end; it becomes selected immediately so you can drag it into place</li>
+            <li>Edit coordinates precisely in the Waypoints table, then click Apply</li>
+            <li>⧉ button in Properties duplicates the selected conductor (offset +20 mm on X)</li>
+        </ul>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
+
+<script>
+// ============================================================
+// THREE.JS SETUP
+// ============================================================
+const viewportContainer = document.getElementById('viewport-container');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xc8d4e0);
+
+const perspCamera = new THREE.PerspectiveCamera(75, viewportContainer.clientWidth / viewportContainer.clientHeight, 1, 200000);
+const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100000, 100000);
+let camera = orthoCamera;
+let isOrtho = true;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(viewportContainer.clientWidth, viewportContainer.clientHeight);
+viewportContainer.appendChild(renderer.domElement);
+
+let controls = new THREE.OrbitControls(camera, renderer.domElement);
+camera.position.z = 500;
+controls.update();
+
+const root = new THREE.Object3D();
+root.rotation.x = -Math.PI / 2;
+scene.add(root);
+
+let ambientLight, directionalLight1, directionalLight2;
+
+window.addEventListener('resize', () => {
+    const w = viewportContainer.clientWidth;
+    const h = viewportContainer.clientHeight;
+    renderer.setSize(w, h);
+    if (isOrtho) {
+        const aspect = w / h;
+        const frustumH = orthoCamera.top - orthoCamera.bottom;
+        orthoCamera.left   = -frustumH * aspect / 2;
+        orthoCamera.right  =  frustumH * aspect / 2;
+        orthoCamera.updateProjectionMatrix();
+    } else {
+        perspCamera.aspect = w / h;
+        perspCamera.updateProjectionMatrix();
+    }
+});
+
+// ============================================================
+// UI STATE
+// ============================================================
+let conductors = [];
+let selectedConductorIndex = null;
+let conductorInputData = [];   // [{phase, name, color, current, width, height, points[[x,y,z],...]}]
+let dragHandles = [];
+let axisHandles = [];
+let activeSphere = null;
+let dragControlsInstance = null;
+let needsZoomToFit = true;
+const DRAG_SNAP_MM = 5;
+
+// ============================================================
+// PHYSICS ENGINE  — unchanged from original
+// ============================================================
+class Conductor {
+    constructor(name, color, current, width, height, geometry, phase, phase_description) {
+        this.name = name;
+        this.color = color;
+        this.current = current;
+        this.width = width;
+        this.height = height;
+        this.geometry = geometry.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+        this.phase = phase;
+        this.phase_description = phase_description;
+        this.total_force_vector = new THREE.Vector3(0, 0, 0);
+        this.segments = [];
+        this.meshes = [];
+        this.gen_vector_list();
+    }
+
+    gen_vector_list() {
+        for (let i = 0; i < this.geometry.length - 1; i++) {
+            const p1 = this.geometry[i];
+            const p2 = this.geometry[i+1];
+            this.segments.push(new THREE.Vector3().subVectors(p2, p1));
         }
+    }
+}
 
-        function showCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Name,Color,Current,Width,Height,Fx,Fy,Fz,Force Magnitude\n";
-            conductors.forEach(c => {
-                const force = c.total_force_vector;
-                const force_magnitude = force.length();
-                csvContent += `${c.name},${c.color},${c.current},${c.width},${c.height},${force.x.toFixed(2)},${force.y.toFixed(2)},${force.z.toFixed(2)},${force_magnitude.toFixed(2)}\n`;
-            });
-            const encodedUri = encodeURI(csvContent);
-            window.open(encodedUri);
+function get_raw_points(list_of_points) {
+    const output_list = [];
+    output_list.push(list_of_points[0]);
+    for (let i = 1; i < list_of_points.length; i++) {
+        const previous_point = output_list[i-1];
+        const point = list_of_points[i];
+        output_list.push([
+            previous_point[0] + point[0],
+            previous_point[1] + point[1],
+            previous_point[2] + point[2]
+        ]);
+    }
+    return output_list;
+}
+
+const MU_0_OVER_4PI = 1e-7;
+
+function calculate_force_on_segment(current1, segment1_start_pt, segment1_end_pt, current2, segment2_start_pt, segment2_end_pt, num_subdivisions = 10) {
+    let total_force = new THREE.Vector3(0, 0, 0);
+
+    const points1 = [];
+    for (let i = 0; i <= num_subdivisions; i++) {
+        points1.push(new THREE.Vector3().lerpVectors(segment1_start_pt, segment1_end_pt, i / num_subdivisions));
+    }
+    const sub_segments1 = [];
+    for (let i = 0; i < num_subdivisions; i++) {
+        sub_segments1.push({
+            dl_vector: new THREE.Vector3().subVectors(points1[i+1], points1[i]),
+            midpoint: new THREE.Vector3().addVectors(points1[i], points1[i+1]).multiplyScalar(0.5)
+        });
+    }
+
+    const points2 = [];
+    for (let i = 0; i <= num_subdivisions; i++) {
+        points2.push(new THREE.Vector3().lerpVectors(segment2_start_pt, segment2_end_pt, i / num_subdivisions));
+    }
+    const sub_segments2 = [];
+    for (let i = 0; i < num_subdivisions; i++) {
+        sub_segments2.push({
+            dl_vector: new THREE.Vector3().subVectors(points2[i+1], points2[i]),
+            midpoint: new THREE.Vector3().addVectors(points2[i], points2[i+1]).multiplyScalar(0.5)
+        });
+    }
+
+    for (const sub_seg1 of sub_segments1) {
+        const dl1_vec = sub_seg1.dl_vector;
+        const midpoint1 = sub_seg1.midpoint;
+        for (const sub_seg2 of sub_segments2) {
+            const dl2_vec = sub_seg2.dl_vector;
+            const midpoint2 = sub_seg2.midpoint;
+            const r_vector = new THREE.Vector3().subVectors(midpoint1, midpoint2);
+            const r_magnitude = r_vector.length();
+            if (r_magnitude < 1e-9) continue;
+            const r_hat = r_vector.clone().normalize();
+            const dl1_cross_r_hat = new THREE.Vector3().crossVectors(dl1_vec, r_hat);
+            const force_contribution = new THREE.Vector3().crossVectors(dl2_vec, dl1_cross_r_hat);
+            force_contribution.multiplyScalar((MU_0_OVER_4PI * current1 * current2) / (r_magnitude ** 2));
+            total_force.add(force_contribution);
         }
+    }
+    return total_force;
+}
 
-        function zoomToFit() {
-            const box = new THREE.Box3().setFromObject(root);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const fov = camera.fov * (Math.PI / 180);
-            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-
-            cameraZ *= 1.5; // zoom out a bit
-
-            camera.position.set(center.x, center.y, center.z + cameraZ);
-            camera.lookAt(center);
-            controls.target.copy(center);
-            controls.update();
-        }
-
-        function resetView() {
-            camera.position.z = 500;
-            camera.position.x = 0;
-            camera.position.y = 0;
-            controls.target.set(0,0,0);
-            controls.update();
-        }
-
-        function showHelp() {
-            document.getElementById('help-overlay').style.display = 'flex';
-        }
-
-        function hideHelp() {
-            document.getElementById('help-overlay').style.display = 'none';
-        }
-
-        // --- Core Logic (to be translated from Python) ---
-
-        class Conductor {
-            constructor(name, color, current, width, height, geometry, phase, phase_description) {
-                this.name = name;
-                this.color = color;
-                this.current = current;
-                this.width = width;
-                this.height = height;
-                this.geometry = geometry.map(p => new THREE.Vector3(p[0], p[1], p[2]));
-                this.phase = phase;
-                this.phase_description = phase_description;
-                this.total_force_vector = new THREE.Vector3(0, 0, 0);
-                this.segments = [];
-                this.meshes = [];
-                this.gen_vector_list();
-            }
-
-            gen_vector_list() {
-                for (let i = 0; i < this.geometry.length - 1; i++) {
-                    const p1 = this.geometry[i];
-                    const p2 = this.geometry[i+1];
-                    this.segments.push(new THREE.Vector3().subVectors(p2, p1));
+function solve_for_forces(conductors) {
+    for (let i = 0; i < conductors.length; i++) {
+        for (let j = 0; j < conductors.length; j++) {
+            if (i === j) continue;
+            const conductorA = conductors[i];
+            const conductorB = conductors[j];
+            for (let k = 0; k < conductorA.geometry.length - 1; k++) {
+                const ptA_CA = conductorA.geometry[k];
+                const ptB_CA = conductorA.geometry[k+1];
+                for (let l = 0; l < conductorB.geometry.length - 1; l++) {
+                    const ptA_CB = conductorB.geometry[l];
+                    const ptB_CB = conductorB.geometry[l+1];
+                    const dF = calculate_force_on_segment(
+                        conductorA.current, ptA_CA, ptB_CA,
+                        conductorB.current, ptA_CB, ptB_CB, 10
+                    );
+                    conductorA.total_force_vector.add(dF);
                 }
             }
         }
+    }
+}
 
-        function parse_conductors(data) {
-            const conductors = [];
-            let current_phase = 1;
-            let phase_description = "";
-            const lines = data.trim().split('\n');
-            for (const line of lines) {
-                if (line.startsWith("#") || !line.trim()) {
-                    continue;
-                }
-                if (line.toLowerCase().includes("ph")) {
-                    if (conductors.some(c => c.phase)) {
-                        current_phase++;
-                    }
-                    phase_description = line.split("ph ")[1];
-                    continue;
-                }
+function calculate_phase_forces(conductors) {
+    const phase_forces = {};
+    for (const conductor of conductors) {
+        if (!phase_forces[conductor.phase]) {
+            phase_forces[conductor.phase] = {
+                force: new THREE.Vector3(0, 0, 0),
+                description: conductor.phase_description
+            };
+        }
+        phase_forces[conductor.phase].force.add(conductor.total_force_vector);
+    }
+    return phase_forces;
+}
 
-                const parts = line.trim().split(';');
-                const name = parts[0];
-                const color = parts[1].trim();
-                const current = parseFloat(parts[2]);
-                const width = parseFloat(parts[3]);
-                const height = parseFloat(parts[4]);
-                const points_str = parts.slice(5);
-                const points = points_str.map(p_str => p_str.split(',').map(parseFloat));
-                
-                const raw_points = get_raw_points(points);
+// ============================================================
+// DATA LAYER
+// ============================================================
 
-                conductors.push(
-                    new Conductor(name, color, current, width, height, raw_points, current_phase, phase_description)
+function textToConductorInputData(text) {
+    const result = [];
+    let currentPhase = 'Default';
+    const lines = text.trim().split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        if (trimmed.toLowerCase().startsWith('ph ')) {
+            currentPhase = trimmed.slice(3).trim();
+            continue;
+        }
+        const parts = trimmed.split(';');
+        if (parts.length < 6) continue;
+        const name = parts[0].trim();
+        const color = parts[1].trim();
+        const current = parseFloat(parts[2]);
+        const width = parseFloat(parts[3]);
+        const height = parseFloat(parts[4]);
+        const points = parts.slice(5).map(p => p.trim().split(',').map(parseFloat));
+        result.push({ phase: currentPhase, name, color, current, width, height, points });
+    }
+    return result;
+}
+
+function buildConductorsFromInputData() {
+    return conductorInputData.map(cd => {
+        const absPoints = get_raw_points(cd.points);
+        return new Conductor(cd.name, cd.color, cd.current, cd.width, cd.height, absPoints, cd.phase, cd.phase);
+    });
+}
+
+function syncExportTextarea() {
+    let text = '';
+    let lastPhase = null;
+    conductorInputData.forEach(cd => {
+        if (cd.phase !== lastPhase) {
+            text += `ph ${cd.phase}\n`;
+            lastPhase = cd.phase;
+        }
+        const pts = cd.points.map(p => p.join(',')).join('; ');
+        text += `${cd.name}; ${cd.color}; ${cd.current}; ${cd.width}; ${cd.height}; ${pts}\n`;
+    });
+    document.getElementById('import-textarea').value = text.trim();
+}
+
+function importFromTextarea() {
+    const text = document.getElementById('import-textarea').value;
+    conductorInputData = textToConductorInputData(text);
+    selectedConductorIndex = null;
+    document.getElementById('property-panel').style.display = 'none';
+    needsZoomToFit = true;
+    rebuildAndRun();
+}
+
+// ============================================================
+// MAIN ORCHESTRATOR
+// ============================================================
+
+function rebuildAndRun() {
+    clearActiveSphere();
+    conductors = buildConductorsFromInputData();
+    solve_for_forces(conductors);
+    plot_3d_conductors(conductors);
+    buildDragHandles();
+    buildSidebarConductorList();
+    buildResultsPanel();
+    syncExportTextarea();
+    if (selectedConductorIndex !== null && selectedConductorIndex < conductorInputData.length) {
+        buildPropertyForm(selectedConductorIndex);
+    }
+    if (needsZoomToFit) {
+        zoomToFit();
+        needsZoomToFit = false;
+    }
+}
+
+function run() { rebuildAndRun(); }
+
+// ============================================================
+// 3D RENDERING
+// ============================================================
+
+function plot_3d_conductors(conductors) {
+    while (root.children.length > 0) root.remove(root.children[0]);
+    conductors.forEach(c => c.meshes = []);
+
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    root.add(ambientLight);
+    directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight1.position.set(1, 1, 1);
+    root.add(directionalLight1);
+    directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    directionalLight2.position.set(-1, -1, -1);
+    root.add(directionalLight2);
+
+    const force_scale = parseFloat(document.getElementById('vector-scale-slider').value);
+
+    for (const conductor of conductors) {
+        const material = new THREE.MeshLambertMaterial({ color: conductor.color });
+        for (let i = 0; i < conductor.geometry.length - 1; i++) {
+            const p1 = conductor.geometry[i];
+            const p2 = conductor.geometry[i+1];
+            const segment_vector = new THREE.Vector3().subVectors(p2, p1);
+            const segment_length = segment_vector.length();
+            const segment_midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+            const geometry = new THREE.BoxGeometry(conductor.height, conductor.width, segment_length);
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.copy(segment_midpoint);
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), segment_vector.clone().normalize());
+            root.add(mesh);
+            conductor.meshes.push(mesh);
+
+            const edges = new THREE.EdgesGeometry(geometry);
+            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+            line.position.copy(segment_midpoint);
+            line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), segment_vector.clone().normalize());
+            root.add(line);
+            conductor.meshes.push(line);
+
+            const force_per_segment = conductor.total_force_vector.clone().divideScalar(Math.max(conductor.segments.length, 1));
+            if (force_per_segment.length() > 0) {
+                const arrow_helper = new THREE.ArrowHelper(
+                    force_per_segment.clone().normalize(),
+                    segment_midpoint,
+                    force_per_segment.length() * force_scale,
+                    conductor.color
                 );
+                root.add(arrow_helper);
             }
-            return conductors;
         }
+    }
 
-        function get_raw_points(list_of_points) {
-            const output_list = [];
-            output_list.push(list_of_points[0]);
+    updateLightIntensity();
+}
 
-            for (let i = 1; i < list_of_points.length; i++) {
-                const previous_point = output_list[i-1];
-                const point = list_of_points[i];
-                output_list.push([previous_point[0] + point[0], previous_point[1] + point[1], previous_point[2] + point[2]]);
-            }
-            return output_list;
-        }
+function updateLightIntensity() {
+    const intensity = parseFloat(document.getElementById('light-slider').value);
+    if (ambientLight) ambientLight.intensity = intensity * 0.6;
+    if (directionalLight1) directionalLight1.intensity = intensity * 0.4;
+    if (directionalLight2) directionalLight2.intensity = intensity * 0.4;
+}
 
-        const MU_0_OVER_4PI = 1e-7;
+// ============================================================
+// DRAG HANDLES
+// ============================================================
 
-        function calculate_force_on_segment(current1, segment1_start_pt, segment1_end_pt, current2, segment2_start_pt, segment2_end_pt, num_subdivisions = 10) {
-            let total_force = new THREE.Vector3(0, 0, 0);
+function buildDragHandles() {
+    dragHandles.forEach(h => root.remove(h));
+    dragHandles = [];
+    // activeSphere / axisHandles are cleared by caller (rebuildAndRun / selectConductor)
 
-            const points1 = [];
-            for (let i = 0; i <= num_subdivisions; i++) {
-                points1.push(new THREE.Vector3().lerpVectors(segment1_start_pt, segment1_end_pt, i / num_subdivisions));
-            }
+    conductorInputData.forEach((cd, conductorIdx) => {
+        const absPoints = get_raw_points(cd.points);
+        const isSelected = conductorIdx === selectedConductorIndex;
+        absPoints.forEach((pt, ptIdx) => {
+            const r = isSelected ? 7 : 4.5;
+            const geo = new THREE.SphereGeometry(r, 12, 12);
+            const mat = new THREE.MeshLambertMaterial({
+                color: isSelected ? 0xffd700 : cd.color,
+                emissive: isSelected ? new THREE.Color(0x332200) : new THREE.Color(0x000000),
+                transparent: true,
+                opacity: isSelected ? 1.0 : 0.55
+            });
+            const sphere = new THREE.Mesh(geo, mat);
+            sphere.position.set(pt[0], pt[1], pt[2]);
+            sphere.userData = { conductorIdx, ptIdx };
+            root.add(sphere);
+            dragHandles.push(sphere);
+        });
+    });
+}
 
-            const sub_segments1 = [];
-            for (let i = 0; i < num_subdivisions; i++) {
-                const dl1_vec = new THREE.Vector3().subVectors(points1[i + 1], points1[i]);
-                const midpoint1 = new THREE.Vector3().addVectors(points1[i], points1[i + 1]).multiplyScalar(0.5);
-                sub_segments1.push({ dl_vector: dl1_vec, midpoint: midpoint1 });
-            }
+// ============================================================
+// AXIS-CONSTRAINED DRAG
+// ============================================================
 
-            const points2 = [];
-            for (let i = 0; i <= num_subdivisions; i++) {
-                points2.push(new THREE.Vector3().lerpVectors(segment2_start_pt, segment2_end_pt, i / num_subdivisions));
-            }
+function clearActiveSphere() {
+    axisHandles.forEach(h => {
+        if (h.userData.visualShaft) root.remove(h.userData.visualShaft);
+        if (h.userData.visualTip)   root.remove(h.userData.visualTip);
+        root.remove(h);
+    });
+    axisHandles = [];
+    if (dragControlsInstance) { dragControlsInstance.dispose(); dragControlsInstance = null; }
+    activeSphere = null;
+    document.getElementById('drag-hint').style.display = 'none';
+    document.getElementById('add-point-btn').style.display = 'none';
+}
 
-            const sub_segments2 = [];
-            for (let i = 0; i < num_subdivisions; i++) {
-                const dl2_vec = new THREE.Vector3().subVectors(points2[i + 1], points2[i]);
-                const midpoint2 = new THREE.Vector3().addVectors(points2[i], points2[i + 1]).multiplyScalar(0.5);
-                sub_segments2.push({ dl_vector: dl2_vec, midpoint: midpoint2 });
-            }
+function buildAxisHandles(sphere) {
+    axisHandles.forEach(h => {
+        if (h.userData.visualShaft) root.remove(h.userData.visualShaft);
+        if (h.userData.visualTip)   root.remove(h.userData.visualTip);
+        root.remove(h);
+    });
+    axisHandles = [];
+    if (dragControlsInstance) { dragControlsInstance.dispose(); dragControlsInstance = null; }
 
-            for (const sub_seg1 of sub_segments1) {
-                const dl1_vec = sub_seg1.dl_vector;
-                const midpoint1 = sub_seg1.midpoint;
+    activeSphere = sphere;
+    document.getElementById('add-point-btn').style.display = 'block';
+    const pos = sphere.position.clone();
+    const L = 70;
+    const R = 4;
+    const TL = 16; // tip (cone) length
+    const TR = R * 2.2; // tip radius
 
-                for (const sub_seg2 of sub_segments2) {
-                    const dl2_vec = sub_seg2.dl_vector;
-                    const midpoint2 = sub_seg2.midpoint;
+    [
+        { axis: new THREE.Vector3(1, 0, 0), color: 0xff2222 },
+        { axis: new THREE.Vector3(0, 1, 0), color: 0x22cc44 },
+        { axis: new THREE.Vector3(0, 0, 1), color: 0x2255ff },
+    ].forEach(({ axis, color }) => {
+        const mat = new THREE.MeshLambertMaterial({ color });
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis);
 
-                    const r_vector = new THREE.Vector3().subVectors(midpoint1, midpoint2);
-                    const r_magnitude = r_vector.length();
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 8), mat);
+        shaft.applyQuaternion(q);
+        shaft.position.copy(pos).addScaledVector(axis, L / 2);
+        root.add(shaft);
 
-                    if (r_magnitude < 1e-9) {
-                        continue;
-                    }
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(TR, TL, 8), mat);
+        tip.applyQuaternion(q);
+        tip.position.copy(pos).addScaledVector(axis, L + TL / 2);
+        root.add(tip);
 
-                    const r_hat = r_vector.clone().normalize();
-                    const dl1_cross_r_hat = new THREE.Vector3().crossVectors(dl1_vec, r_hat);
-                    const force_contribution = new THREE.Vector3().crossVectors(dl2_vec, dl1_cross_r_hat);
-                    force_contribution.multiplyScalar((MU_0_OVER_4PI * current1 * current2) / (r_magnitude ** 2));
-                    total_force.add(force_contribution);
+        // Invisible hit box — easier to grab than the cylinder
+        const hitBox = new THREE.Mesh(
+            new THREE.BoxGeometry(
+                axis.x > 0.5 ? L + TL : 18,
+                axis.y > 0.5 ? L + TL : 18,
+                axis.z > 0.5 ? L + TL : 18
+            ),
+            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
+        );
+        hitBox.position.copy(pos).addScaledVector(axis, (L + TL) / 2);
+        hitBox.userData = { axis: axis.clone(), L, TL, visualShaft: shaft, visualTip: tip };
+        root.add(hitBox);
+        axisHandles.push(hitBox);
+    });
+
+    dragControlsInstance = new THREE.DragControls(axisHandles, camera, renderer.domElement);
+
+    dragControlsInstance.addEventListener('dragstart', event => {
+        controls.enabled = false;
+        const obj = event.object;
+        obj.userData.didMove = false;
+        obj.userData.sphereStartPos = activeSphere.position.clone();
+        obj.userData.handleStartPos = obj.position.clone();
+        axisHandles.forEach(h => { h.userData.sphereStartPos = activeSphere.position.clone(); });
+        // Store start positions of all spheres for this conductor (used when translating whole bar)
+        const ci = activeSphere.userData.conductorIdx;
+        dragHandles.forEach(h => {
+            if (h.userData.conductorIdx === ci) h.userData.initialPos = h.position.clone();
+        });
+    });
+
+    dragControlsInstance.addEventListener('drag', event => {
+        const obj = event.object;
+        obj.userData.didMove = true;
+        const { axis, L, TL } = obj.userData;
+
+        const delta = new THREE.Vector3().subVectors(obj.position, obj.userData.handleStartPos);
+        const dist  = delta.dot(axis);
+        const snappedDist = Math.round(dist / DRAG_SNAP_MM) * DRAG_SNAP_MM;
+        const newPos = obj.userData.sphereStartPos.clone().addScaledVector(axis, snappedDist);
+
+        activeSphere.position.copy(newPos);
+
+        // When dragging first point, translate all other spheres of this conductor live
+        if (activeSphere.userData.ptIdx === 0) {
+            const moveDelta = new THREE.Vector3().subVectors(newPos, obj.userData.sphereStartPos);
+            const ci = activeSphere.userData.conductorIdx;
+            dragHandles.forEach(h => {
+                if (h !== activeSphere && h.userData.conductorIdx === ci && h.userData.initialPos) {
+                    h.position.copy(h.userData.initialPos).add(moveDelta);
                 }
-            }
-            return total_force;
-        }
-
-        function solve_for_forces(conductors) {
-            for (let i = 0; i < conductors.length; i++) {
-                for (let j = 0; j < conductors.length; j++) {
-                    if (i === j) continue;
-
-                    const conductorA = conductors[i];
-                    const conductorB = conductors[j];
-
-                    for (let k = 0; k < conductorA.geometry.length - 1; k++) {
-                        const ptA_CA = conductorA.geometry[k];
-                        const ptB_CA = conductorA.geometry[k+1];
-
-                        for (let l = 0; l < conductorB.geometry.length - 1; l++) {
-                            const ptA_CB = conductorB.geometry[l];
-                            const ptB_CB = conductorB.geometry[l+1];
-                            
-                            const dF = calculate_force_on_segment(
-                                conductorA.current,
-                                ptA_CA,
-                                ptB_CA,
-                                conductorB.current,
-                                ptA_CB,
-                                ptB_CB,
-                                10
-                            );
-                            conductorA.total_force_vector.add(dF);
-                        }
-                    }
-                }
-            }
-        }
-
-        function calculate_phase_forces(conductors) {
-            const phase_forces = {};
-            for (const conductor of conductors) {
-                if (!phase_forces[conductor.phase]) {
-                    phase_forces[conductor.phase] = {
-                        force: new THREE.Vector3(0, 0, 0),
-                        description: conductor.phase_description
-                    };
-                }
-                phase_forces[conductor.phase].force.add(conductor.total_force_vector);
-            }
-            return phase_forces;
-        }
-
-        function highlight_selection(type, identifier) {
-            conductors.forEach(c => {
-                let highlight = false;
-                if (type === 'phase' && c.phase === identifier) {
-                    highlight = true;
-                } else if (type === 'conductor' && c.name === identifier) {
-                    highlight = true;
-                }
-
-                c.meshes.forEach(m => {
-                    if (m.material) {
-                        let color;
-                        if (highlight) {
-                            color = 'yellow';
-                        } else {
-                            if (m.type === 'LineSegments') {
-                                color = 0x000000;
-                            } else {
-                                color = c.color;
-                            }
-                        }
-                        m.material.color.set(color);
-                    }
-                });
             });
         }
 
-        function plot_3d_conductors(conductors, force_scale = 1) {
-            // Clear previous objects
-            while(root.children.length > 0){
-                root.remove(root.children[0]);
+        // Snap dragged handle + visuals to follow sphere
+        obj.position.copy(newPos).addScaledVector(axis, (L + TL) / 2);
+        obj.userData.visualShaft.position.copy(newPos).addScaledVector(axis, L / 2);
+        obj.userData.visualTip.position.copy(newPos).addScaledVector(axis, L + TL / 2);
+
+        // Move sibling handles with sphere
+        axisHandles.forEach(h => {
+            if (h === obj) return;
+            const ha = h.userData.axis;
+            h.position.copy(newPos).addScaledVector(ha, (h.userData.L + h.userData.TL) / 2);
+            h.userData.visualShaft.position.copy(newPos).addScaledVector(ha, h.userData.L / 2);
+            h.userData.visualTip.position.copy(newPos).addScaledVector(ha, h.userData.L + h.userData.TL / 2);
+        });
+    });
+
+    dragControlsInstance.addEventListener('dragend', event => {
+        controls.enabled = true;
+        if (event.object.userData.didMove) {
+            const { conductorIdx, ptIdx } = activeSphere.userData;
+            applyActiveSphereToData();
+            rebuildAndRun(); // clears activeSphere internally
+            // Re-select the same waypoint so gizmo stays visible
+            const sphere = dragHandles.find(h => h.userData.conductorIdx === conductorIdx && h.userData.ptIdx === ptIdx);
+            if (sphere) {
+                buildAxisHandles(sphere);
+                document.getElementById('drag-hint').style.display = 'block';
             }
-            conductors.forEach(c => c.meshes = []);
+        }
+    });
+}
 
+function applyActiveSphereToData() {
+    if (!activeSphere) return;
+    const { conductorIdx, ptIdx } = activeSphere.userData;
+    const cd = conductorInputData[conductorIdx];
+    const snap = v => Math.round(v / DRAG_SNAP_MM) * DRAG_SNAP_MM;
 
-            // Add lights
-            ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            root.add(ambientLight);
-            directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.4);
-            directionalLight1.position.set(1, 1, 1);
-            root.add(directionalLight1);
-            directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
-            directionalLight2.position.set(-1, -1, -1);
-            root.add(directionalLight2);
+    if (ptIdx === 0) {
+        // First point is the absolute origin — just update it; relative deltas stay → whole conductor translates
+        cd.points[0] = [
+            snap(activeSphere.position.x),
+            snap(activeSphere.position.y),
+            snap(activeSphere.position.z)
+        ];
+        return;
+    }
 
-            const all_points = [];
-            const results_container = document.getElementById('results-container');
-            results_container.innerHTML = '<button onclick="highlight_selection(null, null)">Clear Selection</button><h3>Total Phase Forces</h3>';
+    const absPoints = get_raw_points(cd.points);
+    absPoints[ptIdx] = [
+        snap(activeSphere.position.x),
+        snap(activeSphere.position.y),
+        snap(activeSphere.position.z)
+    ];
 
-            const phase_forces = calculate_phase_forces(conductors);
-            for (const phase in phase_forces) {
-                const force = phase_forces[phase].force;
-                const force_magnitude = force.length();
-                results_container.innerHTML += `
-                    <div onclick="highlight_selection('phase', ${phase})" style="cursor: pointer;">
-                        <strong>Phase: ${phase_forces[phase].description}</strong><br>
-                        Force: ${force_magnitude.toFixed(2)} N<br>
-                        Fx: ${force.x.toFixed(2)}, Fy: ${force.y.toFixed(2)}, Fz: ${force.z.toFixed(2)}
-                    </div>
-                    <hr>
-                `;
-            }
+    const relPoints = [absPoints[0]];
+    for (let i = 1; i < absPoints.length; i++) {
+        relPoints.push([
+            absPoints[i][0] - absPoints[i-1][0],
+            absPoints[i][1] - absPoints[i-1][1],
+            absPoints[i][2] - absPoints[i-1][2]
+        ]);
+    }
+    cd.points = relPoints;
+}
 
-            results_container.innerHTML += '<h3>Individual Conductor Forces</h3>';
+// Click sphere → show axis handles; click empty → clear
+let _clickStart = null;
+renderer.domElement.addEventListener('pointerdown', e => {
+    _clickStart = { x: e.clientX, y: e.clientY, t: Date.now() };
+});
+renderer.domElement.addEventListener('pointerup', e => {
+    if (!_clickStart) return;
+    const dx = e.clientX - _clickStart.x;
+    const dy = e.clientY - _clickStart.y;
+    const dt = Date.now() - _clickStart.t;
+    _clickStart = null;
+    if (dt > 400 || dx * dx + dy * dy > 25) return;
 
-            for (const conductor of conductors) {
-                const material = new THREE.MeshLambertMaterial({ color: conductor.color });
-                for (let i = 0; i < conductor.geometry.length - 1; i++) {
-                    const p1 = conductor.geometry[i];
-                    const p2 = conductor.geometry[i+1];
-                    all_points.push(p1, p2);
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera(mouse, camera);
 
-                    const segment_vector = new THREE.Vector3().subVectors(p2, p1);
-                    const segment_length = segment_vector.length();
-                    const segment_midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+    // Axis handles take priority — if clicking an arrow, let DragControls handle it
+    if (axisHandles.length > 0 && rc.intersectObjects(axisHandles, false).length > 0) return;
 
-                    const geometry = new THREE.BoxGeometry(conductor.height, conductor.width, segment_length);
-                    const mesh = new THREE.Mesh(geometry, material);
-                    mesh.position.copy(segment_midpoint);
-                    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), segment_vector.clone().normalize());
-                    root.add(mesh);
-                    conductor.meshes.push(mesh);
+    const hits = rc.intersectObjects(dragHandles, false);
+    if (hits.length > 0) {
+        const sphere = hits[0].object;
+        const ci = sphere.userData.conductorIdx;
+        if (ci !== selectedConductorIndex) selectConductor(ci, false);
+        buildAxisHandles(sphere);
+        document.getElementById('drag-hint').style.display = 'block';
+    } else {
+        clearActiveSphere();
+    }
+});
 
-                    const edges = new THREE.EdgesGeometry(geometry);
-                    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
-                    line.position.copy(segment_midpoint);
-                    line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), segment_vector.clone().normalize());
-                    root.add(line);
-                    conductor.meshes.push(line);
+// ============================================================
+// SIDEBAR — CONDUCTOR LIST
+// ============================================================
 
-                    const force_per_segment = conductor.total_force_vector.clone().divideScalar(conductor.segments.length);
-                    const arrow_helper = new THREE.ArrowHelper(force_per_segment.clone().normalize(), segment_midpoint, force_per_segment.length() * force_scale, conductor.color);
-                    root.add(arrow_helper);
-                }
+function buildSidebarConductorList() {
+    const container = document.getElementById('conductor-list-items');
+    container.innerHTML = '';
+    let lastPhase = null;
 
-                const force = conductor.total_force_vector;
-                const force_magnitude = force.length();
-                results_container.innerHTML += `
-                    <div onclick="highlight_selection('conductor', '${conductor.name}')" style="cursor: pointer;">
-                        <strong>${conductor.name}</strong><br>
-                        Force: ${force_magnitude.toFixed(2)} N<br>
-                        Fx: ${force.x.toFixed(2)}, Fy: ${force.y.toFixed(2)}, Fz: ${force.z.toFixed(2)}
-                    </div>
-                    <hr>
-                `;
-            }
-
-            updateLightIntensity();
+    conductorInputData.forEach((cd, i) => {
+        if (cd.phase !== lastPhase) {
+            lastPhase = cd.phase;
+            const phEl = document.createElement('div');
+            phEl.className = 'phase-group-header';
+            phEl.textContent = `Phase: ${cd.phase}`;
+            container.appendChild(phEl);
         }
 
-        function run() {
-            const conductor_data = document.getElementById('conductor-input').value;
-            const force_scale = document.getElementById('vector-scale-slider').value;
-            conductors = parse_conductors(conductor_data);
-            solve_for_forces(conductors);
-            plot_3d_conductors(conductors, force_scale);
-            zoomToFit();
+        const forceVal = conductors[i] ? conductors[i].total_force_vector.length().toFixed(1) + ' N' : '';
+
+        const row = document.createElement('div');
+        row.className = 'conductor-row' + (i === selectedConductorIndex ? ' selected' : '');
+        row.innerHTML = `
+            <div class="color-swatch" style="background:${cd.color}"></div>
+            <span class="conductor-name">${cd.name}</span>
+            <span class="force-badge">${forceVal}</span>
+        `;
+        row.addEventListener('click', () => selectConductor(i, true));
+        container.appendChild(row);
+    });
+}
+
+// ============================================================
+// SIDEBAR — PROPERTY FORM
+// ============================================================
+
+function selectConductor(i, scrollIntoView) {
+    selectedConductorIndex = i;
+    buildSidebarConductorList();
+    buildPropertyForm(i);
+    if (scrollIntoView) {
+        document.getElementById('property-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    conductors.forEach((c, idx) => {
+        c.meshes.forEach(m => {
+            if (m.material && m.type !== 'LineSegments') {
+                m.material.color.set(idx === i ? 'yellow' : c.color);
+            }
+        });
+    });
+
+    clearActiveSphere();
+    buildDragHandles();
+}
+
+function buildPropertyForm(i) {
+    const cd = conductorInputData[i];
+    document.getElementById('prop-name').value = cd.name;
+    document.getElementById('prop-phase').value = cd.phase;
+    document.getElementById('prop-color').value = cd.color;
+    document.getElementById('prop-current').value = cd.current;
+    document.getElementById('prop-width').value = cd.width;
+    document.getElementById('prop-height').value = cd.height;
+    buildPointTable(cd.points);
+    document.getElementById('property-panel').style.display = 'block';
+}
+
+function buildPointTable(points) {
+    const tbody = document.getElementById('point-table-body');
+    tbody.innerHTML = '';
+    points.forEach((pt, ptIdx) => {
+        const label = ptIdx === 0 ? 'Abs' : `Δ${ptIdx}`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="point-type-label">${label}</td>
+            <td><input type="number" data-pt="${ptIdx}" data-axis="0" value="${pt[0]}" step="1"></td>
+            <td><input type="number" data-pt="${ptIdx}" data-axis="1" value="${pt[1]}" step="1"></td>
+            <td><input type="number" data-pt="${ptIdx}" data-axis="2" value="${pt[2]}" step="1"></td>
+            <td>${ptIdx > 0 ? `<button class="btn btn-danger btn-icon" onclick="removePointRow(${ptIdx})" title="Remove">&#215;</button>` : ''}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function readPointTableValues() {
+    const tbody = document.getElementById('point-table-body');
+    const points = [];
+    tbody.querySelectorAll('tr').forEach(row => {
+        const inputs = row.querySelectorAll('input[type="number"]');
+        if (inputs.length === 3) {
+            points.push([parseFloat(inputs[0].value), parseFloat(inputs[1].value), parseFloat(inputs[2].value)]);
         }
+    });
+    return points;
+}
 
-        // --- Animation loop ---
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
+function addPointRow() {
+    if (selectedConductorIndex === null) return;
+    const cd = conductorInputData[selectedConductorIndex];
+    cd.points.push([0, 0, 100]);
+    buildPointTable(cd.points);
+}
 
-        animate();
+function removePointRow(ptIdx) {
+    if (selectedConductorIndex === null) return;
+    const cd = conductorInputData[selectedConductorIndex];
+    if (cd.points.length <= 2) return;
+    cd.points.splice(ptIdx, 1);
+    buildPointTable(cd.points);
+}
 
-        // --- Default conductor data ---
-        document.getElementById('conductor-input').value = `# Name; color; current; width; height; start_x,y,z; rel_x,y,z; ...         
-ph A
+function applyFormChanges() {
+    if (selectedConductorIndex === null) return;
+    const cd = conductorInputData[selectedConductorIndex];
+    cd.name = document.getElementById('prop-name').value;
+    cd.phase = document.getElementById('prop-phase').value;
+    cd.color = document.getElementById('prop-color').value;
+    cd.current = parseFloat(document.getElementById('prop-current').value);
+    cd.width = parseFloat(document.getElementById('prop-width').value);
+    cd.height = parseFloat(document.getElementById('prop-height').value);
+    cd.points = readPointTableValues();
+    rebuildAndRun();
+}
+
+// ============================================================
+// ADD / DELETE CONDUCTORS
+// ============================================================
+
+function addPointFromViewport() {
+    if (selectedConductorIndex === null) return;
+    const cd = conductorInputData[selectedConductorIndex];
+    // Extend by 100mm in Z (default delta; user can drag to reshape immediately)
+    cd.points.push([0, 0, 100]);
+    rebuildAndRun(); // clears activeSphere, rebuilds dragHandles
+    // Auto-activate the new last waypoint so user can drag it immediately
+    const lastPtIdx = cd.points.length - 1;
+    const sphere = dragHandles.find(h => h.userData.conductorIdx === selectedConductorIndex && h.userData.ptIdx === lastPtIdx);
+    if (sphere) {
+        buildAxisHandles(sphere);
+        document.getElementById('drag-hint').style.display = 'block';
+    }
+}
+
+function newProject() {
+    if (!confirm('Clear all conductors and start fresh?')) return;
+    conductorInputData = [];
+    selectedConductorIndex = null;
+    document.getElementById('property-panel').style.display = 'none';
+    needsZoomToFit = true;
+    rebuildAndRun();
+}
+
+function addConductor() {
+    const phases = [...new Set(conductorInputData.map(cd => cd.phase))];
+    const defaultPhase = phases.length > 0 ? phases[phases.length - 1] : 'A';
+    conductorInputData.push({
+        phase: defaultPhase,
+        name: `C${conductorInputData.length + 1}`,
+        color: 'white',
+        current: 1000,
+        width: 10,
+        height: 10,
+        points: [[0, 0, 0], [0, 0, 100]]
+    });
+    rebuildAndRun();
+    selectConductor(conductorInputData.length - 1, true);
+}
+
+function duplicateSelectedConductor() {
+    if (selectedConductorIndex === null) return;
+    const src = conductorInputData[selectedConductorIndex];
+    const copy = JSON.parse(JSON.stringify(src));
+    copy.name = src.name + '_copy';
+    // Offset start point by 20mm so duplicate doesn't overlap exactly
+    copy.points[0] = [src.points[0][0] + 20, src.points[0][1], src.points[0][2]];
+    conductorInputData.splice(selectedConductorIndex + 1, 0, copy);
+    rebuildAndRun();
+    selectConductor(selectedConductorIndex + 1, true);
+}
+
+function deleteSelectedConductor() {
+    if (selectedConductorIndex === null) return;
+    conductorInputData.splice(selectedConductorIndex, 1);
+    selectedConductorIndex = null;
+    document.getElementById('property-panel').style.display = 'none';
+    rebuildAndRun();
+}
+
+// ============================================================
+// RESULTS PANEL
+// ============================================================
+
+function buildResultsPanel() {
+    const container = document.getElementById('results-content');
+    if (conductors.length === 0) {
+        container.innerHTML = '<em style="color:var(--text-muted);font-size:11px">No conductors defined.</em>';
+        return;
+    }
+
+    const phase_forces = calculate_phase_forces(conductors);
+    let html = '<div style="margin-bottom:8px"><strong style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">By Phase</strong></div>';
+
+    for (const phase in phase_forces) {
+        const f = phase_forces[phase].force;
+        html += `
+            <div class="result-phase-block">
+                <div class="result-phase-name" onclick="highlightPhase('${phase}')">
+                    ${phase_forces[phase].description || phase}
+                    <span style="font-weight:400;color:var(--text-muted)"> ${f.length().toFixed(2)} N</span>
+                </div>
+                <div class="result-phase-force">Fx:${f.x.toFixed(1)} Fy:${f.y.toFixed(1)} Fz:${f.z.toFixed(1)}</div>
+            </div>
+        `;
+    }
+
+    html += '<hr style="margin:8px 0;border:none;border-top:1px solid var(--border)"><div style="margin-bottom:6px"><strong style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">By Conductor</strong></div>';
+
+    conductors.forEach((c, i) => {
+        const f = c.total_force_vector;
+        html += `
+            <div class="result-conductor-row" onclick="selectConductor(${i}, true)">
+                <strong>${c.name}</strong> <span style="color:var(--text-muted)"> ${f.length().toFixed(2)} N</span><br>
+                <span class="result-forces">Fx:${f.x.toFixed(1)} Fy:${f.y.toFixed(1)} Fz:${f.z.toFixed(1)}</span>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function highlightPhase(phase) {
+    conductors.forEach(c => {
+        c.meshes.forEach(m => {
+            if (m.material && m.type !== 'LineSegments') {
+                m.material.color.set(c.phase === phase ? 'yellow' : c.color);
+            }
+        });
+    });
+    selectedConductorIndex = null;
+    document.getElementById('property-panel').style.display = 'none';
+    buildSidebarConductorList();
+    buildDragHandles();
+}
+
+function highlight_selection(type, identifier) {
+    if (!type) {
+        conductors.forEach(c => {
+            c.meshes.forEach(m => {
+                if (m.material && m.type !== 'LineSegments') m.material.color.set(c.color);
+            });
+        });
+        selectedConductorIndex = null;
+        document.getElementById('property-panel').style.display = 'none';
+        buildSidebarConductorList();
+        buildDragHandles();
+        return;
+    }
+    if (type === 'phase') highlightPhase(identifier);
+    if (type === 'conductor') {
+        const i = conductors.findIndex(c => c.name === identifier);
+        if (i >= 0) selectConductor(i, true);
+    }
+}
+
+// ============================================================
+// CAMERA CONTROLS
+// ============================================================
+
+function zoomToFit() {
+    const box = new THREE.Box3().setFromObject(root);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    if (isOrtho) {
+        const aspect = viewportContainer.clientWidth / viewportContainer.clientHeight;
+        const frustumH = maxDim * 1.5;
+        orthoCamera.left   = -frustumH * aspect / 2;
+        orthoCamera.right  =  frustumH * aspect / 2;
+        orthoCamera.top    =  frustumH / 2;
+        orthoCamera.bottom = -frustumH / 2;
+        orthoCamera.updateProjectionMatrix();
+        camera.position.set(center.x, center.y, center.z + maxDim * 2);
+        camera.lookAt(center);
+    } else {
+        const fov = perspCamera.fov * (Math.PI / 180);
+        const cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2)) * 1.5;
+        camera.position.set(center.x, center.y, center.z + cameraZ);
+        camera.lookAt(center);
+    }
+    controls.target.copy(center);
+    controls.update();
+}
+
+function resetView() {
+    camera.position.set(0, 0, 500);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    controls.update();
+}
+
+function setView(dir) {
+    const box = new THREE.Box3().setFromObject(root);
+    const center = box.isEmpty() ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
+    const size   = box.isEmpty() ? new THREE.Vector3(500,500,500) : box.getSize(new THREE.Vector3());
+    const D = Math.max(size.x, size.y, size.z) * 2;
+
+    // root.rotation.x = -π/2 maps: local Z → world Y (up), local X → world X, local Y → world -Z
+    // Front = look along world +Z toward scene (from conductor "front")
+    // Top   = look down world -Y
+    // Right = look along world -X (from conductor right side)
+    // Iso   = classic top-front-right diagonal
+    let pos, up;
+    switch (dir) {
+        case 'front': pos = new THREE.Vector3(center.x, center.y,       center.z + D); up = new THREE.Vector3(0, 1, 0); break;
+        case 'top':   pos = new THREE.Vector3(center.x, center.y + D,   center.z);     up = new THREE.Vector3(0, 0, -1); break;
+        case 'right': pos = new THREE.Vector3(center.x + D, center.y,   center.z);     up = new THREE.Vector3(0, 1, 0); break;
+        case 'iso':   pos = new THREE.Vector3(center.x + D * 0.7, center.y + D * 0.7, center.z + D * 0.7); up = new THREE.Vector3(0, 1, 0); break;
+    }
+
+    camera.up.copy(up);
+    camera.position.copy(pos);
+    camera.lookAt(center);
+    controls.target.copy(center);
+    controls.update();
+
+    if (isOrtho) {
+        const aspect = viewportContainer.clientWidth / viewportContainer.clientHeight;
+        const frustumH = D * 0.75;
+        orthoCamera.left   = -frustumH * aspect / 2;
+        orthoCamera.right  =  frustumH * aspect / 2;
+        orthoCamera.top    =  frustumH / 2;
+        orthoCamera.bottom = -frustumH / 2;
+        orthoCamera.updateProjectionMatrix();
+    }
+}
+
+function toggleProjection() {
+    const w = viewportContainer.clientWidth;
+    const h = viewportContainer.clientHeight;
+    const aspect = w / h;
+
+    if (!isOrtho) {
+        // perspective → orthographic
+        const dist = camera.position.distanceTo(controls.target);
+        const fovRad = perspCamera.fov * Math.PI / 180;
+        const frustumH = 2 * Math.tan(fovRad / 2) * dist;
+        const frustumW = frustumH * aspect;
+        orthoCamera.left   = -frustumW / 2;
+        orthoCamera.right  =  frustumW / 2;
+        orthoCamera.top    =  frustumH / 2;
+        orthoCamera.bottom = -frustumH / 2;
+        orthoCamera.position.copy(perspCamera.position);
+        orthoCamera.quaternion.copy(perspCamera.quaternion);
+        orthoCamera.updateProjectionMatrix();
+        camera = orthoCamera;
+    } else {
+        // orthographic → perspective
+        perspCamera.position.copy(orthoCamera.position);
+        perspCamera.quaternion.copy(orthoCamera.quaternion);
+        perspCamera.aspect = aspect;
+        perspCamera.updateProjectionMatrix();
+        camera = perspCamera;
+    }
+    isOrtho = !isOrtho;
+
+    // Re-create OrbitControls bound to new camera
+    const target = controls.target.clone();
+    controls.dispose();
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.copy(target);
+    controls.update();
+
+    // DragControls holds an old camera ref — clear gizmo; re-click sphere to reactivate
+    clearActiveSphere();
+
+    document.getElementById('proj-toggle-btn').textContent = isOrtho ? 'Persp' : 'Ortho';
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+function showCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Name,Color,Current,Width,Height,Fx,Fy,Fz,Force Magnitude\n";
+    conductors.forEach(c => {
+        const force = c.total_force_vector;
+        csvContent += `${c.name},${c.color},${c.current},${c.width},${c.height},${force.x.toFixed(2)},${force.y.toFixed(2)},${force.z.toFixed(2)},${force.length().toFixed(2)}\n`;
+    });
+    window.open(encodeURI(csvContent));
+}
+
+// ============================================================
+// HELP MODAL
+// ============================================================
+
+function showHelp() { document.getElementById('help-overlay').classList.add('open'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('open'); }
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+animate();
+
+// ============================================================
+// DEFAULT DATA
+// ============================================================
+
+conductorInputData = textToConductorInputData(`ph A
 L11; red; 73000; 100; 10; 0,0,0; 0,0,300; -100,0,100; 0,0,400
 L12; red; 73000; 100; 10; 20,0,0; 0,0,300; -100,0,100; 0,0,400
-
 ph B
 L21; green; -35000; 100; 10; 130,0,0; 0,0,300; 0,100,100; 0,0,400
 L22; green; -35000; 100; 10; 150,0,0; 0,0,300; 0,100,100; 0,0,400
-
 ph C
 L31; blue; -35000; 100; 10; 260,0,0; 0,0,300; 100,0,100; 0,0,400
-L32; blue; -35000; 100; 10; 280,0,0; 0,0,300; 100,0,100; 0,0,400`;
-        run();    </script>
+L32; blue; -35000; 100; 10; 280,0,0; 0,0,300; 100,0,100; 0,0,400`);
+
+rebuildAndRun();
+</script>
 </body>
 </html>
