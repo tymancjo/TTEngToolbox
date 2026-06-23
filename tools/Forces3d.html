@@ -589,6 +589,9 @@
             <label>Vector Scale</label>
             <input type="range" id="vector-scale-slider" min="0.001" max="0.1" value="0.025" step="0.001" oninput="rebuildAndRun()">
         </div>
+        <div class="slider-group">
+            <button id="force-mode-btn" class="btn btn-ghost" onclick="toggleForceVectorMode()" style="width:100%">F: Total</button>
+        </div>
     </div>
 </aside>
 
@@ -725,6 +728,7 @@ let activeSphere = null;
 let dragControlsInstance = null;
 let needsZoomToFit = true;
 const DRAG_SNAP_MM = 5;
+let forceVectorMode = 'total'; // 'total' | 'per-segment'
 
 // ============================================================
 // PHYSICS ENGINE  — unchanged from original
@@ -980,7 +984,9 @@ function plot_3d_conductors(conductors) {
             root.add(line);
             conductor.meshes.push(line);
 
-            const force_per_segment = conductor.total_force_vector.clone().divideScalar(Math.max(conductor.segments.length, 1));
+            const force_per_segment = forceVectorMode === 'per-segment'
+                ? conductor.segment_forces[i].clone()
+                : conductor.total_force_vector.clone().divideScalar(Math.max(conductor.segments.length, 1));
             if (force_per_segment.length() > 0) {
                 const arrow_helper = new THREE.ArrowHelper(
                     force_per_segment.clone().normalize(),
@@ -1685,6 +1691,12 @@ function hideSegmentModal() {
 
 function showHelp() { document.getElementById('help-overlay').classList.add('open'); }
 function hideHelp() { document.getElementById('help-overlay').classList.remove('open'); }
+
+function toggleForceVectorMode() {
+    forceVectorMode = forceVectorMode === 'total' ? 'per-segment' : 'total';
+    document.getElementById('force-mode-btn').textContent = forceVectorMode === 'total' ? 'F: Total' : 'F: Per Seg';
+    plot_3d_conductors(conductors);
+}
 
 // ============================================================
 // ANIMATION LOOP
