@@ -442,6 +442,40 @@
             border: 1px solid var(--border);
         }
         .help-close-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+
+        /* ---- Segment Modal ---- */
+        #seg-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+        }
+        #seg-modal.open { display: flex; }
+        #seg-container {
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 780px;
+            width: 95%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+        }
+        #seg-container h3 { margin-bottom: 12px; font-size: 14px; }
+        #seg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        #seg-table th {
+            text-align: left;
+            padding: 4px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        #seg-table td { padding: 3px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        #seg-table tr:last-child td { border-bottom: none; }
     </style>
 </head>
 <body>
@@ -535,6 +569,7 @@
         <div class="import-actions">
             <button class="btn btn-ghost" onclick="importFromTextarea()" style="flex:1">Import</button>
             <button class="btn btn-ghost" onclick="showCSV()">CSV</button>
+            <button class="btn btn-ghost" onclick="showSegmentCSV()">Seg CSV</button>
         </div>
     </details>
 
@@ -571,6 +606,31 @@
         Rotate: drag &nbsp;|&nbsp; Zoom: scroll &nbsp;|&nbsp; Pan: right-drag
     </div>
 </main>
+
+<!-- ===== SEGMENT MODAL ===== -->
+<div id="seg-modal" onclick="if(event.target===this)hideSegmentModal()">
+    <div id="seg-container">
+        <div class="help-close-row">
+            <button class="btn btn-ghost" onclick="showSegmentCSV()" style="margin-right:auto">Segment CSV</button>
+            <button class="btn btn-ghost" onclick="hideSegmentModal()">Close</button>
+        </div>
+        <h3 id="seg-modal-title">Segment Forces</h3>
+        <table id="seg-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>From (x,y,z)</th>
+                    <th>To (x,y,z)</th>
+                    <th>Fx (N)</th>
+                    <th>Fy (N)</th>
+                    <th>Fz (N)</th>
+                    <th>|F| (N)</th>
+                </tr>
+            </thead>
+            <tbody id="seg-modal-tbody"></tbody>
+        </table>
+    </div>
+</div>
 
 <!-- ===== HELP MODAL ===== -->
 <div id="help-overlay">
@@ -683,6 +743,7 @@ class Conductor {
         this.segments = [];
         this.meshes = [];
         this.gen_vector_list();
+        this.segment_forces = this.geometry.slice(0, -1).map(() => new THREE.Vector3(0, 0, 0));
     }
 
     gen_vector_list() {
@@ -774,6 +835,7 @@ function solve_for_forces(conductors) {
                         conductorB.current, ptA_CB, ptB_CB, 10
                     );
                     conductorA.total_force_vector.add(dF);
+                    conductorA.segment_forces[k].add(dF);
                 }
             }
         }
@@ -1400,7 +1462,13 @@ function buildResultsPanel() {
         const f = c.total_force_vector;
         html += `
             <div class="result-conductor-row" onclick="selectConductor(${i}, true)">
-                <strong>${c.name}</strong> <span style="color:var(--text-muted)"> ${f.length().toFixed(2)} N</span><br>
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                    <strong>${c.name}</strong>
+                    <span style="display:flex;align-items:baseline;gap:6px">
+                        <span style="color:var(--text-muted)">${f.length().toFixed(2)} N</span>
+                        <button class="btn btn-ghost" style="font-size:10px;padding:1px 5px;line-height:1.4" onclick="event.stopPropagation();showSegmentModal(${i})">▸ segs</button>
+                    </span>
+                </div>
                 <span class="result-forces">Fx:${f.x.toFixed(1)} Fy:${f.y.toFixed(1)} Fz:${f.z.toFixed(1)}</span>
             </div>
         `;
@@ -1571,6 +1639,44 @@ function showCSV() {
         csvContent += `${c.name},${c.color},${c.current},${c.width},${c.height},${force.x.toFixed(2)},${force.y.toFixed(2)},${force.z.toFixed(2)},${force.length().toFixed(2)}\n`;
     });
     window.open(encodeURI(csvContent));
+}
+
+function showSegmentCSV() {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Conductor,Segment,StartX,StartY,StartZ,EndX,EndY,EndZ,Fx,Fy,Fz,Force Magnitude\n";
+    conductors.forEach(c => {
+        c.segment_forces.forEach((sf, k) => {
+            const p1 = c.geometry[k];
+            const p2 = c.geometry[k + 1];
+            csvContent += `${c.name},${k},${p1.x.toFixed(2)},${p1.y.toFixed(2)},${p1.z.toFixed(2)},${p2.x.toFixed(2)},${p2.y.toFixed(2)},${p2.z.toFixed(2)},${sf.x.toFixed(4)},${sf.y.toFixed(4)},${sf.z.toFixed(4)},${sf.length().toFixed(4)}\n`;
+        });
+    });
+    window.open(encodeURI(csvContent));
+}
+
+function showSegmentModal(conductorIndex) {
+    const c = conductors[conductorIndex];
+    let rows = '';
+    c.segment_forces.forEach((sf, k) => {
+        const p1 = c.geometry[k];
+        const p2 = c.geometry[k + 1];
+        rows += `<tr>
+            <td>${k}</td>
+            <td>(${p1.x.toFixed(1)}, ${p1.y.toFixed(1)}, ${p1.z.toFixed(1)})</td>
+            <td>(${p2.x.toFixed(1)}, ${p2.y.toFixed(1)}, ${p2.z.toFixed(1)})</td>
+            <td>${sf.x.toFixed(4)}</td>
+            <td>${sf.y.toFixed(4)}</td>
+            <td>${sf.z.toFixed(4)}</td>
+            <td><strong>${sf.length().toFixed(4)}</strong></td>
+        </tr>`;
+    });
+    document.getElementById('seg-modal-title').textContent = `Segment Forces — ${c.name}`;
+    document.getElementById('seg-modal-tbody').innerHTML = rows;
+    document.getElementById('seg-modal').classList.add('open');
+}
+
+function hideSegmentModal() {
+    document.getElementById('seg-modal').classList.remove('open');
 }
 
 // ============================================================
