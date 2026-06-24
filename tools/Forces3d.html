@@ -466,6 +466,77 @@
         }
         .help-close-row { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 
+        /* ---- Doc Modal ---- */
+        #doc-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #doc-overlay.open { display: flex; }
+        #doc-container {
+            background: var(--surface);
+            padding: 28px 32px;
+            border-radius: 10px;
+            max-width: 780px;
+            width: 94%;
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        #doc-container h1 { font-size: 18px; margin: 0 0 4px; }
+        #doc-container h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+        #doc-container h3 { font-size: 13px; margin: 16px 0 5px; color: var(--accent); }
+        #doc-container p, #doc-container li { font-size: 13px; line-height: 1.65; }
+        #doc-container ul, #doc-container ol { margin-left: 20px; margin-bottom: 8px; }
+        #doc-container code {
+            background: var(--surface-2);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid var(--border);
+        }
+        #doc-container pre {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px 14px;
+            overflow-x: auto;
+            margin: 8px 0 12px;
+        }
+        #doc-container pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        #doc-container table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 8px 0 14px;
+        }
+        #doc-container th {
+            background: var(--surface-2);
+            text-align: left;
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+        #doc-container td {
+            padding: 5px 10px;
+            border: 1px solid var(--border);
+            vertical-align: top;
+        }
+        #doc-container tr:nth-child(even) td { background: var(--surface-2); }
+        #doc-container .doc-subtitle { color: var(--text-muted); font-size: 12px; margin: 0 0 16px; }
+        #doc-container hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
         /* ---- Segment Modal ---- */
         #seg-modal {
             display: none;
@@ -516,6 +587,7 @@
             <button class="btn btn-ghost" onclick="resetView()">Reset</button>
             <button class="btn btn-ghost" id="proj-toggle-btn" onclick="toggleProjection()">Persp</button>
             <button class="btn btn-ghost" onclick="showHelp()">?</button>
+            <button class="btn btn-ghost" onclick="showDoc()">Doc</button>
         </div>
     </div>
 
@@ -691,6 +763,171 @@
     </div>
 </div>
 
+<!-- ===== DOC MODAL ===== -->
+<div id="doc-overlay">
+  <div id="doc-container">
+    <div class="help-close-row">
+      <button class="btn btn-ghost" onclick="hideDoc()">Close</button>
+    </div>
+
+    <h1>F3D — Forces on 3D Conductors</h1>
+    <p class="doc-subtitle">Physics reference &amp; user guide</p>
+
+    <hr>
+    <h2>Physics</h2>
+
+    <h3>1. Magnetic field from a current element (Biot-Savart)</h3>
+    <p>A small wire element carrying current <em>I</em> in direction <strong>dl</strong> at position <strong>r₂</strong> produces a magnetic field <strong>dB</strong> at field point <strong>r₁</strong>:</p>
+    <pre><code>       μ₀   I (dl × r̂)
+dB = ────── ─────────────
+       4π        r²</code></pre>
+    <ul>
+      <li><strong>μ₀ = 4π × 10⁻⁷ H/m</strong> — permeability of free space</li>
+      <li><strong>r</strong> = |<strong>r₁</strong> − <strong>r₂</strong>| — distance from source element to field point</li>
+      <li><strong>r̂</strong> = (<strong>r₁</strong> − <strong>r₂</strong>) / r — unit vector pointing <em>from source to field point</em></li>
+      <li>× — cross product (right-hand rule)</li>
+    </ul>
+    <p>The total <strong>B</strong> field from a finite segment is the integral of <strong>dB</strong> along its length. The direction of <strong>B</strong> curls around the wire axis (right-hand rule: thumb along current, fingers show field direction).</p>
+
+    <h3>2. Force on a current element — Lorentz force</h3>
+    <p>A wire element <strong>dl₁</strong> carrying current <em>I₁</em> immersed in field <strong>B</strong> experiences force:</p>
+    <pre><code>dF = I₁ (dl₁ × B)</code></pre>
+    <p>Direction: perpendicular to both current direction and field. Magnitude: <em>dF = I₁ |dl₁| |B| sin θ</em>, where θ is the angle between them.</p>
+
+    <h3>3. Force between two segments — Neumann formula</h3>
+    <p>Combining Biot-Savart + Lorentz, the force on element <strong>dl₁</strong> (current <em>I₁</em>) due to element <strong>dl₂</strong> (current <em>I₂</em>) is:</p>
+    <pre><code>        μ₀ I₁ I₂      dl₁ × (dl₂ × r̂)
+dF = ─────────────  ×  ─────────────────
+          4π                  r²</code></pre>
+    <p>This is the <strong>Neumann formula</strong>. Key physical properties:</p>
+    <ul>
+      <li><strong>Same-direction currents</strong> → attractive force (conductors pull toward each other)</li>
+      <li><strong>Opposite-direction currents</strong> → repulsive force (conductors push apart)</li>
+      <li>Force magnitude falls off as <strong>1/r²</strong> with distance</li>
+      <li>Force is always perpendicular to <strong>dl₁</strong> (current direction of the element being calculated)</li>
+    </ul>
+    <p>For two long parallel conductors at distance <em>d</em> carrying currents <em>I₁</em>, <em>I₂</em>, integrating over length <em>L</em> gives the classical result:</p>
+    <pre><code>F/L = (μ₀ / 2π) × (I₁ × I₂) / d</code></pre>
+    <p>At 1 A, 1 m apart: <strong>F/L = 2 × 10⁻⁷ N/m</strong> — this is the original definition of the Ampere.</p>
+
+    <h3>4. Finite-conductor correction</h3>
+    <p>The formula above assumes infinite conductors. For two finite parallel conductors of equal length <em>L</em>, both starting at the same Z position, separated by <em>d</em>:</p>
+    <pre><code>F = (μ₀ I₁ I₂ / 2π) × (√(L² + d²) − d) / d</code></pre>
+    <p>For L ≫ d this converges to the infinite result. At L/d = 10, the finite result is ≈ 95% of infinite; at L/d = 100, ≈ 99%.</p>
+
+    <h3>5. Coordinate system and units</h3>
+    <table>
+      <tr><th>Quantity</th><th>Unit</th><th>Notes</th></tr>
+      <tr><td>Coordinates</td><td>mm</td><td>Enter raw mm — no conversion is applied internally</td></tr>
+      <tr><td>Current</td><td>A</td><td>Negative value reverses direction</td></tr>
+      <tr><td>Width, Height</td><td>mm</td><td>Cross-section — visual rendering only, not used in physics</td></tr>
+      <tr><td>Force output</td><td>N</td><td>Newtons — result is dimensionally correct</td></tr>
+    </table>
+    <p><strong>Why mm gives Newtons:</strong> The Biot-Savart integral contains <strong>dl</strong> (length) in the numerator and <strong>r²</strong> (length²) in the denominator. These scale factors cancel exactly — (mm)/(mm²) × (mm) = dimensionless — leaving the result in SI Newtons when μ₀ is in H/m and current is in Amperes.</p>
+    <p><strong>Axes:</strong> The world uses Z-up convention. X and Y are horizontal; Z is the vertical (up) direction.</p>
+
+    <hr>
+    <h2>Numerical Method</h2>
+
+    <h3>Segment model</h3>
+    <p>Each conductor is a <strong>polyline</strong> — a sequence of waypoints connected by straight segments. Physics treats each segment as a zero-cross-section <strong>filament</strong> carrying uniform current. Cross-section dimensions are used only for the 3D rendering.</p>
+
+    <h3>Double numerical integration</h3>
+    <p>The total force on conductor A is the double integral over all (segment of A) × (segment of B) pairs:</p>
+    <pre><code>F_A = Σ_k Σ_l  ∫∫ (μ₀ I_A I_B / 4π) × [dl_A × (dl_B × r̂)] / r²  dA dB</code></pre>
+    <p>Each double integral over a segment pair is evaluated numerically:</p>
+    <ol>
+      <li>Split each segment into <strong>n sub-segments</strong></li>
+      <li>Represent each sub-segment as a point element at its <strong>midpoint</strong></li>
+      <li>Sum all n × n midpoint-pair contributions</li>
+    </ol>
+    <p>This is the <strong>midpoint quadrature rule</strong> applied to a 2D integral. Complexity per segment pair is O(n²).</p>
+
+    <h3>Dynamic subdivision</h3>
+    <p>The midpoint rule is accurate when each sub-segment is much shorter than the distance to the opposite segment. The solver auto-computes <em>n</em> for each segment pair:</p>
+    <pre><code>n = clamp( ceil( max(len_A, len_B) / (min_separation × 0.2) ),  10,  200 )</code></pre>
+    <ul>
+      <li><code>min_separation</code> — minimum of the four endpoint-to-endpoint distances between the pair</li>
+      <li>Factor 0.2 → sub-segment ≤ d/5 (rule of thumb for &lt;5% quadrature error)</li>
+      <li>Floor 10 — minimum for smooth integration; preserves performance on short segments</li>
+      <li>Cap 200 — limits browser computation time (200 × 200 = 40 000 evaluations/pair max)</li>
+    </ul>
+    <p>When the cap is hit (extreme L/d ratios), some residual error remains. Add intermediate waypoints to shorten segments for higher accuracy.</p>
+
+    <h3>Self-interaction exclusion</h3>
+    <p>Same-conductor segment pairs where <code>|k − l| ≤ 1</code> (same or adjacent segments) are skipped. This avoids the filament near-singularity (r → 0 on the same wire). By Newton's third law, true self-forces on a rigid conductor are zero; excluding same/adjacent segments does not affect the total conductor force, only the per-segment distribution.</p>
+
+    <hr>
+    <h2>Using the Tool</h2>
+
+    <h3>Input format</h3>
+    <pre><code># comment lines start with #
+
+ph &lt;Phase Name&gt;
+Name; color; current(A); width(mm); height(mm); x,y,z; dx,dy,dz; dx,dy,dz; ...</code></pre>
+    <table>
+      <tr><th>Field</th><th>Description</th></tr>
+      <tr><td>Name</td><td>Unique label for this conductor</td></tr>
+      <tr><td>Color</td><td><code>red</code> <code>green</code> <code>blue</code> <code>yellow</code> <code>orange</code> <code>purple</code> <code>cyan</code> <code>magenta</code> <code>white</code> <code>gray</code></td></tr>
+      <tr><td>Current</td><td>Amperes. Negative = reversed direction</td></tr>
+      <tr><td>Width / Height</td><td>Cross-section in mm (visual only)</td></tr>
+      <tr><td>x,y,z</td><td><strong>First waypoint: absolute</strong> coordinates in mm</td></tr>
+      <tr><td>dx,dy,dz</td><td><strong>Subsequent waypoints: relative delta</strong> from previous point</td></tr>
+    </table>
+    <p><strong>Phase grouping:</strong> <code>ph Name</code> before a group assigns them to a phase. Phase forces are summed and shown in Results. Multiple phase groups are allowed.</p>
+    <p><strong>Example — two parallel busbars, 1 m apart, 1 m long:</strong></p>
+    <pre><code>ph Phase_A
+busA; red;    1000; 10; 60; 0,0,0;    0,0,1000
+busB; blue;  -1000; 10; 60; 1000,0,0; 0,0,1000</code></pre>
+
+    <h3>Workflow</h3>
+    <ol>
+      <li>Define conductors via <strong>Import</strong> textarea (paste text → Import) or the <strong>Properties</strong> panel</li>
+      <li>Press <strong>▶ Run</strong> — forces are computed; 3D view and results update</li>
+      <li>Force arrows appear on segments; scale via the <strong>vector scale</strong> slider</li>
+      <li>Click any conductor row or result entry to highlight it in the 3D view</li>
+      <li>Export with <strong>CSV</strong> (per-conductor totals) or <strong>Seg CSV</strong> (per-segment forces)</li>
+    </ol>
+
+    <h3>3D viewport controls</h3>
+    <table>
+      <tr><th>Action</th><th>How</th></tr>
+      <tr><td>Orbit / rotate</td><td>Left-drag</td></tr>
+      <tr><td>Pan</td><td>Right-drag or middle-drag</td></tr>
+      <tr><td>Zoom</td><td>Scroll wheel</td></tr>
+      <tr><td>Fit all in view</td><td><strong>Fit</strong> button</td></tr>
+      <tr><td>Projection toggle</td><td><strong>Persp / Ortho</strong> button</td></tr>
+      <tr><td>Preset views</td><td><strong>Ft / Top / Rt / Iso</strong> buttons (bottom-left)</td></tr>
+      <tr><td>Select waypoint</td><td>Click a gold sphere in the viewport</td></tr>
+      <tr><td>Move waypoint on axis</td><td>Click sphere → drag the red/green/blue axis arrow (5 mm snap)</td></tr>
+      <tr><td>Move whole conductor</td><td>Drag the <strong>first (origin)</strong> waypoint</td></tr>
+      <tr><td>Add waypoint at end</td><td>Select any waypoint → click the <strong>blue +</strong> button (top-centre of viewport)</td></tr>
+      <tr><td>Duplicate conductor</td><td>⧉ button in Properties panel (+20 mm offset on X)</td></tr>
+      <tr><td>Delete conductor</td><td>🗑 button in Properties panel</td></tr>
+    </table>
+
+    <hr>
+    <h2>Accuracy Guide</h2>
+    <table>
+      <tr><th>Scenario</th><th>Typical error</th><th>Remedy</th></tr>
+      <tr><td>Short segments, separation &gt; 2× segment length</td><td>&lt;1%</td><td>No action needed</td></tr>
+      <tr><td>Moderate L/d ratio (5–20)</td><td>1–5%</td><td>Usually sufficient for engineering</td></tr>
+      <tr><td>Long single segment, L/d &gt; 50</td><td>10–25%</td><td>Add intermediate waypoints to shorten segments</td></tr>
+      <tr><td>Conductors touching / crossing</td><td>Undefined</td><td>Filament model breaks down at r ≈ 0</td></tr>
+    </table>
+    <p><strong>Rule of thumb:</strong> Each segment should be shorter than the nearest separation between conductors in the region of interest. Add waypoints to subdivide long conductors where they are close to others.</p>
+
+    <hr>
+    <h2>Physical Interpretation</h2>
+    <ul>
+      <li><strong>Parallel, same-direction currents</strong> (e.g., parallel phases carrying load): <em>attractive</em> — supports must prevent conductors from touching</li>
+      <li><strong>Antiparallel currents</strong> (same conductor making a U-turn, or opposing phases): <em>repulsive</em> — supports must resist spreading</li>
+      <li><strong>Perpendicular conductors</strong>: force is oblique; the cross product determines exact direction</li>
+      <li><strong>3-phase note:</strong> F3D uses DC / steady-state currents. For AC systems the instantaneous forces depend on phase angle and vary at 2× line frequency — F3D gives the peak force when all currents are at the specified magnitude simultaneously</li>
+    </ul>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
@@ -860,9 +1097,16 @@ function solve_for_forces(conductors) {
                     if (i === j && Math.abs(k - l) <= 1) continue;
                     const ptA_CB = conductorB.geometry[l];
                     const ptB_CB = conductorB.geometry[l+1];
+                    const len_A = ptA_CA.distanceTo(ptB_CA);
+                    const len_B = ptA_CB.distanceTo(ptB_CB);
+                    const min_sep = Math.max(1e-6, Math.min(
+                        ptA_CA.distanceTo(ptA_CB), ptA_CA.distanceTo(ptB_CB),
+                        ptB_CA.distanceTo(ptA_CB), ptB_CA.distanceTo(ptB_CB)
+                    ));
+                    const n = Math.min(200, Math.max(10, Math.ceil(Math.max(len_A, len_B) / (min_sep * 0.2))));
                     const dF = calculate_force_on_segment(
                         conductorA.current, ptA_CA, ptB_CA,
-                        conductorB.current, ptA_CB, ptB_CB, 10
+                        conductorB.current, ptA_CB, ptB_CB, n
                     );
                     conductorA.total_force_vector.add(dF);
                     conductorA.segment_forces[k].add(dF);
@@ -1799,6 +2043,8 @@ function hideSegmentModal() {
 
 function showHelp() { document.getElementById('help-overlay').classList.add('open'); }
 function hideHelp() { document.getElementById('help-overlay').classList.remove('open'); }
+function showDoc() { document.getElementById('doc-overlay').classList.add('open'); }
+function hideDoc() { document.getElementById('doc-overlay').classList.remove('open'); }
 
 function toggleForceVectorMode() {
     forceVectorMode = forceVectorMode === 'total' ? 'per-segment' : 'total';
