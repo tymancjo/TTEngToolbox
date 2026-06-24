@@ -825,13 +825,14 @@ function calculate_force_on_segment(current1, segment1_start_pt, segment1_end_pt
 function solve_for_forces(conductors) {
     for (let i = 0; i < conductors.length; i++) {
         for (let j = 0; j < conductors.length; j++) {
-            if (i === j) continue;
             const conductorA = conductors[i];
             const conductorB = conductors[j];
             for (let k = 0; k < conductorA.geometry.length - 1; k++) {
                 const ptA_CA = conductorA.geometry[k];
                 const ptB_CA = conductorA.geometry[k+1];
                 for (let l = 0; l < conductorB.geometry.length - 1; l++) {
+                    // Skip same-conductor same/adjacent segments: self-force trivially zero or near-singular (filament model)
+                    if (i === j && Math.abs(k - l) <= 1) continue;
                     const ptA_CB = conductorB.geometry[l];
                     const ptB_CB = conductorB.geometry[l+1];
                     const dF = calculate_force_on_segment(
