@@ -383,6 +383,29 @@
         #add-point-btn:hover { background: rgba(29,86,197,0.95); transform: translateX(-50%) scale(1.08); }
         #add-point-btn:active { transform: translateX(-50%) scale(0.96); }
 
+        #break-point-btn {
+            position: absolute;
+            top: 12px;
+            left: calc(50% + 46px);
+            display: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(210,100,20,0.90);
+            color: #fff;
+            font-size: 18px;
+            line-height: 1;
+            font-weight: 300;
+            border: 2px solid rgba(255,255,255,0.5);
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            z-index: 5;
+            transition: background 0.1s, transform 0.1s;
+        }
+        #break-point-btn:hover { background: rgba(180,70,10,0.95); transform: scale(1.08); }
+        #break-point-btn:active { transform: scale(0.96); }
+
         #view-presets {
             position: absolute;
             top: 12px;
@@ -599,6 +622,7 @@
 <main id="viewport-container">
     <div id="drag-hint">Waypoint selected — drag X/Y/Z arrows &nbsp;|&nbsp; 5 mm snap &nbsp;|&nbsp; first point moves whole conductor</div>
     <button id="add-point-btn" onclick="addPointFromViewport()" title="Add next waypoint">+</button>
+    <button id="break-point-btn" onclick="breakConductorFromViewport()" title="Break conductor at this waypoint">&#9986;</button>
     <div id="view-presets">
         <button class="view-btn" onclick="setView('front')" title="Front view">Ft</button>
         <button class="view-btn" onclick="setView('top')"   title="Top view">Top</button>
@@ -725,6 +749,7 @@ let conductorInputData = [];   // [{phase, name, color, current, width, height, 
 let dragHandles = [];
 let axisHandles = [];
 let activeSphere = null;
+let directionArrows = [];
 let dragControlsInstance = null;
 let needsZoomToFit = true;
 const DRAG_SNAP_MM = 5;
@@ -929,6 +954,7 @@ function rebuildAndRun() {
     solve_for_forces(conductors);
     plot_3d_conductors(conductors);
     buildDragHandles();
+    buildDirectionArrows();
     buildSidebarConductorList();
     buildResultsPanel();
     syncExportTextarea();
@@ -1023,13 +1049,20 @@ function buildDragHandles() {
         const absPoints = get_raw_points(cd.points);
         const isSelected = conductorIdx === selectedConductorIndex;
         absPoints.forEach((pt, ptIdx) => {
-            const r = isSelected ? 7 : 4.5;
+            const isOrigin = ptIdx === 0;
+            const r = isSelected ? (isOrigin ? 10 : 7) : (isOrigin ? 6 : 4.5);
+            const color = isSelected
+                ? (isOrigin ? 0x00e5ff : 0xffd700)
+                : (isOrigin ? 0xffffff : cd.color);
+            const emissive = isSelected
+                ? (isOrigin ? new THREE.Color(0x003344) : new THREE.Color(0x332200))
+                : new THREE.Color(0x000000);
             const geo = new THREE.SphereGeometry(r, 12, 12);
             const mat = new THREE.MeshLambertMaterial({
-                color: isSelected ? 0xffd700 : cd.color,
-                emissive: isSelected ? new THREE.Color(0x332200) : new THREE.Color(0x000000),
+                color,
+                emissive,
                 transparent: true,
-                opacity: isSelected ? 1.0 : 0.55
+                opacity: isSelected ? 1.0 : (isOrigin ? 0.75 : 0.55)
             });
             const sphere = new THREE.Mesh(geo, mat);
             sphere.position.set(pt[0], pt[1], pt[2]);
@@ -1044,6 +1077,32 @@ function buildDragHandles() {
 // AXIS-CONSTRAINED DRAG
 // ============================================================
 
+function clearDirectionArrows() {
+    directionArrows.forEach(a => root.remove(a));
+    directionArrows = [];
+}
+
+function buildDirectionArrows() {
+    clearDirectionArrows();
+    if (selectedConductorIndex === null) return;
+    const conductor = conductors[selectedConductorIndex];
+    if (!conductor) return;
+    for (let i = 0; i < conductor.geometry.length - 1; i++) {
+        const p1 = conductor.geometry[i];
+        const p2 = conductor.geometry[i + 1];
+        const dir = new THREE.Vector3().subVectors(p2, p1);
+        const len = dir.length();
+        if (len < 1) continue;
+        const headLen = Math.min(len * 0.2, 30);
+        const arrow = new THREE.ArrowHelper(dir.normalize(), p1, len, 0xffffff, headLen, headLen * 0.6);
+        arrow.traverse(child => {
+            if (child.material) { child.material.depthTest = false; child.renderOrder = 999; }
+        });
+        root.add(arrow);
+        directionArrows.push(arrow);
+    }
+}
+
 function clearActiveSphere() {
     axisHandles.forEach(h => {
         if (h.userData.visualShaft) root.remove(h.userData.visualShaft);
@@ -1055,6 +1114,7 @@ function clearActiveSphere() {
     activeSphere = null;
     document.getElementById('drag-hint').style.display = 'none';
     document.getElementById('add-point-btn').style.display = 'none';
+    document.getElementById('break-point-btn').style.display = 'none';
 }
 
 function buildAxisHandles(sphere) {
@@ -1068,6 +1128,10 @@ function buildAxisHandles(sphere) {
 
     activeSphere = sphere;
     document.getElementById('add-point-btn').style.display = 'block';
+    const _ptIdx = sphere.userData.ptIdx;
+    const _nPts = conductorInputData[sphere.userData.conductorIdx].points.length;
+    document.getElementById('break-point-btn').style.display =
+        (_ptIdx > 0 && _ptIdx < _nPts - 1) ? 'block' : 'none';
     const pos = sphere.position.clone();
     const L = 70;
     const R = 4;
@@ -1243,7 +1307,16 @@ renderer.domElement.addEventListener('pointerup', e => {
         buildAxisHandles(sphere);
         document.getElementById('drag-hint').style.display = 'block';
     } else {
-        clearActiveSphere();
+        const meshMap = new Map();
+        conductors.forEach((c, cIdx) => {
+            c.meshes.forEach(m => { if (m.type !== 'LineSegments') meshMap.set(m, cIdx); });
+        });
+        const bodyHits = rc.intersectObjects([...meshMap.keys()], false);
+        if (bodyHits.length > 0) {
+            selectConductor(meshMap.get(bodyHits[0].object), false);
+        } else {
+            clearActiveSphere();
+        }
     }
 });
 
@@ -1301,6 +1374,7 @@ function selectConductor(i, scrollIntoView) {
 
     clearActiveSphere();
     buildDragHandles();
+    buildDirectionArrows();
 }
 
 function buildPropertyForm(i) {
@@ -1326,7 +1400,9 @@ function buildPointTable(points) {
             <td><input type="number" data-pt="${ptIdx}" data-axis="0" value="${pt[0]}" step="1"></td>
             <td><input type="number" data-pt="${ptIdx}" data-axis="1" value="${pt[1]}" step="1"></td>
             <td><input type="number" data-pt="${ptIdx}" data-axis="2" value="${pt[2]}" step="1"></td>
-            <td>${ptIdx > 0 ? `<button class="btn btn-danger btn-icon" onclick="removePointRow(${ptIdx})" title="Remove">&#215;</button>` : ''}</td>
+            <td>
+                ${ptIdx > 0 ? `<button class="btn btn-danger btn-icon" onclick="removePointRow(${ptIdx})" title="Remove">&#215;</button>` : ''}
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1357,6 +1433,35 @@ function removePointRow(ptIdx) {
     if (cd.points.length <= 2) return;
     cd.points.splice(ptIdx, 1);
     buildPointTable(cd.points);
+}
+
+function breakConductorFromViewport() {
+    if (!activeSphere) return;
+    breakConductorAtPoint(activeSphere.userData.ptIdx);
+}
+
+function breakConductorAtPoint(ptIdx) {
+    if (selectedConductorIndex === null) return;
+    const cd = conductorInputData[selectedConductorIndex];
+    if (ptIdx < 1 || ptIdx >= cd.points.length - 1) return;
+
+    const absPoints = get_raw_points(cd.points);
+    const breakAbsPos = absPoints[ptIdx];
+
+    const newCd = {
+        phase: cd.phase,
+        name: cd.name + '_2',
+        color: cd.color,
+        current: cd.current,
+        width: cd.width,
+        height: cd.height,
+        points: [breakAbsPos, ...cd.points.slice(ptIdx + 1)]
+    };
+
+    cd.points = cd.points.slice(0, ptIdx + 1);
+    conductorInputData.splice(selectedConductorIndex + 1, 0, newCd);
+    rebuildAndRun();
+    selectConductor(selectedConductorIndex + 1, true);
 }
 
 function applyFormChanges() {
@@ -1496,6 +1601,7 @@ function highlightPhase(phase) {
     document.getElementById('property-panel').style.display = 'none';
     buildSidebarConductorList();
     buildDragHandles();
+    buildDirectionArrows();
 }
 
 function highlight_selection(type, identifier) {
@@ -1509,6 +1615,7 @@ function highlight_selection(type, identifier) {
         document.getElementById('property-panel').style.display = 'none';
         buildSidebarConductorList();
         buildDragHandles();
+        buildDirectionArrows();
         return;
     }
     if (type === 'phase') highlightPhase(identifier);
