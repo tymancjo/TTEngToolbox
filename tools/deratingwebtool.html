@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LV Switchgear De-rating Tool</title>
+<script src="./chart.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --border: #dde1e9;
+    --accent: #1a56a0;
+    --accent2: #c0392b;
+    --accent-light: #e8f0fb;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --ok: #1a7a40;
+    --warn: #b45309;
+    --font: 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Consolas', 'Courier New', monospace;
+    --radius: 8px;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 { font-size: 1.25rem; font-weight: 700; }
+  header p { font-size: 0.82rem; opacity: 0.8; }
+
+  main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
+    padding: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    #eq-display > div { grid-template-columns: 1fr !important; }
+  }
+
+  /* ── INPUT PANEL ── */
+  #inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+
+  .card h2 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin-bottom: 12px;
+    border-bottom: 2px solid var(--accent-light);
+    padding-bottom: 6px;
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 4px 8px;
+    margin-bottom: 10px;
+  }
+  .field:last-child { margin-bottom: 0; }
+
+  .field label {
+    font-size: 0.82rem;
+    color: var(--muted);
+    grid-column: 1 / -1;
+  }
+  .field label span.sym {
+    font-style: italic;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+  }
+
+  .field input[type=number], .field select {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 0.9rem;
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--text);
+    -moz-appearance: textfield;
+  }
+  .field input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .field input[type=number]:focus, .field select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .field .unit {
+    font-size: 0.78rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  /* slider row */
+  .slider-row {
+    display: grid;
+    grid-template-columns: 1fr 56px;
+    align-items: center;
+    gap: 8px;
+  }
+  .slider-row input[type=range] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .slider-row input[type=number] {
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    background: var(--bg);
+    text-align: right;
+  }
+
+  .range-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .range-row .field { margin-bottom: 0; }
+
+  #btn-calc {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.15s;
+  }
+  #btn-calc:hover { background: #1344801; filter: brightness(1.1); }
+
+  /* ── RIGHT PANEL ── */
+  #results { display: flex; flex-direction: column; gap: 16px; }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+    min-height: 380px;
+  }
+  .chart-card h2 {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+  }
+  #chartCanvas { width: 100% !important; }
+
+  /* ── REPORT ── */
+  #report {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    display: none;
+  }
+  #report.visible { display: block; }
+
+  #report h3 {
+    font-size: 1rem;
+    color: var(--accent);
+    font-weight: 700;
+    margin: 18px 0 8px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+  }
+  #report h3:first-child { margin-top: 0; }
+
+  #report table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin: 8px 0;
+  }
+  #report th {
+    background: var(--accent-light);
+    color: var(--accent);
+    text-align: left;
+    padding: 5px 8px;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  #report td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.83rem;
+  }
+  #report tr:last-child td { border-bottom: none; }
+  #report tr:nth-child(even) td { background: #fafbfd; }
+
+  .formula-block {
+    background: #f8f9fb;
+    border-left: 3px solid var(--accent);
+    border-radius: 0 5px 5px 0;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.8;
+    margin: 8px 0;
+    color: #2c3e50;
+    white-space: pre-wrap;
+  }
+
+  .notice {
+    background: #fff8e1;
+    border: 1px solid #f0c060;
+    border-radius: 5px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    color: #7a5800;
+    margin: 8px 0;
+  }
+  .notice.warn { background: #fff0f0; border-color: #f0a0a0; color: #8b0000; }
+  .notice.ok   { background: #f0fff4; border-color: #6dbf8a; color: #155724; }
+
+  .compliance-block {
+    background: #f8f9fb;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    color: #2c3e50;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .tag.iec { background: #d4e6ff; color: #1a56a0; }
+  .tag.warn { background: #ffecd4; color: #b45309; }
+  .tag.safe { background: #d4f4e2; color: #1a7a40; }
+
+  ul.limits { padding-left: 18px; }
+  ul.limits li { margin-bottom: 4px; font-size: 0.83rem; }
+
+  .hi { color: var(--accent2); font-weight: 700; }
+  .lo { color: var(--ok); font-weight: 700; }
+
+  .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .placeholder svg { opacity: 0.3; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>LV Switchgear De-rating Tool</h1>
+  <p>IEC 60890 / IEC 61439-1 &mdash; Ambient Temperature &amp; Ventilation Mode Re-rating</p>
+</header>
+
+<main>
+  <!-- ══ INPUT PANEL ══ -->
+  <div id="inputs">
+
+    <div class="card">
+      <h2>Reference Conditions</h2>
+
+      <div class="field">
+        <label>Rated current <span class="sym">I_rated</span></label>
+        <input type="number" id="i_rated" value="2000" min="1" step="10">
+        <span class="unit">A</span>
+      </div>
+
+      <div class="field">
+        <label>Reference ambient <span class="sym">T_amb_ref</span></label>
+        <input type="number" id="t_amb_ref" value="40" min="-20" max="70" step="1">
+        <span class="unit">°C</span>
+      </div>
+
+      <div class="field">
+        <label>Max component temperature <span class="sym">T_c_max</span></label>
+        <input type="number" id="t_c_max" value="145" min="50" max="200" step="1">
+        <span class="unit">°C</span>
+      </div>
+
+      <div class="field">
+        <label>Component self-heating <span class="sym">ΔT_c_self</span></label>
+        <input type="number" id="dt_c_self" value="75" min="1" max="200" step="1">
+        <span class="unit">K</span>
+      </div>
+
+      <div class="field">
+        <label>Internal air rise at rated <span class="sym">ΔT_i_ref</span>
+          <span style="font-style:normal;font-size:0.72rem;color:var(--muted);margin-left:6px;">(derived — panel at thermal limit at ref)</span>
+        </label>
+        <input type="number" id="dt_i_ref" readonly style="background:#f0f2f6;color:var(--muted);cursor:not-allowed;" value="30" tabindex="-1">
+        <span class="unit">K</span>
+      </div>
+
+      <div class="field">
+        <label>Effective cooling surface <span class="sym">A_eff</span></label>
+        <input type="number" id="a_eff" value="3.0" min="0.1" max="100" step="0.1">
+        <span class="unit">m²</span>
+      </div>
+
+      <div class="field">
+        <label>Radiation fraction at reference <span class="sym">r_ref</span></label>
+        <div class="slider-row">
+          <input type="range" id="r_ref_slider" min="0" max="1" step="0.01" value="0.15">
+          <input type="number" id="r_ref" value="0.15" min="0" max="1" step="0.01">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Reference fan flow <span class="sym">Q_ref</span> (0 = natural convection)</label>
+        <input type="number" id="q_ref" value="0" min="0" max="10000" step="10">
+        <span class="unit">m³/h</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>New Conditions</h2>
+
+      <div class="field">
+        <label>Radiation fraction <span class="sym">r_new</span> (0 = pure NC, 1 = pure radiation)</label>
+        <div class="slider-row">
+          <input type="range" id="r_rad_slider" min="0" max="1" step="0.01" value="0.15">
+          <input type="number" id="r_rad" value="0.15" min="0" max="1" step="0.01">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Fan volumetric flow <span class="sym">Q_fan</span> (0 = no forced vent.)</label>
+        <input type="number" id="q_fan" value="0" min="0" max="10000" step="10">
+        <span class="unit">m³/h</span>
+      </div>
+
+      <div class="field">
+        <label>FC effectiveness factor <span class="sym">κ_fc</span>
+          <span style="font-style:normal;font-size:0.72rem;color:var(--muted);margin-left:4px;">1.0 = IEC theory; &gt;1 = enhanced convection</span>
+        </label>
+        <div class="slider-row">
+          <input type="range" id="k_fc_slider" min="0.1" max="3.0" step="0.01" value="1.0">
+          <input type="number" id="k_fc" value="1.00" min="0.1" max="10" step="0.01">
+        </div>
+      </div>
+
+      <details style="margin-bottom:10px; font-size:0.82rem;">
+        <summary style="cursor:pointer; color:var(--accent); user-select:none; padding:2px 0;">
+          &#9654; Calibrate κ_fc from measurement
+        </summary>
+        <div style="margin-top:8px; background:#f4f6f9; border-radius:5px; padding:10px 12px; line-height:1.8;">
+          <div style="color:var(--muted); font-size:0.75rem; margin-bottom:6px;">
+            Run panel at <em>T_amb_ref</em> with Q_fan active. Enter measured current at thermal limit.
+          </div>
+          <div style="display:grid; grid-template-columns:1fr auto; align-items:center; gap:4px 8px; margin-bottom:8px;">
+            <label style="font-size:0.82rem; color:var(--muted);">FC current at T_ref <span style="font-style:italic; color:var(--accent); font-family:var(--mono); font-size:0.78rem;">I_fc_meas</span></label>
+            <span></span>
+            <input type="number" id="i_fc_meas" value="" min="0" max="100000" step="10"
+                   placeholder="e.g. 2400"
+                   style="padding:5px 8px; border:1px solid var(--border); border-radius:5px; font-size:0.9rem; font-family:var(--mono); background:#fff; width:100%;">
+            <span style="font-size:0.78rem; color:var(--muted);">A</span>
+          </div>
+          <button id="btn-calibrate-kfc"
+                  style="padding:5px 14px; background:var(--accent); color:#fff; border:none; border-radius:5px; font-size:0.82rem; cursor:pointer; font-weight:600;">
+            Compute κ_fc
+          </button>
+          <span id="kfc-calib-msg" style="margin-left:10px; font-size:0.78rem;"></span>
+        </div>
+      </details>
+
+      <div class="field">
+        <label>Ambient temperature range</label>
+        <div class="range-row">
+          <div class="field">
+            <label>T_min</label>
+            <input type="number" id="t_min" value="20" min="-30" max="100" step="1">
+            <span class="unit">°C</span>
+          </div>
+          <div class="field">
+            <label>T_max</label>
+            <input type="number" id="t_max" value="65" min="-30" max="100" step="1">
+            <span class="unit">°C</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Safety margin <span class="sym">k</span></label>
+        <select id="k_margin">
+          <option value="1.00">1.00 — none</option>
+          <option value="0.95">0.95 — non-critical</option>
+          <option value="0.90" selected>0.90 — standard (recommended)</option>
+          <option value="0.85">0.85 — critical / essential</option>
+          <option value="0.80">0.80 — safety systems</option>
+        </select>
+        <span class="unit"></span>
+      </div>
+    </div>
+
+    <button id="btn-calc">&#9654; Calculate</button>
+
+    <div class="card" style="font-size:0.78rem; color:var(--muted); line-height:1.6;">
+      <strong style="color:var(--text);">Quick guide</strong><br>
+      <em>T_c_max</em>: bare Cu busbar = 145&nbsp;°C &bull; terminal = 100&nbsp;°C<br>
+      <em>ΔT_c_self</em>: component self-heat above local internal air (from test or calc)<br>
+      <em>ΔT_i_ref</em>: auto-derived = T_c_max − T_amb_ref − ΔT_c_self (panel at limit)<br>
+      <em>A_eff</em>: weighted enclosure surface (IEC 60890 §2.3) — only affects result when fans used<br>
+      <em>r_ref / r_new</em>: 0.10–0.20 typical indoor NC; 0 = pure convection<br>
+      <em>Q_ref</em>: 0 if reference was natural convection (most common)
+    </div>
+  </div>
+
+  <!-- ══ RESULTS PANEL ══ -->
+  <div id="results">
+    <div style="background:#fffbf0; border:1px solid #e8c84a; border-left:4px solid #c9a800;
+                border-radius:var(--radius); padding:12px 16px; display:flex; gap:12px; align-items:flex-start;">
+      <span style="font-size:1.1rem; flex-shrink:0; margin-top:1px;">⚖</span>
+      <div style="font-size:0.8rem; color:#5a4500; line-height:1.6;">
+        <strong style="font-size:0.83rem; color:#3d2e00;">Engineering Judgment Tool — Not a Certification Document</strong><br>
+        Results produced by this tool are based on IEC 60890 analytical models and simplified thermal assumptions.
+        They constitute an <em>engineering estimate</em> suitable for preliminary assessment and decision support only.
+        They do <strong>not</strong> replace type testing, witnessed verification measurements, or manufacturer approval
+        as required under IEC 61439-1. Before operational commitment, results must be validated by qualified
+        personnel through appropriate testing and analysis. The authors accept no liability for decisions
+        made solely on the basis of this tool's output.
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h2>Permissible Current vs. Ambient Temperature</h2>
+      <div id="chart-placeholder" class="placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Enter parameters and click Calculate
+      </div>
+      <canvas id="chartCanvas" style="display:none;"></canvas>
+    </div>
+
+    <div id="eq-display"></div>
+
+    <div id="report"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+// ══════════════════════════════════════════════
+//  CALCULATION ENGINE
+// ══════════════════════════════════════════════
+
+const CP_AIR  = 1005;   // J/(kg·K)
+const C_IEC   = 0.524;  // IEC 60890 empirical constant
+const EXP_NC  = 1.25;   // natural convection P ∝ ΔT^1.25
+const EXP_RAD = 1.0;    // radiation (linearized) P ∝ ΔT^1.0
+const EXP_61439 = 0.621; // IEC 61439-1 current exponent: 1/(2×0.804) for NC
+
+function airDensity(T_C) {
+  return 1.293 * 273 / (273 + T_C);
+}
+
+function calcModel(p, T_amb) {
+  const { i_rated, t_amb_ref, t_c_max, dt_c_self, dt_i_ref, a_eff,
+          r_ref, q_ref, r_rad, q_fan, k_fc, k_margin } = p;
+
+  const dTi_ref = dt_i_ref;
+
+  // ── Reference total losses (IEC 60890 corrected for r_ref and Q_ref) ──
+  // NC cooling capacity at reference ΔT_i (from IEC 60890 geometry)
+  const P_nc_ref = a_eff * Math.pow(dTi_ref / C_IEC, 1 / 0.804);
+  // Forced cooling at reference conditions (κ_fc = panel air-distribution effectiveness)
+  const mDot_ref = airDensity(t_amb_ref) * (q_ref / 3600);
+  const P_fc_ref = k_fc * mDot_ref * CP_AIR * dTi_ref;
+  // Total reference losses: NC + FC accounted, radiation fraction inflates total
+  // P_T_ref * (1 - r_ref) = P_nc_ref + P_fc_ref  →  P_T_ref = (P_nc_ref + P_fc_ref) / (1 - r_ref)
+  const P_T_ref = r_ref < 1
+    ? (P_nc_ref + P_fc_ref) / (1 - r_ref)
+    : (P_nc_ref + P_fc_ref) * 10; // guard against r_ref=1
+
+  // Available internal air rise at new ambient
+  const dTi_new = t_c_max - T_amb - dt_c_self;
+
+  if (dTi_new <= 0) return { iec: 0, iec_m: 0, simple: 0, simple_m: 0, dTi_new, P_T_ref, P_nc_ref, P_fc_ref };
+
+  // ── IEC 60890 combined model — new conditions ──
+  // NC scales non-linearly from reference NC capacity
+  const P_nc_new = P_nc_ref * Math.pow(dTi_new / dTi_ref, EXP_NC);
+  // Forced convection at new ambient and new fan flow (scaled by κ_fc)
+  const mDot_new = airDensity(T_amb) * (q_fan / 3600);
+  const P_fc_new = k_fc * mDot_new * CP_AIR * dTi_new;
+  // New total cooling: P_new * (1 - r_new) = P_nc_new + P_fc_new
+  const P_new = r_rad < 1
+    ? (P_nc_new + P_fc_new) / (1 - r_rad)
+    : (P_nc_new + P_fc_new) * 10;
+
+  let ratio_sq = P_new / P_T_ref;
+
+  // Cap at 120% rated (outside IEC 60890 validity)
+  ratio_sq = Math.min(ratio_sq, 1.44);
+
+  const I_iec   = i_rated * Math.sqrt(ratio_sq);
+  const I_iec_m = I_iec * k_margin;
+
+  // ── IEC 61439-1 simple formula (exponent 0.621, NC-derived) ──
+  const dT_num = t_c_max - T_amb;
+  const dT_den = t_c_max - t_amb_ref;
+  let I_simple = 0;
+  if (dT_den > 0 && dT_num > 0) {
+    I_simple = Math.min(i_rated * Math.pow(dT_num / dT_den, EXP_61439), i_rated * 1.2);
+  }
+  const I_simple_m = I_simple * k_margin;
+
+  return { iec: I_iec, iec_m: I_iec_m, simple: I_simple, simple_m: I_simple_m, dTi_new,
+           P_T_ref, P_nc_ref, P_fc_ref, P_nc_new, P_fc_new, P_new, mDot_new };
+}
+
+function calcSeries(p) {
+  const { t_min, t_max } = p;
+  const step = Math.max(1, Math.round((t_max - t_min) / 80));
+  const pts = [];
+  for (let T = t_min; T <= t_max + 0.01; T += step) {
+    const r = calcModel(p, T);
+    pts.push({ T: Math.round(T * 10) / 10, ...r });
+  }
+  return pts;
+}
+
+// ══════════════════════════════════════════════
+//  CHART
+// ══════════════════════════════════════════════
+
+let chartInstance = null;
+
+function renderChart(series, p) {
+  const labels = series.map(s => s.T);
+  const canvas = document.getElementById('chartCanvas');
+  const placeholder = document.getElementById('chart-placeholder');
+
+  placeholder.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const datasets = [
+    {
+      label: 'IEC 60890 (no margin)',
+      data: series.map(s => s.iec > 0 ? +s.iec.toFixed(1) : null),
+      borderColor: '#1a56a0',
+      backgroundColor: 'rgba(26,86,160,0.08)',
+      borderWidth: 2.5,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false,
+    },
+    {
+      label: `IEC 60890 + margin (×${p.k_margin})`,
+      data: series.map(s => s.iec_m > 0 ? +s.iec_m.toFixed(1) : null),
+      borderColor: '#1a56a0',
+      backgroundColor: 'rgba(26,86,160,0.12)',
+      borderWidth: 1.5,
+      borderDash: [4, 3],
+      pointRadius: 0,
+      tension: 0.2,
+      fill: '-1',
+    },
+    {
+      label: 'IEC 61439-1 simple (exp. 0.621, no margin)',
+      data: series.map(s => s.simple > 0 ? +s.simple.toFixed(1) : null),
+      borderColor: '#c0392b',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false,
+      borderDash: [6, 3],
+    },
+    {
+      label: `IEC 61439-1 simple (exp. 0.621, ×${p.k_margin})`,
+      data: series.map(s => s.simple_m > 0 ? +s.simple_m.toFixed(1) : null),
+      borderColor: '#e07060',
+      borderWidth: 1.2,
+      pointRadius: 0,
+      tension: 0.2,
+      fill: false,
+      borderDash: [2, 4],
+    },
+    {
+      label: `Reference point (${p.t_amb_ref}°C, ${p.i_rated} A)`,
+      data: [{ x: p.t_amb_ref, y: p.i_rated }],
+      borderColor: '#1a7a40',
+      backgroundColor: '#1a7a40',
+      pointRadius: 7,
+      pointStyle: 'star',
+      showLine: false,
+      type: 'scatter',
+    },
+  ];
+
+  const plugins = {
+    legend: {
+      position: 'top',
+      labels: { font: { size: 11 }, padding: 14 }
+    },
+    tooltip: {
+      mode: 'index',
+      intersect: false,
+      callbacks: {
+        label(ctx) {
+          const v = ctx.parsed.y;
+          if (v == null) return null;
+          const pct = (v / p.i_rated * 100).toFixed(1);
+          return `${ctx.dataset.label}: ${v.toFixed(0)} A (${pct}%)`;
+        }
+      }
+    },
+  };
+
+  const refLinesPlugin = {
+    id: 'reflines',
+    afterDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+      const { left, right, top, bottom } = chartArea;
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.font = '10px sans-serif';
+      if (scales.x) {
+        const xPx = scales.x.getPixelForValue(p.t_amb_ref);
+        if (xPx >= left && xPx <= right) {
+          ctx.strokeStyle = 'rgba(20,160,80,0.7)';
+          ctx.beginPath(); ctx.moveTo(xPx, top); ctx.lineTo(xPx, bottom); ctx.stroke();
+          ctx.fillStyle = '#1a7a40';
+          ctx.fillText(`T_ref=${p.t_amb_ref}°C`, xPx + 4, top + 14);
+        }
+      }
+      if (scales.y) {
+        const yPx = scales.y.getPixelForValue(p.i_rated);
+        if (yPx >= top && yPx <= bottom) {
+          ctx.strokeStyle = 'rgba(100,100,100,0.5)';
+          ctx.beginPath(); ctx.moveTo(left, yPx); ctx.lineTo(right, yPx); ctx.stroke();
+          ctx.fillStyle = '#555';
+          ctx.fillText(`I_rated=${p.i_rated} A`, right - 90, yPx - 4);
+        }
+      }
+      ctx.restore();
+    }
+  };
+
+  const config = {
+    type: 'line',
+    data: { labels, datasets },
+    plugins: [refLinesPlugin],
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          title: { display: true, text: 'Ambient Temperature (°C)', font: { size: 12 } },
+          type: 'linear',
+          ticks: { font: { size: 11 } },
+        },
+        y: {
+          title: { display: true, text: 'Permissible Current (A)', font: { size: 12 } },
+          min: 0,
+          ticks: { font: { size: 11 } },
+        }
+      },
+      plugins: {
+        legend: plugins.legend,
+        tooltip: plugins.tooltip,
+      },
+    }
+  };
+
+  if (chartInstance) { chartInstance.destroy(); }
+  chartInstance = new Chart(canvas.getContext('2d'), config);
+}
+
+// ══════════════════════════════════════════════
+//  EQUATION DISPLAY
+// ══════════════════════════════════════════════
+
+function renderEquations(p) {
+  const el = document.getElementById('eq-display');
+  const ref = calcModel(p, p.t_amb_ref);
+  const { P_T_ref, P_nc_ref, P_fc_ref } = ref;
+  const dTi = p.dt_i_ref;
+  const dT_ref = p.t_c_max - p.t_amb_ref;
+  const ventLabel = p.q_ref > 0
+    ? `ṁ·c<sub>p</sub>·ΔT<sub>i</sub> with Q<sub>ref</sub> = ${p.q_ref} m³/h`
+    : `0 W &nbsp;<span style="color:var(--muted);font-weight:400;">(natural conv. only at ref)</span>`;
+
+  el.innerHTML = `
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:0;">
+
+  <!-- ── IEC 60890 blue ── -->
+  <div style="background:#fff; border:1px solid var(--border); border-top:3px solid #1a56a0;
+              border-radius:var(--radius); padding:18px 20px;">
+    <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em;
+                color:#1a56a0; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+      <span style="display:inline-block;width:28px;height:3px;background:#1a56a0;border-radius:2px;flex-shrink:0;"></span>
+      IEC 60890 — Physics-Based Model
+    </div>
+
+    <div style="font-family:var(--mono); font-size:0.8rem; line-height:1.9; color:#2c3e50;">
+
+      <div style="font-size:0.7rem; color:var(--muted); margin-bottom:2px; font-family:var(--font);">
+        ① Thermal budget (panel at rated limit)
+      </div>
+      ΔT<sub>i,ref</sub> = T<sub>c,max</sub> − T<sub>amb,ref</sub> − ΔT<sub>c,self</sub>
+        = ${p.t_c_max} − ${p.t_amb_ref} − ${p.dt_c_self}
+        = <strong style="color:#1a56a0;">${dTi.toFixed(0)} K</strong>
+
+      <div style="font-size:0.7rem; color:var(--muted); margin:8px 0 2px; font-family:var(--font);">
+        ② Reference cooling capacity
+      </div>
+      P<sub>nc,ref</sub> = A<sub>eff</sub> · (ΔT<sub>i,ref</sub> / 0.524)<sup style="font-size:0.75em;">1/0.804</sup>
+        = <strong>${P_nc_ref.toFixed(0)} W</strong><br>
+      P<sub>fc,ref</sub> = ${ventLabel}<br>
+      P<sub>T,ref</sub> = (P<sub>nc,ref</sub> + P<sub>fc,ref</sub>) / (1 − r<sub>ref</sub>)
+        = <strong>${P_T_ref.toFixed(0)} W</strong>
+
+      <div style="font-size:0.7rem; color:var(--muted); margin:8px 0 2px; font-family:var(--font);">
+        ③ New conditions (per ambient step)
+      </div>
+      ΔT<sub>i,new</sub> = T<sub>c,max</sub> − T<sub>amb</sub> − ΔT<sub>c,self</sub><br>
+      P<sub>nc,new</sub> = P<sub>nc,ref</sub> · (ΔT<sub>i,new</sub> / ΔT<sub>i,ref</sub>)<sup style="font-size:0.75em;">1.25</sup><br>
+      P<sub>fc,new</sub> = κ<sub>fc</sub> · ρ(T<sub>amb</sub>) · Q<sub>fan</sub>/3600 · c<sub>p</sub> · ΔT<sub>i,new</sub>
+        &nbsp;<span style="color:var(--muted); font-size:0.82em;">κ<sub>fc</sub> = ${p.k_fc.toFixed(2)}${p.k_fc != 1 ? ' ⚠ calibrated' : ' (IEC theory)'}</span><br>
+      P<sub>new</sub> = (P<sub>nc,new</sub> + P<sub>fc,new</sub>) / (1 − r<sub>new</sub>)
+    </div>
+
+    <div style="margin-top:14px; background:#e8f0fb; border-radius:6px; padding:12px 16px; text-align:center;">
+      <div style="font-size:0.68rem; color:#1a56a0; opacity:0.8; margin-bottom:4px; font-family:var(--font);">result</div>
+      <span style="font-family:var(--mono); font-size:1.08rem; color:#1a344f; font-weight:700; letter-spacing:0.01em;">
+        I<sub>new</sub> = I<sub>rated</sub> &nbsp;·&nbsp; √(&thinsp;P<sub>new</sub> / P<sub>T,ref</sub>&thinsp;)
+      </span>
+    </div>
+  </div>
+
+  <!-- ── IEC 61439-1 simple red ── -->
+  <div style="background:#fff; border:1px solid var(--border); border-top:3px solid #c0392b;
+              border-radius:var(--radius); padding:18px 20px;">
+    <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em;
+                color:#c0392b; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+      <span style="display:inline-block;width:18px;border-top:2.5px dashed #c0392b;flex-shrink:0;margin-top:1px;"></span>
+      IEC 61439-1 — Simple Formula
+    </div>
+
+    <div style="font-family:var(--mono); font-size:0.8rem; line-height:1.9; color:#2c3e50;">
+
+      <div style="font-size:0.7rem; color:var(--muted); margin-bottom:2px; font-family:var(--font);">
+        Derivation
+      </div>
+      NC: P ∝ ΔT<sup style="font-size:0.75em;">1.25</sup> &nbsp;and&nbsp; P ∝ I² (Joule)<br>
+      → I ∝ ΔT<sup style="font-size:0.75em;">1.25/2</sup> = ΔT<sup style="font-size:0.75em;">0.625</sup> ≈ ΔT<sup style="font-size:0.75em;"><strong>0.621</strong></sup>
+
+      <div style="font-size:0.7rem; color:var(--muted); margin:8px 0 2px; font-family:var(--font);">
+        Temperature differentials (total, not enclosure ΔT)
+      </div>
+      ΔT<sub>ref</sub> = T<sub>c,max</sub> − T<sub>amb,ref</sub>
+        = ${p.t_c_max} − ${p.t_amb_ref} = <strong style="color:#c0392b;">${dT_ref.toFixed(0)} K</strong><br>
+      ΔT<sub>new</sub> = T<sub>c,max</sub> − T<sub>amb</sub> &nbsp;<span style="color:var(--muted);">(varies)</span>
+
+      <div style="font-size:0.7rem; color:var(--muted); margin:8px 0 2px; font-family:var(--font);">
+        Scope &amp; limits
+      </div>
+      <span style="font-size:0.75rem; font-family:var(--font);">
+        Valid for same enclosure, NC-dominant cooling, moderate T excursions.<br>
+        Does <strong>not</strong> account for fan flow, radiation shift, or enclosure geometry changes.
+      </span>
+    </div>
+
+    <div style="margin-top:14px; background:#fdecea; border-radius:6px; padding:12px 16px; text-align:center;">
+      <div style="font-size:0.68rem; color:#c0392b; opacity:0.8; margin-bottom:4px; font-family:var(--font);">result</div>
+      <span style="font-family:var(--mono); font-size:1.08rem; color:#7a1a0a; font-weight:700; letter-spacing:0.01em;">
+        I<sub>new</sub> = I<sub>rated</sub> &nbsp;·&nbsp;
+        (&thinsp;ΔT<sub>new</sub> / ΔT<sub>ref</sub>&thinsp;)<sup style="font-size:0.8em;">0.621</sup>
+      </span>
+    </div>
+  </div>
+
+</div>`;
+}
+
+// ══════════════════════════════════════════════
+//  REPORT
+// ══════════════════════════════════════════════
+
+function renderReport(series, p) {
+  const el = document.getElementById('report');
+  el.classList.add('visible');
+
+  const ref = calcModel(p, p.t_amb_ref);
+  const dTi_ref = p.dt_i_ref;
+  const { P_T_ref, P_nc_ref, P_fc_ref } = ref;
+
+  // Key sample points
+  const keyTemps = [
+    p.t_amb_ref - 10,
+    p.t_amb_ref - 5,
+    p.t_amb_ref,
+    p.t_amb_ref + 5,
+    p.t_amb_ref + 10,
+    p.t_amb_ref + 15,
+    p.t_amb_ref + 20,
+    p.t_amb_ref + 25,
+  ].filter(T => T >= p.t_min && T <= p.t_max);
+
+  function fmtI(v) {
+    if (v == null || v <= 0) return '<span class="hi">0 A — limit exceeded</span>';
+    const pct = (v / p.i_rated * 100).toFixed(1);
+    const cls = v >= p.i_rated * 0.95 ? 'lo' : v < p.i_rated * 0.7 ? 'hi' : '';
+    return `<span class="${cls}">${v.toFixed(0)} A (${pct}%)</span>`;
+  }
+
+  const keyRows = keyTemps.map(T => {
+    const r = calcModel(p, T);
+    const marker = T === p.t_amb_ref ? ' ← ref' : '';
+    return `<tr>
+      <td>${T}°C${marker}</td>
+      <td>${fmtI(r.iec)}</td>
+      <td>${fmtI(r.iec_m)}</td>
+      <td>${fmtI(r.simple)}</td>
+      <td>${fmtI(r.simple_m)}</td>
+    </tr>`;
+  }).join('');
+
+  const atRef = calcModel(p, p.t_amb_ref);
+  const rPct = (p.r_rad * 100).toFixed(0);
+  const refVentStr = p.q_ref > 0
+    ? `Forced (Q_ref = ${p.q_ref} m³/h, r_ref = ${p.r_ref})`
+    : `Natural convection (r_ref = ${p.r_ref})`;
+  const fanStr = p.q_fan > 0
+    ? `Forced (Q_fan = ${p.q_fan} m³/h, r_new = ${p.r_rad})`
+    : `Natural convection (r_new = ${p.r_rad})`;
+
+  const complianceText =
+`De-rating Calculation — IEC 60890 / IEC 61439-1 Compliance Statement
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Original rating      :  ${p.i_rated} A at ${p.t_amb_ref}°C ambient
+Max component T      :  ${p.t_c_max}°C (ΔT_c_self = ${p.dt_c_self} K)
+Internal air ΔT      :  ΔT_i_ref = ${dTi_ref} K at rated conditions
+Effective area       :  A_eff = ${p.a_eff} m²
+Reference ventilation:  ${refVentStr}
+  P_nc_ref (IEC60890):  ${P_nc_ref ? P_nc_ref.toFixed(1) : '—'} W
+  P_fc_ref            :  ${P_fc_ref ? P_fc_ref.toFixed(1) : '—'} W
+  P_T_ref (total)     :  ${P_T_ref ? P_T_ref.toFixed(1) : '—'} W
+New conditions vent  :  ${fanStr}
+FC eff. factor       :  κ_fc = ${p.k_fc.toFixed(3)}${p.k_fc != 1 ? '  ← empirically calibrated' : '  (IEC 60890 theory)'}
+Safety margin        :  k = ${p.k_margin}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Calculation basis : IEC 60890 combined NC + radiation + FC model
+IEC 61439-1 ref.  : Clause 7.2 (special service conditions)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LIMITATIONS: This is an engineering estimate, NOT a type test equivalent.
+Device de-rating (MCCBs, contactors) must be verified separately.
+Hot spots, harmonic loading, transient loads are NOT modelled.
+Result valid for steady-state conditions only.`;
+
+  el.innerHTML = `
+    <h3>1. Input Summary</h3>
+    <table>
+      <tr><th>Parameter</th><th>Symbol</th><th>Value</th><th>Unit</th></tr>
+      <tr><td>Rated current</td><td><em>I_rated</em></td><td>${p.i_rated}</td><td>A</td></tr>
+      <tr><td>Reference ambient</td><td><em>T_amb_ref</em></td><td>${p.t_amb_ref}</td><td>°C</td></tr>
+      <tr><td>Max component temperature</td><td><em>T_c_max</em></td><td>${p.t_c_max}</td><td>°C</td></tr>
+      <tr><td>Component self-heating</td><td><em>ΔT_c_self</em></td><td>${p.dt_c_self}</td><td>K</td></tr>
+      <tr><td>Internal air rise at rated</td><td><em>ΔT_i_ref</em></td><td>${p.dt_i_ref}</td><td>K</td></tr>
+      <tr><td>Effective cooling surface</td><td><em>A_eff</em></td><td>${p.a_eff}</td><td>m²</td></tr>
+      <tr><td>Ref. radiation fraction</td><td><em>r_ref</em></td><td>${p.r_ref}</td><td>—</td></tr>
+      <tr><td>Ref. fan flow</td><td><em>Q_ref</em></td><td>${p.q_ref}</td><td>m³/h</td></tr>
+      <tr><td>Ref. NC cooling (derived)</td><td><em>P_nc_ref</em></td><td>${P_nc_ref ? P_nc_ref.toFixed(1) : '—'}</td><td>W</td></tr>
+      <tr><td>Ref. total losses (derived)</td><td><em>P_T_ref</em></td><td>${P_T_ref ? P_T_ref.toFixed(1) : '—'}</td><td>W</td></tr>
+      <tr><td>New radiation fraction</td><td><em>r_new</em></td><td>${p.r_rad}</td><td>—</td></tr>
+      <tr><td>New fan flow</td><td><em>Q_fan</em></td><td>${p.q_fan}</td><td>m³/h</td></tr>
+      <tr><td>FC effectiveness factor</td><td><em>κ_fc</em></td><td>${p.k_fc.toFixed(3)}</td><td>—</td></tr>
+      <tr><td>Safety margin</td><td><em>k</em></td><td>${p.k_margin}</td><td>—</td></tr>
+    </table>
+
+    <h3>2. Governing Formula <span class="tag iec">IEC 60890</span></h3>
+    <p style="margin:6px 0 4px; font-size:0.83rem;">Combined natural convection + radiation + forced convection model:</p>
+    <div class="formula-block">Step 1 — Reference total losses (accounting for radiation fraction and ref. fan):
+
+  P_nc_ref  = A_eff · (ΔT_i_ref / 0.524)^(1/0.804)   [IEC 60890 NC geometry]
+            = ${P_nc_ref ? P_nc_ref.toFixed(1) : '—'} W
+  P_fc_ref  = ṁ_ref · cp · ΔT_i_ref                   [ref. fan cooling]
+            = ${P_fc_ref ? P_fc_ref.toFixed(1) : '—'} W
+  P_T_ref   = (P_nc_ref + P_fc_ref) / (1 − r_ref)     [radiation inflates total]
+            = ${P_T_ref ? P_T_ref.toFixed(1) : '—'} W
+
+Step 2 — New conditions cooling at ΔT_i,new:
+
+  ΔT_i,new  = T_c_max − T_amb − ΔT_c_self
+  P_nc_new  = P_nc_ref · (ΔT_i,new / ΔT_i,ref)^1.25   [NC scales non-linearly]
+  P_fc_new  = ṁ_new · cp · ΔT_i,new                   [new fan, density-corrected]
+  P_new     = (P_nc_new + P_fc_new) / (1 − r_new)     [radiation fraction in new cond.]
+
+Step 3 — De-rating ratio:
+
+  (I_new / I_rated)² = P_new / P_T_ref
+  I_new = I_rated · √(P_new / P_T_ref)   capped at 1.2 · I_rated
+
+  ṁ = ρ(T) · Q / 3600    ρ(T) = 1.293 · 273/(273+T) [kg/m³]   cp = 1005 J/(kg·K)
+
+IEC 61439-1 simple formula (single-component, NC-derived exponent):
+  I_new / I_rated = ( (T_c_max − T_amb) / (T_c_max − T_amb_ref) )^0.621
+  Exponent derivation: NC gives P ∝ ΔT^1.25, so I ∝ ΔT^(1.25/2) → exponent = 0.625 ≈ 0.621
+  NOTE: ignores enclosure geometry, mixed ventilation, radiation shift — less accurate
+  than IEC 60890 model above when conditions change significantly.</div>
+
+    <p style="font-size:0.82rem; color:var(--muted); margin-top:6px;">
+      Key insight: IEC 60890 model (blue) accounts for geometry, radiation fraction shift, and fan flow.
+      IEC 61439-1 simple formula (red) uses only the temperature ratio with exponent 0.621 — valid
+      when conditions are similar; conservative vs. the √ΔT (0.5) formula.
+    </p>
+
+    <h3>3. Key Results Table</h3>
+    <table>
+      <tr>
+        <th>T_amb</th>
+        <th>IEC60890 <span class="tag iec">no margin</span></th>
+        <th>IEC60890 <span class="tag iec">×${p.k_margin}</span></th>
+        <th>IEC 61439-1 simple <span class="tag warn">no margin</span></th>
+        <th>IEC 61439-1 simple <span class="tag warn">×${p.k_margin}</span></th>
+      </tr>
+      ${keyRows}
+    </table>
+
+    <h3>4. Model Assumptions</h3>
+    <ul class="limits">
+      <li>Steady-state thermal equilibrium (no transient, cyclic, or overload analysis)</li>
+      <li>Uniform internal air temperature (single-node model per IEC 60890)</li>
+      <li>Radiation linearized: P_rad ∝ ΔT (valid near reference temperature; degrades at large excursions)</li>
+      <li>Fan volumetric flow constant (density correction applied; filter fouling not modelled)</li>
+      <li>Component self-heating ΔT_c_self fixed (not re-calculated at reduced current)</li>
+      <li>IEC 60890 empirical constants derived for standard enclosure geometry — atypical geometries introduce additional uncertainty ±15–25%</li>
+      <li>Limiting element: busbar / governing component as defined by T_c_max and ΔT_c_self inputs</li>
+    </ul>
+
+    <h3>5. IEC Status &amp; Compliance Declaration</h3>
+    <div class="notice warn">
+      ⚠ IEC 61439-1 contains NO normative formula for ambient temperature re-rating.
+      This calculation is performed under IEC 61439-1 Clause 7.2 (special service conditions)
+      using IEC 60890 as the calculation method (referenced in IEC 61439-1 Annex ZB).
+      It is an <strong>engineering estimate</strong>, not equivalent to a type test.
+    </div>
+    ${p.k_fc != 1.0 ? `<div class="notice" style="background:#fff8e1;border-color:#f0c060;color:#7a5800;margin-top:8px;">
+      ⚠ <strong>κ_fc = ${p.k_fc.toFixed(3)} (≠ 1.0)</strong> — FC cooling term has been empirically calibrated
+      from measurement. Result departs from pure IEC 60890 theory.
+      Ensure calibration measurement was taken at steady-state, at T_amb_ref, with the same fan flow.
+    </div>` : ''}
+    <div class="compliance-block">${complianceText}</div>
+
+    <h3>6. What This Model Does NOT Cover</h3>
+    <ul class="limits">
+      <li><strong>MCCB / contactor de-rating</strong> — requires manufacturer-specific temperature de-rating curves, separate from this calculation</li>
+      <li><strong>Cable terminal limits</strong> — terminals governed by 60 K limit (100°C absolute); must be checked independently with their own T_c_max = 100°C and ΔT_c_self</li>
+      <li><strong>Hot spots at joints &amp; connections</strong> — can be 20–40°C above average busbar; not captured by this model</li>
+      <li><strong>Harmonic loading</strong> — skin effect / proximity effect increases effective R at harmonic frequencies; use fundamental-frequency R understates losses for VFD loads</li>
+      <li><strong>Altitude effects</strong> — air density reduction at &gt;2000 m requires separate correction</li>
+      <li><strong>Cyclic / transient loads</strong> — requires thermal time-constant analysis</li>
+      <li><strong>Uprating (lower ambient → more current)</strong> — not directly sanctioned by IEC 61439-1; all elements must be independently verified</li>
+    </ul>
+    <div class="notice ok" style="margin-top:10px;">
+      ✔ Recommended next step: infrared thermography at ≥80% of calculated new rated current,
+      at actual ambient, to verify model predictions before operational commitment.
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════
+//  EVENT WIRING
+// ══════════════════════════════════════════════
+
+function getParams() {
+  const t_amb_ref = +document.getElementById('t_amb_ref').value;
+  const t_c_max   = +document.getElementById('t_c_max').value;
+  const dt_c_self = +document.getElementById('dt_c_self').value;
+  const dt_i_ref  = t_c_max - t_amb_ref - dt_c_self;   // panel at thermal limit — no headroom
+  document.getElementById('dt_i_ref').value = dt_i_ref.toFixed(0);
+  return {
+    i_rated:    +document.getElementById('i_rated').value,
+    t_amb_ref,
+    t_c_max,
+    dt_c_self,
+    dt_i_ref,
+    a_eff:      +document.getElementById('a_eff').value,
+    r_ref:      +document.getElementById('r_ref').value,
+    q_ref:      +document.getElementById('q_ref').value,
+    r_rad:      +document.getElementById('r_rad').value,
+    q_fan:      +document.getElementById('q_fan').value,
+    k_fc:       +document.getElementById('k_fc').value,
+    t_min:      +document.getElementById('t_min').value,
+    t_max:      +document.getElementById('t_max').value,
+    k_margin:   +document.getElementById('k_margin').value,
+  };
+}
+
+function validate(p) {
+  if (p.dt_i_ref <= 0) {
+    alert(`Invalid reference conditions:\nΔT_i_ref = T_c_max (${p.t_c_max}°C) − T_amb_ref (${p.t_amb_ref}°C) − ΔT_c_self (${p.dt_c_self} K) = ${p.dt_i_ref.toFixed(1)} K ≤ 0\n\nReduce ΔT_c_self or raise T_c_max.`);
+    return false;
+  }
+  if (p.t_min >= p.t_max) {
+    alert('T_min must be less than T_max.'); return false;
+  }
+  return true;
+}
+
+function run() {
+  const p = getParams();
+  if (!validate(p)) return;
+  const series = calcSeries(p);
+  renderChart(series, p);
+  renderEquations(p);
+  renderReport(series, p);
+}
+
+document.getElementById('btn-calc').addEventListener('click', run);
+
+// Slider ↔ number sync — r_ref (reference radiation)
+const sliderRef = document.getElementById('r_ref_slider');
+const numRef    = document.getElementById('r_ref');
+sliderRef.addEventListener('input', () => { numRef.value = sliderRef.value; });
+numRef.addEventListener('input', () => {
+  let v = Math.min(1, Math.max(0, +numRef.value));
+  sliderRef.value = v; numRef.value = v;
+});
+
+// Slider ↔ number sync — r_rad (new conditions radiation)
+const slider = document.getElementById('r_rad_slider');
+const numRad  = document.getElementById('r_rad');
+slider.addEventListener('input', () => { numRad.value = slider.value; });
+numRad.addEventListener('input', () => {
+  let v = Math.min(1, Math.max(0, +numRad.value));
+  slider.value = v; numRad.value = v;
+});
+
+// Slider ↔ number sync — k_fc
+const sliderKfc = document.getElementById('k_fc_slider');
+const numKfc    = document.getElementById('k_fc');
+sliderKfc.addEventListener('input', () => { numKfc.value = (+sliderKfc.value).toFixed(2); });
+numKfc.addEventListener('input', () => {
+  let v = Math.min(10, Math.max(0.1, +numKfc.value));
+  sliderKfc.value = Math.min(3, v); numKfc.value = v.toFixed(2);
+});
+
+// κ_fc calibration button
+document.getElementById('btn-calibrate-kfc').addEventListener('click', function() {
+  const msg = document.getElementById('kfc-calib-msg');
+  const p = getParams();
+  const i_fc_meas = +document.getElementById('i_fc_meas').value;
+
+  if (!i_fc_meas || i_fc_meas <= 0) { msg.style.color='#c0392b'; msg.textContent='Enter I_fc_meas first.'; return; }
+  if (p.q_fan <= 0) { msg.style.color='#c0392b'; msg.textContent='Set Q_fan > 0 first.'; return; }
+  if (p.dt_i_ref <= 0) { msg.style.color='#c0392b'; msg.textContent='Invalid reference conditions.'; return; }
+
+  // Compute reference quantities at κ_fc=1 baseline
+  const dTi = p.dt_i_ref;
+  const P_nc_ref = p.a_eff * Math.pow(dTi / C_IEC, 1 / 0.804);
+  const mDot_ref = airDensity(p.t_amb_ref) * (p.q_ref / 3600);
+  const P_fc_ref_base = mDot_ref * CP_AIR * dTi;
+  const P_T_ref = p.r_ref < 1
+    ? (P_nc_ref + P_fc_ref_base) / (1 - p.r_ref)
+    : (P_nc_ref + P_fc_ref_base) * 10;
+
+  // Theoretical FC term in new conditions at T_ref (κ_fc=1 baseline)
+  const mDot_new_ref = airDensity(p.t_amb_ref) * (p.q_fan / 3600);
+  const P_fc_cal = mDot_new_ref * CP_AIR * dTi;
+
+  if (P_fc_cal <= 0) { msg.style.color='#c0392b'; msg.textContent='P_fc_cal = 0 — check Q_fan.'; return; }
+
+  // κ_fc = [ (I_fc_meas/I_rated)² · (1−r_new) · P_T_ref − P_nc_ref ] / P_fc_cal
+  const ratio_sq = (i_fc_meas / p.i_rated) ** 2;
+  const numerator = ratio_sq * (1 - p.r_rad) * P_T_ref - P_nc_ref;
+  const k_fc_calc = numerator / P_fc_cal;
+
+  if (k_fc_calc < 0) { msg.style.color='#c0392b'; msg.textContent=`κ_fc = ${k_fc_calc.toFixed(3)} < 0 — I_fc_meas too low or check r_new.`; return; }
+
+  const k_clamped = Math.min(10, Math.max(0.1, k_fc_calc));
+  numKfc.value = k_clamped.toFixed(3);
+  sliderKfc.value = Math.min(3, k_clamped);
+  msg.style.color = '#1a7a40';
+  msg.textContent = `κ_fc = ${k_clamped.toFixed(3)} ${k_fc_calc > 10 ? '(clamped from '+k_fc_calc.toFixed(2)+')' : ''}`;
+});
+
+// Auto-run on Enter in any input
+document.querySelectorAll('input, select').forEach(el => {
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+});
+
+// Run once on load with defaults
+run();
+</script>
+</body>
+</html>
