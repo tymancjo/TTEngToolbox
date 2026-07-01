@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LV Switchgear Thermal Ventilation & Derating Explorer — v3 NC-Corrected</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- KaTeX for beautiful math formulas -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        input[type="range"] {
+            accent-color: #2563eb;
+        }
+        @keyframes fan-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-fan {
+            animation: fan-spin linear infinite;
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased">
+
+    <!-- Header -->
+    <header class="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100">
+                    <i id="header-fan-icon" class="fa-solid fa-fan text-2xl animate-fan" style="animation-duration: 3s;"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">LV Switchgear Thermal Ventilation & Derating Tool <span class="text-blue-600 text-sm font-mono">v3</span></h1>
+                    <p class="text-xs text-slate-500">IEC 60890 NC-corrected model — parallel heat path physics for busbars, contacts, and ACBs</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200">
+                <span class="px-2.5 py-1 bg-blue-600 text-white font-semibold rounded-lg shadow-sm">IEC 61439-1</span>
+                <span class="px-2.5 py-1 text-slate-600 font-medium">IEC 60890 NC Correction</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+
+        <!-- Dashboard Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Sidebar: Controls & Inputs -->
+            <section class="lg:col-span-4 flex flex-col gap-6">
+
+                <!-- Presets Card -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-blue-600"></i> 1. Select Switchgear Node Preset
+                    </h2>
+                    <div class="flex flex-col gap-2">
+                        <button onclick="applyPreset('busbar_bare')" class="w-full px-3 py-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition group">
+                            <span class="font-bold block text-slate-800 group-hover:text-blue-700 text-xs">Bare Copper Busbars (Main Run)</span>
+                            <span class="text-[10px] text-slate-500">Target limit: 90°C (IEC 61439 limit for continuous air interfaces)</span>
+                        </button>
+                        <button onclick="applyPreset('busbar_silver')" class="w-full px-3 py-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition group">
+                            <span class="font-bold block text-slate-800 group-hover:text-blue-700 text-xs">Silver-Plated Connections (ACB Joint)</span>
+                            <span class="text-[10px] text-slate-500">Target limit: 115°C (Maximum allowed contact point interface)</span>
+                        </button>
+                        <button onclick="applyPreset('acb_cubicle')" class="w-full px-3 py-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition group">
+                            <span class="font-bold block text-slate-800 group-hover:text-blue-700 text-xs">ACB Breaker Cubicle Hotspot</span>
+                            <span class="text-[10px] text-slate-500">Heavy localized heating, high convective share (k = 0.85)</span>
+                        </button>
+                        <button onclick="applyPreset('mcc_drawer')" class="w-full px-3 py-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl text-left transition group">
+                            <span class="font-bold block text-slate-800 group-hover:text-blue-700 text-xs">MCC Compartment Drawer (Restricted Airflow)</span>
+                            <span class="text-[10px] text-slate-500">High density, low ventilation velocity, high bulk air rise (k = 0.55)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Parameters Form Card -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-square-poll-vertical text-blue-600"></i> 2. Baseline Test/Rating Point
+                    </h2>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                            <span>Nominal Rating Current ($I_0$)</span>
+                            <span id="val-I0" class="text-blue-600 font-mono text-sm">1600 A</span>
+                        </div>
+                        <input type="range" id="input-I0" min="50" max="6300" step="10" value="1600" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-0.5">
+                            <span id="val-I0-min">50 A</span>
+                            <span id="val-I0-mid">3200 A</span>
+                            <span id="val-I0-max">6300 A</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Base Ambient ($T_{amb0}$)</label>
+                            <div class="relative">
+                                <input type="number" id="input-Tamb0" value="35" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 font-mono focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                                <span class="absolute right-3 top-2.5 text-slate-400 text-xs font-semibold">°C</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Base Device ($T_{obj0}$)</label>
+                            <div class="relative">
+                                <input type="number" id="input-Tobj0" value="90" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 font-mono focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                                <span class="absolute right-3 top-2.5 text-slate-400 text-xs font-semibold">°C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-100 my-1"></div>
+
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-gears text-blue-600"></i> 3. Internal Thermal Physics
+                    </h2>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                            <span>Convective share coefficient ($k$)</span>
+                            <span id="val-k" class="text-blue-600 font-mono text-sm">0.75</span>
+                        </div>
+                        <input type="range" id="input-k" min="0.10" max="0.99" step="0.01" value="0.75" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        <p class="text-[10px] text-slate-400 leading-normal mt-1">Fraction of cooling via NC boundary-layer (scales ∝ x<sup>n</sup> · ΔT<sup>1.25</sup>); remainder (1−k) is bulk air advection (scales ∝ x · ΔT).</p>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                            <span>Boundary Flow Exponent ($n$)</span>
+                            <span id="val-n" class="text-blue-600 font-mono text-sm">0.70</span>
+                        </div>
+                        <input type="range" id="input-n" min="0.5" max="0.9" step="0.02" value="0.70" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        <p class="text-[10px] text-slate-400 leading-normal mt-1">Forced convection velocity scaling ($h \propto v^n$). Large vertical busbar stacks typically average 0.70.</p>
+                    </div>
+
+                    <div class="border-t border-slate-100 my-1"></div>
+
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-compass text-blue-600"></i> 4. Projected Operating Limits
+                    </h2>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Max Allowed ($T_{obj}$)</label>
+                            <div class="relative">
+                                <input type="number" id="input-Tobj" value="90" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 font-mono focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                                <span class="absolute right-3 top-2.5 text-slate-400 text-xs font-semibold">°C</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Design Ambient ($T_{amb}$)</label>
+                            <div class="relative">
+                                <input type="number" id="input-Tamb" value="50" class="w-full bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm text-slate-800 font-mono focus:ring-2 focus:ring-blue-100 focus:border-blue-500">
+                                <span class="absolute right-3 top-2.5 text-slate-400 text-xs font-semibold">°C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                            <span>Flow Ratio ($x = \text{Flow}/\text{Flow}_0$)</span>
+                            <span id="val-x" class="text-blue-600 font-mono text-sm">1.50×</span>
+                        </div>
+                        <input type="range" id="input-x" min="0.1" max="4.0" step="0.05" value="1.50" class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono mt-0.5">
+                            <span>0.1x (Choked)</span>
+                            <span>1.0x (Base)</span>
+                            <span>4.0x (Max Fan)</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Content Panels: Output & Visualizer -->
+            <section class="lg:col-span-8 flex flex-col gap-6">
+
+                <!-- Output Numbers Header Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                    <!-- Allowable Current Card -->
+                    <div class="bg-gradient-to-br from-blue-50 to-white p-5 rounded-2xl border border-blue-100 relative overflow-hidden shadow-sm">
+                        <div class="absolute top-0 right-0 p-4 opacity-5">
+                            <i class="fa-solid fa-bolt text-5xl text-blue-600"></i>
+                        </div>
+                        <span class="text-xs font-bold text-blue-600 uppercase tracking-wider block">Allowable Swgr Current</span>
+                        <span id="result-current" class="text-3xl font-extrabold text-slate-900 font-mono tracking-tight block my-1">1542 A</span>
+                        <div class="flex items-center gap-1.5 text-xs">
+                            <span id="result-current-pct" class="font-bold text-red-600">-3.6%</span>
+                            <span class="text-slate-500">vs nominal rating ($I_0$)</span>
+                        </div>
+                    </div>
+
+                    <!-- Allowable Power Card -->
+                    <div class="bg-gradient-to-br from-emerald-50 to-white p-5 rounded-2xl border border-emerald-100 relative overflow-hidden shadow-sm">
+                        <div class="absolute top-0 right-0 p-4 opacity-5">
+                            <i class="fa-solid fa-calculator text-5xl text-emerald-600"></i>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider block">Allowed Heat Dissipation</span>
+                        <span id="result-power-pct" class="text-3xl font-extrabold text-slate-900 font-mono tracking-tight block my-1">92.9%</span>
+                        <span class="text-xs text-slate-500">Rel. continuous kW capacity</span>
+                    </div>
+
+                    <!-- Cooling Capacity Factor Card -->
+                    <div class="bg-gradient-to-br from-amber-50 to-white p-5 rounded-2xl border border-amber-100 relative overflow-hidden shadow-sm">
+                        <div class="absolute top-0 right-0 p-4 opacity-5">
+                            <i class="fa-solid fa-temperature-three-quarters text-5xl text-amber-600"></i>
+                        </div>
+                        <span class="text-xs font-bold text-amber-700 uppercase tracking-wider block">Cooling Capacity Factor</span>
+                        <span id="result-resistance" class="text-3xl font-extrabold text-slate-900 font-mono tracking-tight block my-1">0.78×</span>
+                        <span class="text-xs text-slate-500">NC+bulk combined power vs baseline</span>
+                    </div>
+                </div>
+
+                <!-- Unsafe Alert Banner -->
+                <div id="alert-banner" class="hidden bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl flex items-center gap-3 shadow-sm">
+                    <i class="fa-solid fa-triangle-exclamation text-red-500 text-xl"></i>
+                    <div>
+                        <strong class="block text-slate-900">Boundary Infringement!</strong>
+                        <span id="alert-text">Target Ambient is higher than maximum allowed device temperature. No current can flow.</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Switchgear Visual Simulator & Charts Layout Split -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+                    <!-- Interactive SVG Schematic Column -->
+                    <div class="md:col-span-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-between min-h-[420px]">
+                        <div class="w-full border-b border-slate-100 pb-2 mb-3">
+                            <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                <i class="fa-solid fa-network-wired text-blue-600"></i> Bay Model Simulator
+                            </h3>
+                            <p class="text-[10px] text-slate-500">Live physical temperature response visualizer</p>
+                        </div>
+
+                        <!-- Dynamic Switchgear Bay SVG Diagram -->
+                        <div class="w-full flex justify-center py-2">
+                            <svg class="w-full max-w-[160px] h-auto" viewBox="0 0 160 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <!-- Enclosure Outer Frame -->
+                                <rect x="10" y="10" width="140" height="300" rx="6" fill="#f8fafc" stroke="#64748b" stroke-width="4"/>
+                                <rect x="12" y="12" width="136" height="296" rx="4" fill="none" stroke="#e2e8f0" stroke-width="2"/>
+
+                                <!-- Backplane/Structure grids -->
+                                <line x1="10" y1="100" x2="150" y2="100" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3,3"/>
+                                <line x1="10" y1="200" x2="150" y2="200" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3,3"/>
+
+                                <!-- Top Exhaust Air Chamber -->
+                                <rect x="20" y="20" width="120" height="40" rx="3" fill="#e2e8f0" fill-opacity="0.5"/>
+                                <!-- Top fan structural frame -->
+                                <circle cx="80" cy="40" r="16" fill="#94a3b8" />
+
+                                <!-- SVG FAN BLADES (Rotated dynamically via JS) -->
+                                <g id="svg-fan-blades" style="transform-origin: 80px 40px;">
+                                    <path d="M80,40 C80,30 75,25 80,25 C85,25 80,30 80,40 Z" fill="#475569" stroke="#334155" stroke-width="0.5"/>
+                                    <path d="M80,40 C80,50 85,55 80,55 C75,55 80,50 80,40 Z" fill="#475569" stroke="#334155" stroke-width="0.5"/>
+                                    <path d="M80,40 C70,40 65,45 65,40 C65,35 70,40 80,40 Z" fill="#475569" stroke="#334155" stroke-width="0.5"/>
+                                    <path d="M80,40 C90,40 95,35 95,40 C95,45 90,40 80,40 Z" fill="#475569" stroke="#334155" stroke-width="0.5"/>
+                                </g>
+                                <circle cx="80" cy="40" r="4" fill="#1e293b"/>
+
+                                <!-- Bottom Air Intake Louver -->
+                                <path d="M30,290 L50,290 M30,295 L50,295 M30,300 L50,300 M110,290 L130,290 M110,295 L130,295 M110,300 L130,300" stroke="#475569" stroke-width="2" stroke-linecap="round"/>
+
+                                <!-- Internal Incoming/Outgoing Device (e.g. ACB breaker block) -->
+                                <rect id="svg-breaker" x="35" y="115" width="90" height="70" rx="4" fill="#cbd5e1" stroke="#475569" stroke-width="2"/>
+                                <rect x="45" y="125" width="70" height="30" rx="2" fill="#94a3b8" fill-opacity="0.3"/>
+                                <!-- Breaker details (Status, display) -->
+                                <rect x="50" y="130" width="20" height="10" rx="1" fill="#22c55e" />
+                                <line x1="80" y1="135" x2="105" y2="135" stroke="#1e293b" stroke-width="2"/>
+                                <line x1="80" y1="140" x2="100" y2="140" stroke="#1e293b" stroke-width="2"/>
+
+                                <!-- Heat Core (Inside/Behind Breaker or Copper bar stack) -->
+                                <rect id="svg-heat-aura" x="40" y="110" width="80" height="80" rx="8" fill="#ef4444" fill-opacity="0" stroke="#f97316" stroke-width="2" stroke-dasharray="4,2"/>
+
+                                <!-- Main Vertical Copper Busbars passing through -->
+                                <g id="svg-busbars">
+                                    <rect id="svg-bar1" x="55" y="60" width="8" height="220" rx="1" fill="#ea580c" />
+                                    <rect id="svg-bar2" x="76" y="60" width="8" height="220" rx="1" fill="#ea580c" />
+                                    <rect id="svg-bar3" x="97" y="60" width="8" height="220" rx="1" fill="#ea580c" />
+                                </g>
+
+                                <!-- Flow Arrows (representing advection stream upward) -->
+                                <g id="svg-flow-arrows" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path id="arrow1" d="M35,260 L35,240 L30,245 M35,240 L40,245" />
+                                    <path id="arrow2" d="M125,260 L125,240 L120,245 M125,240 L130,245" />
+                                    <path id="arrow3" d="M80,95 L80,75 L75,80 M80,75 L85,80" />
+                                </g>
+                            </svg>
+                        </div>
+
+                        <!-- Realtime Indicator Readout labels -->
+                        <div class="w-full text-center text-[11px] font-mono bg-slate-50 border border-slate-100 p-2 rounded-lg mt-2">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Air Intake:</span>
+                                <span id="visual-tamb-txt" class="font-bold text-blue-600">50.0 °C</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Max Allowed (T<sub>obj</sub>):</span>
+                                <span id="visual-tobj-txt" class="font-bold text-red-600">90.0 °C</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart Panel Columns -->
+                    <div class="md:col-span-8 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between min-h-[420px]">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-3 gap-3">
+                            <div>
+                                <h3 class="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="fa-solid fa-chart-line text-blue-600"></i> Performance Profiles
+                                </h3>
+                                <p class="text-[10px] text-slate-500">Sensitivity maps — grey dashed = const-R reference (v2)</p>
+                            </div>
+
+                            <!-- Control Selectors Container (Stacked / Responsive) -->
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <!-- Y-Axis Unit Toggle -->
+                                <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200">
+                                    <button onclick="toggleYUnit('amps')" id="btn-unit-amps" class="px-2.5 py-1 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition">Amps (A)</button>
+                                    <button onclick="toggleYUnit('ratio')" id="btn-unit-ratio" class="px-2.5 py-1 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition">Ratio (I/I₀)</button>
+                                </div>
+                                <!-- Tab Selectors -->
+                                <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-xs border border-slate-200">
+                                    <button onclick="switchTab('tab-amb')" id="btn-tab-amb" class="px-3 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition">vs. Ambient ($T_{amb}$)</button>
+                                    <button onclick="switchTab('tab-flow')" id="btn-tab-flow" class="px-3 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition">vs. Flow Ratio ($x$)</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live Chart containers -->
+                        <div class="mt-4 h-[300px] relative">
+                            <div id="chart-ambient-wrap" class="absolute inset-0">
+                                <canvas id="chart-ambient" class="w-full h-full"></canvas>
+                            </div>
+                            <div id="chart-flow-wrap" class="absolute inset-0 hidden">
+                                <canvas id="chart-flow" class="w-full h-full"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Accordion: Detailed Engineering Proofs & References -->
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                    <button onclick="toggleAccordion()" class="w-full flex justify-between items-center text-left focus:outline-none">
+                        <span class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-graduation-cap text-blue-600"></i>
+                            IEC 61439 / IEC 60890 Thermal Physics — v3 NC-Corrected Model
+                        </span>
+                        <i id="accordion-icon" class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
+                    </button>
+
+                    <div id="accordion-content" class="hidden mt-4 pt-4 border-t border-slate-150 text-sm text-slate-600 flex flex-col gap-4 leading-relaxed">
+                        <p>
+                            In industrial low-voltage switchgear (LV SWGR) design under <strong>IEC 61439-1/-2</strong>, thermal validation is highly regulated to guarantee continuous uptime and protect against busbar flashovers or breakdown of joint coatings. This tool improves on the constant-R approximation by incorporating the IEC 60890 natural convection nonlinearity.
+                        </p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-2">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-150 text-xs">
+                                <strong class="text-slate-900 block mb-1">Standard Temperature Limits (IEC 61439-1, Table 6):</strong>
+                                <ul class="list-disc list-inside space-y-1 text-slate-500">
+                                    <li><span class="text-slate-700 font-semibold">Bare Copper Joint Interfaces:</span> 90°C</li>
+                                    <li><span class="text-slate-700 font-semibold">Tin-Plated Joints:</span> 105°C</li>
+                                    <li><span class="text-slate-700 font-semibold">Silver- or Nickel-Plated Joints:</span> 115°C</li>
+                                    <li><span class="text-slate-700 font-semibold">Manual operating handles:</span> 70°C (metallic)</li>
+                                </ul>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 text-xs">
+                                <strong class="text-slate-900 block mb-1">Why NC correction matters:</strong>
+                                <p class="text-slate-500 leading-normal">
+                                    Natural convection: $h_{NC} \propto \Delta T^{0.25}$, so $P_{NC} \propto \Delta T^{1.25}$ (not linear). The constant-R approximation assumes $P \propto \Delta T$ (exponent 1), which underestimates derating when ambient rises — giving a non-conservative (optimistic) result for ambient-sensitive applications.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-slate-900 font-bold mb-1">1. Baseline Thermal Power Budget</h4>
+                            <p>At rated conditions ($I_0$, $T_{amb0}$, $T_{obj0}$), total Joule loss equals total cooling power. We define baseline cooling power $P_0 = R \cdot I_0^2$ and split it between two parallel physical mechanisms via the convective fraction $k$:</p>
+                            <div class="my-2 p-3 bg-slate-50 rounded-xl text-center font-mono text-slate-800 overflow-x-auto border border-slate-150">
+                                $$P_0 = \underbrace{k \cdot P_0}_{\text{NC boundary layer}} + \underbrace{(1-k) \cdot P_0}_{\text{bulk advection}}$$
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-slate-900 font-bold mb-1">2. Parallel Heat Path Scaling</h4>
+                            <p>Each mechanism scales differently with airflow ratio $x = \text{Flow}/\text{Flow}_0$ and temperature headroom $\Delta T = T_{obj} - T_{amb}$:</p>
+                            <div class="my-2 p-3 bg-slate-50 rounded-xl text-center font-mono text-slate-800 overflow-x-auto border border-slate-150">
+                                $$P_{NC}(x,\Delta T) = k \cdot P_0 \cdot x^n \cdot \left(\frac{\Delta T}{\Delta T_0}\right)^{1.25}$$
+                                $$P_{FC}(x,\Delta T) = (1-k) \cdot P_0 \cdot x \cdot \frac{\Delta T}{\Delta T_0}$$
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">NC exponent 1.25 from IEC 60890 ($h_{NC} \propto \Delta T^{0.25}$, so $P_{NC} \propto \Delta T^{1.25}$). Bulk advection is linear in both flow and $\Delta T$ — exact for enthalpy transport.</p>
+                        </div>
+
+                        <div>
+                            <h4 class="text-slate-900 font-bold mb-1">3. The v3 Current Translation Formula</h4>
+                            <p>Thermal equilibrium requires $R \cdot I^2 = P_{NC} + P_{FC}$. Dividing by $R \cdot I_0^2 = P_0$ eliminates the unknown electrical resistance $R$:</p>
+                            <div class="my-2 p-3 bg-slate-50 rounded-xl text-center font-mono text-slate-800 overflow-x-auto border border-slate-150">
+                                $$I(T_{amb}, x) = I_0 \cdot \sqrt{k \cdot x^n \cdot \left(\frac{\Delta T}{\Delta T_0}\right)^{1.25} + (1-k) \cdot x \cdot \frac{\Delta T}{\Delta T_0}}$$
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">At $x=1$, $\Delta T = \Delta T_0$ (rated point): $I = I_0 \cdot \sqrt{k + (1-k)} = I_0$ ✓. For ambient-only change ($x=1$): effective exponent on $\Delta T/\Delta T_0$ lies between 0.5 (pure bulk, $k \to 0$) and 0.625 (pure NC, $k \to 1$) — matching IEC 61439-1 empirical formula.</p>
+                        </div>
+
+                        <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 text-xs">
+                            <strong class="text-slate-900 block mb-1">Comparison with constant-R (v2) model:</strong>
+                            <p class="text-slate-600">v2: $I = I_0 \sqrt{(\Delta T/\Delta T_0) / (k/x^n + (1-k)/x)}$ — temperature axis exponent always 0.5. v3: exponent weighted by $k$, ranges 0.5–0.625. Difference is small for flow-axis changes but significant for ambient-only: at +10°C ambient rise (55 K→45 K headroom), v2 gives ~9.6% derating vs v3 ~11–12% (closer to IEC 61439-1 empirical 12.2%). Grey dashed chart lines show v2 for comparison.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-200 bg-white py-6 mt-12 text-center text-xs text-slate-500 shadow-inner">
+        <p>© 2026 Thermal & Ventilation Design Utilities — v3 IEC 60890 NC-Corrected Model. For LV SWGR design compliance checks.</p>
+    </footer>
+
+    <!-- Interactive Logic Script -->
+    <script>
+        // Store chart instances globally for re-drawing
+        let chartAmbientInstance = null;
+        let chartFlowInstance = null;
+        let yAxisUnit = 'amps'; // 'amps' or 'ratio'
+        let activeTab = 'tab-amb';
+
+        // Configuration presets tuned specifically for switchgear environments
+        const presets = {
+            busbar_bare:   { k: 0.75, n: 0.70, I0: 1600, Tamb0: 35, Tobj0: 90,  Tobj: 90,  Tamb: 50 },
+            busbar_silver: { k: 0.80, n: 0.70, I0: 3200, Tamb0: 35, Tobj0: 115, Tobj: 115, Tamb: 50 },
+            acb_cubicle:   { k: 0.85, n: 0.65, I0: 2500, Tamb0: 40, Tobj0: 105, Tobj: 105, Tamb: 55 },
+            mcc_drawer:    { k: 0.55, n: 0.80, I0: 400,  Tamb0: 40, Tobj0: 105, Tobj: 105, Tamb: 55,
+                             I0range: { min: 30, max: 400, step: 5 } }
+        };
+        const defaultI0Range = { min: 50, max: 6300, step: 10 };
+
+        // DOM elements
+        const inputs = {
+            I0: document.getElementById('input-I0'),
+            Tamb0: document.getElementById('input-Tamb0'),
+            Tobj0: document.getElementById('input-Tobj0'),
+            k: document.getElementById('input-k'),
+            n: document.getElementById('input-n'),
+            Tobj: document.getElementById('input-Tobj'),
+            Tamb: document.getElementById('input-Tamb'),
+            x: document.getElementById('input-x')
+        };
+
+        const displays = {
+            I0: document.getElementById('val-I0'),
+            k: document.getElementById('val-k'),
+            n: document.getElementById('val-n'),
+            x: document.getElementById('val-x'),
+            resCurrent: document.getElementById('result-current'),
+            resCurrentPct: document.getElementById('result-current-pct'),
+            resPowerPct: document.getElementById('result-power-pct'),
+            resResistance: document.getElementById('result-resistance'),
+            alertBanner: document.getElementById('alert-banner'),
+            alertText: document.getElementById('alert-text'),
+            visualTambTxt: document.getElementById('visual-tamb-txt'),
+            visualTobjTxt: document.getElementById('visual-tobj-txt')
+        };
+
+        // Custom Chart.js plugin: draws a vertical dashed line at a given tick index
+        const verticalLinePlugin = {
+            id: 'verticalLine',
+            beforeDraw(chart) {
+                const opts = chart.config.options.plugins?.verticalLine;
+                if (!opts || opts.xIndex == null) return;
+                const { ctx, chartArea, scales } = chart;
+                if (!scales.x || !chartArea) return;
+                const xPixel = scales.x.getPixelForTick(opts.xIndex);
+                if (xPixel == null || isNaN(xPixel)) return;
+                ctx.save();
+                ctx.beginPath();
+                ctx.setLineDash([6, 4]);
+                ctx.strokeStyle = opts.color || '#ef4444';
+                ctx.lineWidth = 1.5;
+                ctx.moveTo(xPixel, chartArea.top);
+                ctx.lineTo(xPixel, chartArea.bottom);
+                ctx.stroke();
+                if (opts.label) {
+                    ctx.setLineDash([]);
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.fillStyle = opts.color || '#ef4444';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(opts.label, xPixel, chartArea.top + 12);
+                }
+                ctx.restore();
+            }
+        };
+        Chart.register(verticalLinePlugin);
+
+        // Initialize App
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof renderMathInElement === 'function') {
+                renderMathInElement(document.body, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false}
+                    ]
+                });
+            }
+            setupEventListeners();
+            calculateAndRender();
+        });
+
+        function setupEventListeners() {
+            Object.values(inputs).forEach(input => {
+                input.addEventListener('input', () => {
+                    updateValueLabels();
+                    calculateAndRender();
+                });
+            });
+        }
+
+        function updateValueLabels() {
+            displays.I0.textContent = parseFloat(inputs.I0.value).toFixed(0) + ' A';
+            displays.k.textContent = parseFloat(inputs.k.value).toFixed(2);
+            displays.n.textContent = parseFloat(inputs.n.value).toFixed(2);
+            displays.x.textContent = parseFloat(inputs.x.value).toFixed(2) + '×';
+        }
+
+        function applyPreset(presetKey) {
+            const data = presets[presetKey];
+            if (data) {
+                const range = data.I0range || defaultI0Range;
+                inputs.I0.min  = range.min;
+                inputs.I0.max  = range.max;
+                inputs.I0.step = range.step;
+                document.getElementById('val-I0-min').textContent = range.min + ' A';
+                document.getElementById('val-I0-mid').textContent = Math.round((range.min + range.max) / 2) + ' A';
+                document.getElementById('val-I0-max').textContent = range.max + ' A';
+
+                inputs.k.value    = data.k;
+                inputs.n.value    = data.n;
+                inputs.I0.value   = data.I0;
+                inputs.Tamb0.value = data.Tamb0;
+                inputs.Tobj0.value = data.Tobj0;
+                inputs.Tobj.value  = data.Tobj;
+                if (data.Tamb !== undefined) inputs.Tamb.value = data.Tamb;
+                updateValueLabels();
+                calculateAndRender();
+            }
+        }
+
+        function toggleYUnit(unit) {
+            yAxisUnit = unit;
+            const btnAmps = document.getElementById('btn-unit-amps');
+            const btnRatio = document.getElementById('btn-unit-ratio');
+
+            if (unit === 'amps') {
+                btnAmps.className = "px-2.5 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition";
+                btnRatio.className = "px-2.5 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition";
+            } else {
+                btnRatio.className = "px-2.5 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition";
+                btnAmps.className = "px-2.5 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition";
+            }
+            calculateAndRender();
+        }
+
+        // v3 NC-corrected model: parallel heat paths (NC boundary layer + bulk advection)
+        function solveModel(Tamb, x, Tobj, Tamb0, Tobj0, I0, k, n) {
+            if (Tobj0 <= Tamb0) {
+                return { error: "Baseline setting error: Device rating temperature must exceed its ambient." };
+            }
+            if (Tamb >= Tobj) {
+                return { current: 0, powerPct: 0, coolingFactor: 0, warning: `Ambient inlet temp (${Tamb}°C) meets or exceeds your maximum target threshold (${Tobj}°C). Zero current capacity available.` };
+            }
+
+            const dT  = Tobj  - Tamb;
+            const dT0 = Tobj0 - Tamb0;
+            const dTratio = dT / dT0;
+
+            // NC boundary layer: conductance ∝ x^n, heat flux ∝ ΔT^1.25 (IEC 60890)
+            const ncTerm = k * Math.pow(x, n) * Math.pow(dTratio, 1.25);
+            // Bulk advection: conductance ∝ x, heat flux ∝ ΔT (linear — exact for enthalpy)
+            const fcTerm = (1 - k) * x * dTratio;
+
+            const coolingFactor = ncTerm + fcTerm; // = (I/I0)^2
+
+            if (coolingFactor <= 0) {
+                return { current: 0, powerPct: 0, coolingFactor: 0 };
+            }
+
+            const current  = I0 * Math.sqrt(coolingFactor);
+            const powerPct = coolingFactor * 100;
+
+            return { current, powerPct, coolingFactor, warning: null };
+        }
+
+        // Constant-R reference model (v2 formula) — used for chart comparison lines only
+        function solveModelConstR(Tamb, x, Tobj, Tamb0, Tobj0, I0, k, n) {
+            if (Tamb >= Tobj || Tobj0 <= Tamb0) return { current: 0 };
+            const dTratio  = (Tobj - Tamb) / (Tobj0 - Tamb0);
+            const flowFactor = (k / Math.pow(x, n)) + ((1 - k) / x);
+            if (flowFactor <= 0) return { current: 0 };
+            return { current: I0 * Math.sqrt(dTratio / flowFactor) };
+        }
+
+        function calculateAndRender() {
+            const I0    = parseFloat(inputs.I0.value);
+            const Tamb0 = parseFloat(inputs.Tamb0.value);
+            const Tobj0 = parseFloat(inputs.Tobj0.value);
+            const k     = parseFloat(inputs.k.value);
+            const n     = parseFloat(inputs.n.value);
+            const Tobj  = parseFloat(inputs.Tobj.value);
+            const Tamb  = parseFloat(inputs.Tamb.value);
+            const x     = parseFloat(inputs.x.value);
+
+            const result = solveModel(Tamb, x, Tobj, Tamb0, Tobj0, I0, k, n);
+
+            displays.visualTambTxt.textContent = Tamb.toFixed(1) + " °C";
+            displays.visualTobjTxt.textContent = Tobj.toFixed(1) + " °C";
+
+            const spinDuration = 3 / Math.max(x, 0.1);
+            document.getElementById('svg-fan-blades').style.animation = `fan-spin ${spinDuration}s linear infinite`;
+            document.getElementById('header-fan-icon').style.animation = `fan-spin ${spinDuration}s linear infinite`;
+
+            const opacity = Math.min(x / 2.5, 1.0);
+            document.getElementById('svg-flow-arrows').style.opacity = opacity;
+
+            if (result.error) {
+                displays.resCurrent.textContent = "ERR";
+                displays.resCurrentPct.textContent = "---";
+                displays.resPowerPct.textContent = "---";
+                displays.resResistance.textContent = "---";
+                displays.alertBanner.classList.remove('hidden');
+                displays.alertText.textContent = result.error;
+                return;
+            }
+
+            const heatRatio = (Tamb / Tobj);
+            const busbarColor = heatRatio > 0.85 ? "#b91c1c" : (heatRatio > 0.7 ? "#ea580c" : "#ca8a04");
+            document.getElementById('svg-bar1').setAttribute('fill', busbarColor);
+            document.getElementById('svg-bar2').setAttribute('fill', busbarColor);
+            document.getElementById('svg-bar3').setAttribute('fill', busbarColor);
+
+            const auraIntensity = Math.min(1.0, Math.max(0.0, (Tamb - Tamb0) / (Tobj - Tamb0)));
+            document.getElementById('svg-heat-aura').setAttribute('fill-opacity', auraIntensity * 0.45);
+
+            if (result.warning) {
+                displays.resCurrent.textContent = "0 A";
+                displays.resCurrentPct.textContent = "-100%";
+                displays.resCurrentPct.className = "font-bold text-red-600";
+                displays.resPowerPct.textContent = "0.0%";
+                displays.resResistance.textContent = result.coolingFactor.toFixed(2) + "×";
+                displays.alertBanner.classList.remove('hidden');
+                displays.alertText.textContent = result.warning;
+            } else {
+                displays.alertBanner.classList.add('hidden');
+                displays.resCurrent.textContent = Math.round(result.current) + ' A';
+
+                const currentDiffPct = ((result.current - I0) / I0) * 100;
+                displays.resCurrentPct.textContent = (currentDiffPct >= 0 ? '+' : '') + currentDiffPct.toFixed(1) + '%';
+                displays.resCurrentPct.className = currentDiffPct >= 0 ? "font-bold text-emerald-600" : "font-bold text-red-600";
+
+                displays.resPowerPct.textContent = result.powerPct.toFixed(1) + '%';
+                displays.resResistance.textContent = result.coolingFactor.toFixed(2) + '×';
+            }
+
+            if (activeTab === 'tab-amb') {
+                generateAmbientChart(I0, Tamb0, Tobj0, k, n, Tobj, x, Tamb);
+            } else {
+                generateFlowChart(I0, Tamb0, Tobj0, k, n, Tobj, Tamb);
+            }
+        }
+
+        function switchTab(activeTabId) {
+            activeTab = activeTabId;
+            const btnAmb  = document.getElementById('btn-tab-amb');
+            const btnFlow = document.getElementById('btn-tab-flow');
+            const wrapAmb  = document.getElementById('chart-ambient-wrap');
+            const wrapFlow = document.getElementById('chart-flow-wrap');
+
+            if (activeTabId === 'tab-amb') {
+                btnAmb.className  = "px-3 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition";
+                btnFlow.className = "px-3 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition";
+                wrapAmb.classList.remove('hidden');
+                wrapFlow.classList.add('hidden');
+            } else {
+                btnFlow.className = "px-3 py-1.5 rounded-lg font-bold text-slate-800 bg-white shadow-xs transition";
+                btnAmb.className  = "px-3 py-1.5 rounded-lg font-semibold text-slate-500 hover:text-slate-900 transition";
+                wrapFlow.classList.remove('hidden');
+                wrapAmb.classList.add('hidden');
+            }
+            calculateAndRender();
+        }
+
+        function generateAmbientChart(I0, Tamb0, Tobj0, k, n, Tobj, currentX, currentTamb) {
+            const canvasEl = document.getElementById('chart-ambient');
+            const context  = canvasEl.getContext('2d');
+
+            const xLabels = [];
+            const flowRatiosToTest = [0.5, 1.0, 1.5, 2.0];
+            const colors = [
+                'rgba(239, 68, 68, 0.95)',
+                'rgba(71, 85, 105, 0.95)',
+                'rgba(37, 99, 235, 0.95)',
+                'rgba(16, 185, 129, 0.95)'
+            ];
+
+            // v3 NC-corrected datasets
+            const datasets = flowRatiosToTest.map((flowRatio, idx) => ({
+                label: `${flowRatio.toFixed(1)}× Flow Rate`,
+                data: [],
+                borderColor: colors[idx],
+                borderWidth: Math.abs(flowRatio - currentX) < 0.1 ? 3.5 : 2,
+                borderDash: flowRatio === 1.0 ? [4, 4] : [],
+                fill: false,
+                tension: 0.1,
+                pointRadius: 0
+            }));
+
+            // Const-R reference data arrays (one per flow ratio)
+            const constRData = flowRatiosToTest.map(() => []);
+
+            const tMin = -10;
+            const tMax = Math.min(Tobj - 5, 80);
+            const tStep = 2;
+            const userTrackData   = [];
+            const userTrackConstR = [];
+
+            for (let t = tMin; t <= tMax; t += tStep) {
+                xLabels.push(t + '°C');
+                flowRatiosToTest.forEach((fr, idx) => {
+                    const v3 = solveModel(t, fr, Tobj, Tamb0, Tobj0, I0, k, n);
+                    const cr = solveModelConstR(t, fr, Tobj, Tamb0, Tobj0, I0, k, n);
+                    datasets[idx].data.push(yAxisUnit === 'amps' ? (v3.current || 0) : (v3.current || 0) / I0);
+                    constRData[idx].push(yAxisUnit === 'amps' ? (cr.current || 0) : (cr.current || 0) / I0);
+                });
+                const trackV3 = solveModel(t, currentX, Tobj, Tamb0, Tobj0, I0, k, n);
+                const trackCR = solveModelConstR(t, currentX, Tobj, Tamb0, Tobj0, I0, k, n);
+                userTrackData.push(yAxisUnit === 'amps' ? (trackV3.current || 0) : (trackV3.current || 0) / I0);
+                userTrackConstR.push(yAxisUnit === 'amps' ? (trackCR.current || 0) : (trackCR.current || 0) / I0);
+            }
+
+            // User-selected x trace when off the preset grid
+            const isPresetX = flowRatiosToTest.some(fr => Math.abs(fr - currentX) < 0.15);
+            if (!isPresetX) {
+                datasets.push({
+                    label: `${currentX.toFixed(2)}× Flow (selected)`,
+                    data: userTrackData,
+                    borderColor: '#f59e0b',
+                    borderWidth: 2.5,
+                    borderDash: [3, 3],
+                    backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0
+                });
+            }
+
+            // Append const-R comparison lines (same color, thin dashed) after v3 lines
+            flowRatiosToTest.forEach((fr, idx) => {
+                datasets.push({
+                    label: `${fr.toFixed(1)}× const-R`,
+                    data: constRData[idx],
+                    borderColor: colors[idx],
+                    borderWidth: 1,
+                    borderDash: [3, 5],
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 0
+                });
+            });
+            if (!isPresetX) {
+                datasets.push({
+                    label: `${currentX.toFixed(2)}× const-R`,
+                    data: userTrackConstR,
+                    borderColor: '#f59e0b',
+                    borderWidth: 1,
+                    borderDash: [3, 5],
+                    fill: false,
+                    tension: 0.1,
+                    pointRadius: 0
+                });
+            }
+
+            // nV3 = number of v3 legend entries (hide const-R from legend)
+            const nV3 = isPresetX ? flowRatiosToTest.length : flowRatiosToTest.length + 1;
+            const tambTickIndex = Math.round((currentTamb - tMin) / tStep);
+
+            // Robust canvas cleanup — handles case where previous creation threw before assignment
+            const staleChart = Chart.getChart(canvasEl);
+            if (staleChart) staleChart.destroy();
+            chartAmbientInstance = null;
+
+            chartAmbientInstance = new Chart(context, {
+                type: 'line',
+                data: { labels: xLabels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        verticalLine: { xIndex: tambTickIndex, color: '#ef4444', label: `Tamb=${currentTamb}°C` },
+                        legend: {
+                            labels: {
+                                color: '#475569',
+                                font: { size: 11, weight: 'bold' },
+                                filter: (item, _data) => item.datasetIndex < nV3
+                            },
+                            position: 'bottom'
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                            ticks: { color: '#64748b' },
+                            title: { display: true, text: 'Ambient Air Inlet Temp (Tamb)', color: '#475569', font: { weight: 'bold' } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                            ticks: { color: '#64748b' },
+                            title: {
+                                display: true,
+                                text: yAxisUnit === 'amps' ? 'Max Continuous Current (Amps)' : 'Current Ratio (I / I₀)',
+                                color: '#475569',
+                                font: { weight: 'bold' }
+                            },
+                            min: 0
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateFlowChart(I0, Tamb0, Tobj0, k, n, Tobj, currentTamb) {
+            const context = document.getElementById('chart-flow').getContext('2d');
+
+            const xLabels  = [];
+            const flowSteps = [];
+            for (let f = 0.2; f <= 4.0; f += 0.1) {
+                xLabels.push(f.toFixed(1) + '×');
+                flowSteps.push(f);
+            }
+
+            const ambTempOffsets = [currentTamb - 10, currentTamb, currentTamb + 10];
+            const colors = [
+                'rgba(16, 185, 129, 0.9)',
+                'rgba(37, 99, 235, 0.95)',
+                'rgba(239, 68, 68, 0.9)'
+            ];
+
+            const datasets = ambTempOffsets.flatMap((amb, idx) => {
+                const v3Points = flowSteps.map(f => {
+                    const r = solveModel(amb, f, Tobj, Tamb0, Tobj0, I0, k, n).current;
+                    return yAxisUnit === 'amps' ? r : r / I0;
+                });
+                const crPoints = flowSteps.map(f => {
+                    const r = solveModelConstR(amb, f, Tobj, Tamb0, Tobj0, I0, k, n).current;
+                    return yAxisUnit === 'amps' ? r : r / I0;
+                });
+                return [
+                    {
+                        label: `${amb.toFixed(0)}°C (v3)`,
+                        data: v3Points,
+                        borderColor: colors[idx],
+                        borderWidth: idx === 1 ? 3 : 1.5,
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: `${amb.toFixed(0)}°C (const-R)`,
+                        data: crPoints,
+                        borderColor: colors[idx],
+                        borderWidth: idx === 1 ? 1.5 : 1,
+                        borderDash: [3, 4],
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 0
+                    }
+                ];
+            });
+
+            const staleFlowChart = Chart.getChart(document.getElementById('chart-flow'));
+            if (staleFlowChart) staleFlowChart.destroy();
+            chartFlowInstance = null;
+
+            chartFlowInstance = new Chart(context, {
+                type: 'line',
+                data: { labels: xLabels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#475569', font: { size: 10, weight: 'bold' }, filter: item => !item.text.includes('const-R') || item.datasetIndex < 2 },
+                            position: 'bottom'
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                            ticks: { color: '#64748b' },
+                            title: { display: true, text: 'Forced Airflow Scale (x = Flow / Flow0)', color: '#475569', font: { weight: 'bold' } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(226, 232, 240, 0.8)' },
+                            ticks: { color: '#64748b' },
+                            title: {
+                                display: true,
+                                text: yAxisUnit === 'amps' ? 'Max Continuous Current (Amps)' : 'Current Ratio (I / I₀)',
+                                color: '#475569',
+                                font: { weight: 'bold' }
+                            },
+                            min: 0
+                        }
+                    }
+                }
+            });
+        }
+
+        function toggleAccordion() {
+            const content = document.getElementById('accordion-content');
+            const icon    = document.getElementById('accordion-icon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                content.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+    </script>
+</body>
+</html>
